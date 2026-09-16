@@ -23,6 +23,10 @@ The default addresses are:
 - application: `http://localhost:8080`
 - PostgreSQL: `localhost:5432`
 
+Plain HTTP is supported for local setup and uses a non-`Secure` development
+session cookie. Do not expose that transport beyond a trusted development
+machine; installed instances require HTTPS at their deployment boundary.
+
 The default database password, `local-development-only`, is intentionally
 fictitious and unsuitable outside a developer machine. Override values in the
 shell or in the ignored `deploy/.env`:

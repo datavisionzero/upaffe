@@ -39,7 +39,10 @@ are stored as self-describing Argon2id hashes with a random salt and bounded
 input. An unknown email runs the same password verification work as a known
 email; unknown email and wrong password both produce `sign_in_rejected` in the
 same relevant timing class. A failed-sign-in throttle is keyed by both remote
-address and normalized email without revealing which key caused rejection.
+address and normalized email without revealing which key caused rejection. Its
+bounded in-memory 15-minute window admits five failures per normalized email
+and twenty per source address; a throttled attempt is still
+`sign_in_rejected`.
 
 A successful sign-in always creates a fresh, random server-side browser
 session. Only a SHA-256 digest of its secret is stored. The cookie is

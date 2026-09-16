@@ -17,4 +17,16 @@ public sealed class Refusal(
 
     public static Refusal BootstrapClosed() =>
         new("bootstrap_closed", "This instance already has its operator.");
+
+    public static Refusal SignInRejected() =>
+        new("sign_in_rejected", "The email address or password is not correct.");
+
+    public static Refusal AuthenticationRequired() =>
+        new("authentication_required", "Sign in with a browser session.");
+
+    public static Refusal AuthenticationRejected() =>
+        new("authentication_rejected", "The presented authentication was rejected.");
+
+    public static Refusal Forbidden() =>
+        new("forbidden", "This access path cannot perform that operation.");
 }

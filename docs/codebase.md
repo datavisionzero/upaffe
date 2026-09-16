@@ -12,8 +12,9 @@ version endpoints, PostgreSQL context, forward-only startup migration, checked-i
 OpenAPI contract, two generated client packages, React application shell, and
 Go CLI exist. The access and project domain and its PostgreSQL schema now form
 the first product model. A fresh instance can establish its sole operator
-through a short-lived, one-use bootstrap proof. Local Compose builds and runs
-that complete skeleton; production delivery remains planned.
+through a short-lived, one-use bootstrap proof, then admit that operator through
+a revocable server-side browser session. Local Compose builds and runs that
+complete skeleton; production delivery remains planned.
 
 ## Provenance and maintenance boundary
 
@@ -137,6 +138,9 @@ or fixed-length secret digests; database constraints enforce the singleton
 operator, credential lifecycles, and stable project identity. Startup can arm a
 30-minute bootstrap grant only while no operator exists; the proof is digested
 before persistence and consumed transactionally with operator creation.
+Browser authentication compares Argon2id work for every email outcome, stores
+only the session-secret digest, and applies both idle and absolute expiry during
+each admission. Cookie-authenticated writes pass the same-origin CSRF guard.
 
 The local Compose environment builds the React application and .NET API into
 one development image and starts it beside PostgreSQL 18. Database readiness

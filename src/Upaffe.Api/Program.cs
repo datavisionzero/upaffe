@@ -15,9 +15,12 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<ArmBootstrap>();
 builder.Services.AddScoped<ReadBootstrapState>();
 builder.Services.AddScoped<EstablishOperator>();
+builder.Services.AddScoped<SignIn>();
+builder.Services.AddScoped<SignOut>();
 builder.Services.AddHostedService<SchemaMigrationService>();
 builder.Services.AddHostedService<BootstrapService>();
 builder.Services.AddUpaffeOpenApi();
+builder.Services.AddBrowserAuthentication();
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -31,6 +34,9 @@ app.UseUpaffeVersion();
 app.UseMiddleware<ProblemMiddleware>();
 app.UseDefaultFiles();
 app.UseStaticFiles();
+app.UseAuthentication();
+app.UseMiddleware<BrowserCsrfMiddleware>();
+app.UseAuthorization();
 
 app.MapOpenApi("/api/openapi/{documentName}.json");
 
@@ -38,6 +44,7 @@ var api = app.MapGroup("/api");
 api.MapInstance();
 api.MapHealth();
 api.MapBootstrap();
+api.MapSession();
 api.MapFallback(() => Results.NotFound());
 
 app.MapFallbackToFile("index.html");

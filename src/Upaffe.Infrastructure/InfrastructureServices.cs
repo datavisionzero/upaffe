@@ -21,6 +21,7 @@ public static class InfrastructureServices
                 warnings.Log((RelationalEventId.CommandError, LogLevel.Debug))));
         services.AddScoped<SchemaMigrator>();
         services.AddScoped<IBootstrapStore, BootstrapStore>();
+        services.AddScoped<IBrowserSessionStore, BrowserSessionStore>();
         services.AddSingleton<IPasswordHasher, Argon2idPasswordHasher>();
         return services;
     }

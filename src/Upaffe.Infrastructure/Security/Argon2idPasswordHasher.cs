@@ -30,7 +30,7 @@ public sealed class Argon2idPasswordHasher : IPasswordHasher
         string password,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrEmpty(encodedHash) || string.IsNullOrEmpty(password))
+        if (string.IsNullOrEmpty(encodedHash))
         {
             return false;
         }
