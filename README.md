@@ -31,6 +31,11 @@ can answer. It is a technical liveness signal, not evidence that monitoring is
 working. `GET /api/health/ready` additionally verifies that PostgreSQL answers
 with exactly the migration set known to this build.
 
+A fresh database needs a one-time operator bootstrap. Set a locally generated
+`UPAFFE_BOOTSTRAP_SECRET` for one startup and follow the request documented in
+[`docs/operations.md`](./docs/operations.md#establish-the-operator). Do not put
+that value in a committed file or URL.
+
 ## API contract and generated clients
 
 `docs/api/openapi.json` is the checked-in source for the TypeScript and Go

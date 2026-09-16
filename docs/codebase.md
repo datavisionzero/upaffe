@@ -11,8 +11,9 @@ Current state: the four-layer .NET 10 solution, API host, technical health and
 version endpoints, PostgreSQL context, forward-only startup migration, checked-in
 OpenAPI contract, two generated client packages, React application shell, and
 Go CLI exist. The access and project domain and its PostgreSQL schema now form
-the first product model. Local Compose builds and runs that complete skeleton;
-production delivery remains planned.
+the first product model. A fresh instance can establish its sole operator
+through a short-lived, one-use bootstrap proof. Local Compose builds and runs
+that complete skeleton; production delivery remains planned.
 
 ## Provenance and maintenance boundary
 
@@ -133,7 +134,9 @@ refuses a database containing unknown migrations. Integration tests use a real
 PostgreSQL 18 container and isolate every test in its own database. The full
 rule is in [`storage.md`](./storage.md). Access rows retain only password hashes
 or fixed-length secret digests; database constraints enforce the singleton
-operator, credential lifecycles, and stable project identity.
+operator, credential lifecycles, and stable project identity. Startup can arm a
+30-minute bootstrap grant only while no operator exists; the proof is digested
+before persistence and consumed transactionally with operator creation.
 
 The local Compose environment builds the React application and .NET API into
 one development image and starts it beside PostgreSQL 18. Database readiness

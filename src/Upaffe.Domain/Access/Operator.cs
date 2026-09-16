@@ -42,6 +42,8 @@ public sealed class Operator
 
     public static string NormalizeEmail(string email) => AcceptedEmail(email).ToUpperInvariant();
 
+    public static string ValidateEmail(string email) => AcceptedEmail(email);
+
     private static string AcceptedEmail(string value)
     {
         var email = (value ?? string.Empty).Trim();

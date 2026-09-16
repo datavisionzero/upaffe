@@ -27,6 +27,14 @@ public sealed class BootstrapGrant
 
     public static BootstrapGrant Arm(byte[] secretHash, DateTimeOffset now) => new(secretHash, now);
 
+    public void Rearm(byte[] secretHash, DateTimeOffset now)
+    {
+        SecretHash = SecretValue.RequiredHash(secretHash, nameof(secretHash));
+        ArmedAt = now;
+        ExpiresAt = now.Add(Lifetime);
+        ConsumedAt = null;
+    }
+
     public bool Accepts(byte[] candidateHash, DateTimeOffset now) =>
         ConsumedAt is null
         && now < ExpiresAt

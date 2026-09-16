@@ -1,20 +1,35 @@
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Upaffe.Infrastructure.Persistence;
 
 namespace Upaffe.IntegrationTests;
 
-internal sealed class AnInstance(string connectionString) : WebApplicationFactory<Program>
+internal sealed class AnInstance(
+    string connectionString,
+    IReadOnlyDictionary<string, string?>? settings = null,
+    TimeProvider? clock = null,
+    ILoggerProvider? logProvider = null) : WebApplicationFactory<Program>
 {
-    public static async Task<AnInstance> StartedAsync(PostgresFixture postgres) =>
-        new(await postgres.CreateDatabaseAsync());
+    public static async Task<AnInstance> StartedAsync(
+        PostgresFixture postgres,
+        IReadOnlyDictionary<string, string?>? settings = null,
+        TimeProvider? clock = null,
+        ILoggerProvider? logProvider = null) =>
+        new(await postgres.CreateDatabaseAsync(), settings, clock, logProvider);
 
-    public static AnInstance Against(string connectionString) => new(connectionString);
+    public static AnInstance Against(
+        string connectionString,
+        IReadOnlyDictionary<string, string?>? settings = null,
+        TimeProvider? clock = null,
+        ILoggerProvider? logProvider = null) =>
+        new(connectionString, settings, clock, logProvider);
 
-    public AnInstance StartedAgain() => new(connectionString);
+    public AnInstance StartedAgain() => new(connectionString, settings, clock, logProvider);
 
     public static UpaffeDbContext ContextFor(string connectionString) =>
         new(new DbContextOptionsBuilder<UpaffeDbContext>().UseNpgsql(connectionString).Options);
@@ -25,10 +40,33 @@ internal sealed class AnInstance(string connectionString) : WebApplicationFactor
     protected override IHost CreateHost(IHostBuilder builder)
     {
         builder.ConfigureHostConfiguration(configuration =>
-            configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            var values = new Dictionary<string, string?>
             {
                 ["ConnectionStrings:Postgres"] = connectionString,
-            }));
+            };
+            if (settings is not null)
+            {
+                foreach (var (key, value) in settings)
+                {
+                    values[key] = value;
+                }
+            }
+
+            configuration.AddInMemoryCollection(values);
+        });
+        builder.ConfigureServices(services =>
+        {
+            if (clock is not null)
+            {
+                services.AddSingleton(clock);
+            }
+        });
+        if (logProvider is not null)
+        {
+            builder.ConfigureLogging(logging => logging.AddProvider(logProvider));
+        }
+
         return base.CreateHost(builder);
     }
 }

@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Upaffe.Api.Hosting;
 using Upaffe.Api.Http;
+using Upaffe.Application.Access;
 using Upaffe.Application.Ports;
 using Upaffe.Infrastructure;
 
@@ -10,7 +11,12 @@ var builder = WebApplication.CreateBuilder(args);
 var database = DatabaseSettings.FromConnectionString(
     builder.Configuration.GetConnectionString(DatabaseSettings.ConnectionStringName));
 builder.Services.AddUpaffeInfrastructure(database);
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<ArmBootstrap>();
+builder.Services.AddScoped<ReadBootstrapState>();
+builder.Services.AddScoped<EstablishOperator>();
 builder.Services.AddHostedService<SchemaMigrationService>();
+builder.Services.AddHostedService<BootstrapService>();
 builder.Services.AddUpaffeOpenApi();
 
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -22,6 +28,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 var app = builder.Build();
 
 app.UseUpaffeVersion();
+app.UseMiddleware<ProblemMiddleware>();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
@@ -30,6 +37,7 @@ app.MapOpenApi("/api/openapi/{documentName}.json");
 var api = app.MapGroup("/api");
 api.MapInstance();
 api.MapHealth();
+api.MapBootstrap();
 api.MapFallback(() => Results.NotFound());
 
 app.MapFallbackToFile("index.html");

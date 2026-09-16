@@ -25,6 +25,7 @@ services:
     environment:
       ConnectionStrings__Postgres: >-
         Host=db;Port=5432;Database=upaffe;Username=upaffe;Password=${UPAFFE_DEV_DB_PASSWORD:-local-development-only}
+      UPAFFE_BOOTSTRAP_SECRET: ${UPAFFE_BOOTSTRAP_SECRET:-}
     ports:
       - "${UPAFFE_DEV_PORT:-8080}:8080"
     depends_on:

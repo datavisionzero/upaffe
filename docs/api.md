@@ -5,18 +5,29 @@ Every operation is below `/api`; other paths are reserved for the SPA. There is
 no API-version segment. Each response carries `Upaffe-Version`, whose value is
 the release tag or `0.0.0-dev` for an untagged build.
 
-This foundation exposes only technical operations:
+The bootstrap operations are the first product-facing API. They are public only
+while establishing the sole operator; the proof itself is a high-entropy secret
+supplied in the request body.
 
 | Method and path | Purpose |
 | --- | --- |
 | `GET /api/version` | The instance version. This is the first operation exercised by both generated clients. |
 | `GET /api/health/live` | Whether the process can answer; it touches no dependency. |
 | `GET /api/health/ready` | Whether PostgreSQL answers with exactly the schema this binary knows. |
+| `GET /api/bootstrap` | Whether an operator is still required and whether a live bootstrap proof is available. |
+| `POST /api/bootstrap` | Establish the sole operator with the bootstrap proof, email, and password. |
 | `GET /api/openapi/v1.json` | The generated OpenAPI document. It does not list itself. |
 
-All are currently anonymous and expose no product data. Authentication and
-authorization arrive with the access epic. Liveness and readiness are technical
-deployment checks; neither asserts that the monitoring loop is progressing.
+These operations are anonymous. Bootstrap is nevertheless authorized by its
+one-use proof; normal authentication and authorization arrive in the following
+access tickets. Liveness and readiness are technical deployment checks; neither
+asserts that the monitoring loop is progressing.
+
+`POST /api/bootstrap` returns `204` and no body on success. Expected refusals use
+`application/problem+json` with a stable `code`: `validation` (`400`),
+`bootstrap_rejected` (`401`) for missing, wrong, or expired proofs, and
+`bootstrap_closed` (`409`) after an operator exists. The proof and password are
+never returned.
 
 ## Contract rule
 
