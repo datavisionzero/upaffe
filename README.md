@@ -126,15 +126,18 @@ UPAFFE_URL=http://localhost:8080 go -C src/cli run ./cmd/ua status --json
 
 The web application is then available at `http://localhost:8080`.
 
-For a disposable end-to-end check, including the web shell, both health paths,
-the version endpoint, and the generated CLI client, run:
+For a disposable end-to-end check of the compiled web host, one-operator
+bootstrap, browser session, management credential rotation/revocation, and the
+same project through browser, CLI, and direct API paths, run:
 
 ```sh
 scripts/smoke.sh
 ```
 
-The smoke test uses ports 18080 and 15432 by default, creates a unique Compose
-project, and removes its containers and database volume when it finishes.
+The system test uses ports 18080 and 15432 by default, creates a unique Compose
+project from an empty database, verifies that ordinary output and logs contain
+none of its generated secrets, and removes its containers and volume when it
+finishes.
 
 The default password is explicitly development-only. Set
 `UPAFFE_DEV_DB_PASSWORD`, `UPAFFE_DEV_DB_PORT`, or `UPAFFE_DEV_PORT` in the

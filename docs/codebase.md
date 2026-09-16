@@ -171,10 +171,11 @@ gates application startup, application readiness verifies the migrated
 database, and a named volume preserves local state across ordinary restarts.
 Production images, reverse proxying, upgrades, backup, restore, and
 failed-upgrade recovery belong to the later operations epic. GitHub Actions
-reproduces the documented local build, test, generation, and Compose validation
-without requiring private secrets from contributors. Only the setup actions'
-package-manager caches persist between jobs; generated clients and distributable
-build outputs are rebuilt and are not uploaded.
+reproduces the documented local build, test, generation, Compose validation,
+and disposable access/project system test without requiring private secrets
+from contributors. Only the setup actions' package-manager caches persist
+between jobs; generated clients and distributable build outputs are rebuilt and
+are not uploaded.
 
 ## Development and verification commands
 
@@ -185,17 +186,18 @@ Run these from the repository root:
 - `scripts/check-contract.sh` compares the running API description with the
   checked-in OpenAPI document, regenerates both clients, and compiles their
   consumers.
-- `scripts/smoke.sh` builds an isolated Compose project, checks the web shell,
-  liveness, readiness, version operation, and CLI path, then removes its
-  disposable database volume.
+- `scripts/smoke.sh` builds an isolated Compose project from an empty database;
+  establishes the operator and browser session; manages one project through
+  browser, CLI, and direct API paths; proves credential rotation/revocation and
+  singular persisted identity; checks ordinary artifacts and app logs for its
+  secrets; then removes the disposable database volume.
 - `docker compose -f deploy/docker-compose.dev.yml up --build --wait` starts the
   persistent local development environment described in
   [`operations.md`](./operations.md).
 
 Generated TypeScript and Go clients are prerequisites produced by their normal
-build commands, not files a contributor edits. A green technical health or
-smoke result proves only that the foundation is connected; it does not claim
-that monitoring exists or works.
+build commands, not files a contributor edits. A green system result proves the
+access and project slice, not that monitoring exists or works.
 
 ## Documentation ownership
 

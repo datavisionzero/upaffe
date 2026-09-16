@@ -68,6 +68,22 @@ the grant, and future starts cannot arm bootstrap again while the operator
 exists. A restart before success may arm a new proof; an expired, missing, or
 incorrect proof receives the same `bootstrap_rejected` response.
 
+## Browser workflow
+
+Opening the application root checks bootstrap and session state through the
+same documented API. A database without an operator shows the establishment
+form; when no live proof is armed, it explains that setup cannot proceed and
+offers a state refresh. After establishment, or on an initialized instance
+without a live session, the application shows sign-in. Proof and password
+values are password fields and leave browser component state when submitted.
+
+After sign-in, the project workspace lists live projects by default. It creates
+a project from an immutable key and mutable display name, renames at the version
+shown, soft-deletes, switches to the deleted list, and restores. A concurrent
+change is shown as a conflict and the list is refreshed rather than silently
+overwritten. The current web slice does not claim monitoring health and does
+not add operations outside the API and `ua` contracts.
+
 ## Change cycle
 
 For quick API work, leave only PostgreSQL running and start .NET on the host:
@@ -90,6 +106,34 @@ Rebuild the composed application after source changes:
 ```sh
 docker compose -f deploy/docker-compose.dev.yml up --build --wait
 ```
+
+## Disposable access and project system test
+
+Run the complete implemented vertical slice from the repository root:
+
+```sh
+scripts/smoke.sh
+```
+
+The script builds an isolated Compose application on ports 18080 and 15432 by
+default, starts with an empty database, and then performs the supported setup
+and administration flow. It establishes the sole operator, signs in through the
+browser-session path, creates and rotates a management credential, and manages
+one stable project through browser-authenticated requests, the real generated
+`ua` CLI, and a direct bearer API request. It proves the rotation overlap,
+immediate revocation, one persisted operator, one surviving project identity,
+and absence of its proof, password, cookie secret, and credential tokens from
+ordinary HTTP/CLI artifacts and application logs. Explicit credential create
+and rotate responses are excluded because revealing the newly issued token once
+is their documented purpose.
+
+The React component tests separately exercise the same generated browser
+operations and verify secret-state clearing, keyboard operation, and bounded
+rendering of API problems. Neither a green system test nor the existence of a
+project claims that any monitor is healthy.
+
+Override `UPAFFE_SMOKE_APP_PORT` or `UPAFFE_SMOKE_DB_PORT` when those ports are
+occupied. The script always removes its containers and disposable volume.
 
 ## Stop, restart, and reset
 

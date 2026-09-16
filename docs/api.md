@@ -5,9 +5,10 @@ Every operation is below `/api`; other paths are reserved for the SPA. There is
 no API-version segment. Each response carries `Upaffe-Version`, whose value is
 the release tag or `0.0.0-dev` for an untagged build.
 
-Bootstrap and browser sessions are the first product-facing API. Bootstrap is
-public only while establishing the sole operator; the proof itself is a
-high-entropy secret supplied in the request body.
+The first product-facing API slice covers bootstrap, browser sessions,
+management credentials, and projects. Bootstrap is public only while
+establishing the sole operator; the proof itself is a high-entropy secret
+supplied in the request body.
 
 | Method and path | Purpose |
 | --- | --- |
