@@ -4,6 +4,9 @@
 lives, which way dependencies point, and which artifacts are authoritative. It
 is updated as each epic changes the repository.
 
+[`CONTEXT.md`](../CONTEXT.md) is the canonical glossary for product terms. Code,
+HTTP, CLI, and web copy use those terms rather than inventing parallel names.
+
 Current state: the four-layer .NET 10 solution, API host, technical health and
 version endpoints, PostgreSQL context, forward-only startup migration, checked-in
 OpenAPI contract, two generated client packages, React application shell, and
