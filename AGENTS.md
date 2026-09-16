@@ -4,10 +4,10 @@ Instructions for coding agents working in this repository. See
 [`VISION.md`](VISION.md) for the product direction, committed MVP and deliberate
 boundaries.
 
-upaffe is at the vision stage: the repository does not yet contain an
-implementation or a released product. Do not describe intended behavior as
-existing behavior. As implementation starts, keep this file and the relevant
-technical documentation current with the repository.
+upaffe is under active implementation and has no released product. Distinguish
+the technical foundation that exists from monitoring behavior that is still
+only committed in the vision. Keep this file and the relevant technical
+documentation current with the repository.
 
 ## Language
 

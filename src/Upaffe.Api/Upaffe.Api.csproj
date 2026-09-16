@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <UserSecretsId>upaffe-api</UserSecretsId>
+    <AssemblyName>upaffe</AssemblyName>
+    <RootNamespace>Upaffe.Api</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Upaffe.Application/Upaffe.Application.csproj" />
+    <ProjectReference Include="../Upaffe.Infrastructure/Upaffe.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

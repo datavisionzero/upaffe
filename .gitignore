@@ -8,5 +8,13 @@ CLAUDE.local.md
 # Research notes, drafts, throwaway scripts.
 /scratchpad/
 
+# .NET build output and local IDE state.
+bin/
+obj/
+artifacts/
+*.user
+*.suo
+.vs/
+
 # macOS
 .DS_Store

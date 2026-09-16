@@ -4,9 +4,10 @@
 lives, which way dependencies point, and which artifacts are authoritative. It
 is updated as each epic changes the repository.
 
-Current state: ADR 0001 and this documentation structure exist. The source,
-tests, deployment files, and interface documents described below are the target
-of UP-E1 and are explicitly marked as planned until their owning ticket lands.
+Current state: the four-layer .NET 10 solution, API host, technical liveness
+endpoint, and their first tests exist. Persistence, clients, web, CLI, delivery,
+and interface documents described below remain planned until their owning
+ticket lands.
 
 ## Provenance and maintenance boundary
 
@@ -36,10 +37,10 @@ upaffe/
 │  ├─ install.md             supported installation, when implemented
 │  └─ operations.md          operating procedures, when implemented
 ├─ src/
-│  ├─ Upaffe.Domain/         domain rules (planned: UP-3)
-│  ├─ Upaffe.Application/    use cases and required ports (planned: UP-3)
-│  ├─ Upaffe.Infrastructure/ adapters and PostgreSQL (planned: UP-3/UP-4)
-│  ├─ Upaffe.Api/            HTTP and composition root (planned: UP-3)
+│  ├─ Upaffe.Domain/         domain rules
+│  ├─ Upaffe.Application/    use cases and required ports
+│  ├─ Upaffe.Infrastructure/ adapters; PostgreSQL follows in UP-4
+│  ├─ Upaffe.Api/            HTTP and composition root
 │  ├─ cli/                   standalone Go CLI `ua` (planned: UP-7)
 │  └─ web/                   React application (planned: UP-6)
 └─ tests/
@@ -69,7 +70,7 @@ Api ──────> Application ──────> Domain
 - **API** is the composition root and HTTP boundary. It is the only productive
   project that knows all implementation layers.
 
-Architecture tests protect these directions once the projects exist. A term
+Unit tests protect these directions by reading the project references. A term
 introduced in code is documented with the domain model when that model lands.
 
 ## Interfaces and generated artifacts
@@ -80,9 +81,10 @@ TypeScript and Go clients from it. The web application and CLI do not share
 backend assemblies or reimplement endpoint shapes by hand.
 
 Every API endpoint lives below `/api`; every other route is available to the
-SPA. The technical health path established by the foundation is not a promise
-of functioning monitoring. The operational health contract required by the
-MVP arrives with the monitoring loop.
+SPA. `GET /api/health/live` is the technical health path established by the
+foundation. It says only that the process can answer and is not a promise of
+functioning monitoring. The operational health contract required by the MVP
+arrives with the monitoring loop.
 
 ## Web and CLI
 
