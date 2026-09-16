@@ -146,6 +146,10 @@ management credential.
 
 ### HTTP monitors
 
+For a complete fictional monitor lifecycle across CLI, web, scheduling,
+incidents, storage, and security boundaries, see
+[the HTTP monitoring guide](./http-monitoring.md).
+
 Every monitor command addresses an immutable project key and project-scoped
 monitor key. Monitor UUIDs are returned as durable facts but are never resolved
 from display names. Mutations use the positive version returned by the last

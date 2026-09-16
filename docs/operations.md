@@ -121,7 +121,7 @@ Rebuild the composed application after source changes:
 docker compose -f deploy/docker-compose.dev.yml up --build --wait
 ```
 
-## Disposable access and project system test
+## Disposable HTTP-monitoring system test
 
 Run the complete implemented vertical slice from the repository root:
 
@@ -133,22 +133,32 @@ The script builds an isolated Compose application on ports 18080 and 15432 by
 default, starts with an empty database, and then performs the supported setup
 and administration flow. It establishes the sole operator, signs in through the
 browser-session path, creates and rotates a management credential, and manages
-one stable project through browser-authenticated requests, the real generated
-`ua` CLI, and a direct bearer API request. It proves the rotation overlap,
-immediate revocation, one persisted operator, one surviving project identity,
-and absence of its proof, password, cookie secret, and credential tokens from
-ordinary HTTP/CLI artifacts and application logs. Explicit credential create
-and rotate responses are excluded because revealing the newly issued token once
-is their documented purpose.
+one stable project and HTTP monitor through browser-authenticated requests, the
+real generated `ua` CLI, and a direct bearer API request. The monitor observes a
+scheduled and requested success, crosses a two-failure threshold into exactly
+one incident, survives restarts while planned and while failing, exercises
+pause/resume through both access paths, and records a fresh recovery. It proves
+credential rotation overlap, immediate revocation, singular persisted
+identities, and absence of generated access and monitor secrets from ordinary
+HTTP/CLI artifacts and application logs. Explicit secret input and credential
+issuance files are excluded because those are their documented secret-bearing
+purposes.
 
 The React component tests separately exercise the same generated browser
 operations for access, projects, and HTTP monitors. They verify secret-state
 clearing, keyboard operation, explicit lifecycle labels, optimistic-concurrency
-refresh, and bounded rendering of API problems. The disposable system test does
-not create a monitor, so its success never claims that any monitor is healthy.
+refresh, and bounded rendering of API problems.
+
+The system path requires outbound HTTPS and uses `https://example.com/` by
+default. `UPAFFE_SMOKE_HTTP_TARGET` may select another stable, publicly routable
+HTTPS target that returns status 200; private/local fixtures are deliberately
+rejected by the monitor boundary. Passing the test proves the created monitor's
+observations, not the health of any unrelated target.
 
 Override `UPAFFE_SMOKE_APP_PORT` or `UPAFFE_SMOKE_DB_PORT` when those ports are
-occupied. The script always removes its containers and disposable volume.
+occupied. The script always removes its containers and disposable volume. See
+[the HTTP monitoring guide](./http-monitoring.md) for the complete fictional
+operator workflow and the deterministic security-test boundary.
 
 ## Stop, restart, and reset
 

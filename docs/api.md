@@ -137,6 +137,10 @@ browser session or management credential; anonymous requests return
 
 ## HTTP monitors
 
+The complete fictional operator workflow tying these resources to CLI, web,
+storage, scheduling, and security behavior is in
+[the HTTP monitoring guide](./http-monitoring.md).
+
 An HTTP monitor has a generated UUID and an immutable key scoped to its
 project. Its create and read contract includes name, query-redacted target URL,
 whether a query is configured, exact expected status, `none`, `required`, or

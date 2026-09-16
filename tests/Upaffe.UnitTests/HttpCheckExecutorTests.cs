@@ -12,8 +12,8 @@ namespace Upaffe.UnitTests;
 
 public sealed class HttpCheckExecutorTests
 {
-    private static readonly IPAddress PublicOne = IPAddress.Parse("93.184.216.34");
-    private static readonly IPAddress PublicTwo = IPAddress.Parse("142.250.74.14");
+    private static readonly IPAddress PublicOne = IPAddress.Parse("192.0.0.9");
+    private static readonly IPAddress PublicTwo = IPAddress.Parse("192.0.0.10");
 
     [Fact]
     public async Task A_successful_check_is_bounded_structured_and_redacted()
@@ -237,7 +237,7 @@ public sealed class HttpCheckExecutorTests
     }
 
     [Theory]
-    [InlineData("8.8.8.8", true)]
+    [InlineData("192.0.0.10", true)]
     [InlineData("192.0.0.9", true)]
     [InlineData("10.0.0.1", false)]
     [InlineData("100.64.0.1", false)]

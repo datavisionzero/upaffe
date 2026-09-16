@@ -5,6 +5,7 @@ root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 smoke_project="upaffe-smoke-$$"
 smoke_app_port=${UPAFFE_SMOKE_APP_PORT:-18080}
 smoke_db_port=${UPAFFE_SMOKE_DB_PORT:-15432}
+smoke_http_target=${UPAFFE_SMOKE_HTTP_TARGET:-https://example.com/}
 compose_file="$root/deploy/docker-compose.dev.yml"
 system_dir=$(mktemp -d "${TMPDIR:-/tmp}/upaffe-system.XXXXXX")
 bootstrap_proof=$(
@@ -157,6 +158,253 @@ curl --fail --silent --show-error \
 [ "$(json_value id <"$system_dir/project-browser-restore.json")" = "$project_id" ]
 [ "$(json_value version <"$system_dir/project-browser-restore.json")" = "4" ]
 
+# The real CLI creates an HTTP monitor against a public documentation host. A
+# fresh monitor is due immediately, so this observes a scheduled success without
+# waiting for its five-minute recurring interval.
+node -e '
+  const target = process.argv[1];
+  process.stdout.write(JSON.stringify({
+    key: "public-homepage",
+    name: "Public homepage",
+    target_url: target,
+    expected_status_code: 200,
+    text_condition: "none",
+    text_fragment: null,
+    interval_seconds: 300,
+    timeout_seconds: 15,
+    failure_threshold: 2,
+    instruction: "Inspect the public documentation endpoint.",
+    runbook_url: "https://docs.example.test/runbooks/public-homepage",
+    headers: null,
+  }));
+' "$smoke_http_target" >"$system_dir/monitor-create-input.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" monitor create system-project --file "$system_dir/monitor-create-input.json" --json \
+  >"$system_dir/monitor-cli-create.json"
+[ "$(json_value key <"$system_dir/monitor-cli-create.json")" = "public-homepage" ]
+
+scheduled_ready=false
+attempt=0
+while [ "$attempt" -lt 60 ]; do
+  UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+    "$ua" monitor checks system-project public-homepage --json \
+    >"$system_dir/monitor-scheduled-checks.json"
+  if node -e '
+    const page = require(process.argv[1]);
+    if (!page.items.some(item => item.trigger === "scheduled" && item.outcome === "success")) process.exit(1);
+  ' "$system_dir/monitor-scheduled-checks.json"; then
+    scheduled_ready=true
+    break
+  fi
+  attempt=$((attempt + 1))
+  sleep 1
+done
+[ "$scheduled_ready" = "true" ]
+
+# A prompt CLI test uses the same executor and persists a requested success.
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" monitor test system-project public-homepage --json \
+  >"$system_dir/monitor-cli-test-success.json"
+[ "$(json_value succeeded <"$system_dir/monitor-cli-test-success.json")" = "true" ]
+
+# Restart while the next scheduled run is pending. PostgreSQL retains both its
+# due time and healthy state.
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" monitor get system-project public-homepage --json \
+  >"$system_dir/monitor-before-planning-restart.json"
+planned_for=$(json_value next_check_at <"$system_dir/monitor-before-planning-restart.json")
+UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
+  docker compose -p "$smoke_project" -f "$compose_file" restart app >/dev/null
+UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
+  docker compose -p "$smoke_project" -f "$compose_file" up --wait >/dev/null
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" monitor get system-project public-homepage --json \
+  >"$system_dir/monitor-after-planning-restart.json"
+[ "$(json_value next_check_at <"$system_dir/monitor-after-planning-restart.json")" = "$planned_for" ]
+[ "$(json_value state <"$system_dir/monitor-after-planning-restart.json")" = "healthy" ]
+
+# A deliberately wrong expected status creates two controlled failures. The
+# configured threshold is two, so exactly one incident opens on the second.
+monitor_version=$(json_value version <"$system_dir/monitor-after-planning-restart.json")
+node -e '
+  const version = Number(process.argv[1]);
+  process.stdout.write(JSON.stringify({
+    name: "Public homepage",
+    target_url: null,
+    expected_status_code: 204,
+    text_condition: "none",
+    text_fragment: null,
+    interval_seconds: 300,
+    timeout_seconds: 15,
+    failure_threshold: 2,
+    instruction: "Inspect the public documentation endpoint.",
+    runbook_url: "https://docs.example.test/runbooks/public-homepage",
+    version,
+  }));
+' "$monitor_version" >"$system_dir/monitor-failing-update-input.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" monitor update system-project public-homepage \
+  --file "$system_dir/monitor-failing-update-input.json" --json \
+  >"$system_dir/monitor-failing-update.json"
+
+set +e
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" monitor test system-project public-homepage --json \
+  >"$system_dir/monitor-first-failure.json" 2>"$system_dir/monitor-first-failure-diagnostic.txt"
+first_failure_exit=$?
+set -e
+[ "$first_failure_exit" = "5" ]
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" monitor get system-project public-homepage --json \
+  >"$system_dir/monitor-below-threshold.json"
+node -e '
+  const monitor = require(process.argv[1]);
+  if (monitor.state !== "failing" || monitor.consecutive_failures !== 1 || monitor.open_incident_id !== null) process.exit(1);
+' "$system_dir/monitor-below-threshold.json"
+
+set +e
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" monitor test system-project public-homepage --json \
+  >"$system_dir/monitor-second-failure.json" 2>"$system_dir/monitor-second-failure-diagnostic.txt"
+second_failure_exit=$?
+set -e
+[ "$second_failure_exit" = "5" ]
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" monitor get system-project public-homepage --json \
+  >"$system_dir/monitor-open-incident.json"
+open_incident_id=$(json_value open_incident_id <"$system_dir/monitor-open-incident.json")
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" monitor incidents system-project public-homepage --json \
+  >"$system_dir/monitor-one-incident.json"
+node -e '
+  const page = require(process.argv[1]);
+  if (page.items.length !== 1 || page.items[0].resolved_at !== null) process.exit(1);
+' "$system_dir/monitor-one-incident.json"
+
+# Restart with that incident open and prove both current state and incident
+# identity survive.
+UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
+  docker compose -p "$smoke_project" -f "$compose_file" restart app >/dev/null
+UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
+  docker compose -p "$smoke_project" -f "$compose_file" up --wait >/dev/null
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" monitor get system-project public-homepage --json \
+  >"$system_dir/monitor-after-incident-restart.json"
+[ "$(json_value open_incident_id <"$system_dir/monitor-after-incident-restart.json")" = "$open_incident_id" ]
+
+# Pause through the CLI. While paused, set and remove a write-only header and
+# prove its submitted value does not return in ordinary CLI output.
+monitor_version=$(json_value version <"$system_dir/monitor-after-incident-restart.json")
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" monitor pause system-project public-homepage --version "$monitor_version" --json \
+  >"$system_dir/monitor-cli-pause.json"
+[ "$(json_value state <"$system_dir/monitor-cli-pause.json")" = "paused" ]
+monitor_header_secret=$(
+  node -e 'process.stdout.write("smoke_" + require("node:crypto").randomBytes(24).toString("base64url"))'
+)
+monitor_version=$(json_value version <"$system_dir/monitor-cli-pause.json")
+node -e '
+  process.stdout.write(JSON.stringify({ value: process.argv[1], version: Number(process.argv[2]) }));
+' "$monitor_header_secret" "$monitor_version" >"$system_dir/monitor-header-input.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" monitor header set system-project public-homepage X-Smoke-Secret \
+  --file "$system_dir/monitor-header-input.json" --json \
+  >"$system_dir/monitor-header-set.json"
+assert_absent "$monitor_header_secret" "$system_dir/monitor-header-set.json"
+monitor_version=$(json_value version <"$system_dir/monitor-header-set.json")
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" monitor header remove system-project public-homepage X-Smoke-Secret \
+  --version "$monitor_version" --json >"$system_dir/monitor-header-remove.json"
+
+# Resume through the browser-session path used by the web application. Wait for
+# its fresh scheduled failure, then pause through that same path.
+monitor_version=$(json_value version <"$system_dir/monitor-header-remove.json")
+curl --fail --silent --show-error \
+  --cookie "$cookie_jar" \
+  --request POST \
+  --header 'Content-Type: application/json' \
+  --header 'X-Upaffe-CSRF: 1' \
+  --header "Origin: $origin" \
+  --data-binary "{\"version\":$monitor_version}" \
+  "$base_url/api/projects/system-project/http-monitors/public-homepage/resume" \
+  >"$system_dir/monitor-browser-resume.json"
+[ "$(json_value state <"$system_dir/monitor-browser-resume.json")" = "untested" ]
+
+resumed_scheduled=false
+attempt=0
+while [ "$attempt" -lt 60 ]; do
+  UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+    "$ua" monitor checks system-project public-homepage --json \
+    >"$system_dir/monitor-resumed-checks.json"
+  if node -e '
+    const page = require(process.argv[1]);
+    if (page.items.filter(item => item.trigger === "scheduled").length < 2) process.exit(1);
+  ' "$system_dir/monitor-resumed-checks.json"; then
+    resumed_scheduled=true
+    break
+  fi
+  attempt=$((attempt + 1))
+  sleep 1
+done
+[ "$resumed_scheduled" = "true" ]
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" monitor get system-project public-homepage --json \
+  >"$system_dir/monitor-before-browser-pause.json"
+monitor_version=$(json_value version <"$system_dir/monitor-before-browser-pause.json")
+curl --fail --silent --show-error \
+  --cookie "$cookie_jar" \
+  --request POST \
+  --header 'Content-Type: application/json' \
+  --header 'X-Upaffe-CSRF: 1' \
+  --header "Origin: $origin" \
+  --data-binary "{\"version\":$monitor_version}" \
+  "$base_url/api/projects/system-project/http-monitors/public-homepage/pause" \
+  >"$system_dir/monitor-browser-pause.json"
+[ "$(json_value state <"$system_dir/monitor-browser-pause.json")" = "paused" ]
+
+# Restore the good expectation while paused, resume via CLI, and recover the
+# existing incident with an immediate browser-session test.
+monitor_version=$(json_value version <"$system_dir/monitor-browser-pause.json")
+node -e '
+  const version = Number(process.argv[1]);
+  process.stdout.write(JSON.stringify({
+    name: "Public homepage",
+    target_url: null,
+    expected_status_code: 200,
+    text_condition: "none",
+    text_fragment: null,
+    interval_seconds: 300,
+    timeout_seconds: 15,
+    failure_threshold: 2,
+    instruction: "Inspect the public documentation endpoint.",
+    runbook_url: "https://docs.example.test/runbooks/public-homepage",
+    version,
+  }));
+' "$monitor_version" >"$system_dir/monitor-recovery-update-input.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" monitor update system-project public-homepage \
+  --file "$system_dir/monitor-recovery-update-input.json" --json \
+  >"$system_dir/monitor-recovery-update.json"
+monitor_version=$(json_value version <"$system_dir/monitor-recovery-update.json")
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" monitor resume system-project public-homepage --version "$monitor_version" --json \
+  >"$system_dir/monitor-cli-resume.json"
+curl --fail --silent --show-error \
+  --cookie "$cookie_jar" \
+  --request POST \
+  --header 'X-Upaffe-CSRF: 1' \
+  --header "Origin: $origin" \
+  "$base_url/api/projects/system-project/http-monitors/public-homepage/test" \
+  >"$system_dir/monitor-browser-test-recovery.json"
+[ "$(json_value succeeded <"$system_dir/monitor-browser-test-recovery.json")" = "true" ]
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" monitor incidents system-project public-homepage --json \
+  >"$system_dir/monitor-resolved-incident.json"
+node -e '
+  const page = require(process.argv[1]);
+  if (page.items.length !== 1 || page.items[0].resolved_at === null) process.exit(1);
+' "$system_dir/monitor-resolved-incident.json"
+
 # Rotation admits both tokens during overlap. Revocation rejects both immediately.
 UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
   "$ua" credential rotate "$credential_id" --json >"$system_dir/credential-rotated.json"
@@ -217,6 +465,31 @@ $system_dir/project-browser-deleted.json
 $system_dir/project-browser-restore.json
 $system_dir/project-old-token.json
 $system_dir/project-new-token.json
+$system_dir/monitor-cli-create.json
+$system_dir/monitor-scheduled-checks.json
+$system_dir/monitor-cli-test-success.json
+$system_dir/monitor-before-planning-restart.json
+$system_dir/monitor-after-planning-restart.json
+$system_dir/monitor-failing-update.json
+$system_dir/monitor-first-failure.json
+$system_dir/monitor-first-failure-diagnostic.txt
+$system_dir/monitor-below-threshold.json
+$system_dir/monitor-second-failure.json
+$system_dir/monitor-second-failure-diagnostic.txt
+$system_dir/monitor-open-incident.json
+$system_dir/monitor-one-incident.json
+$system_dir/monitor-after-incident-restart.json
+$system_dir/monitor-cli-pause.json
+$system_dir/monitor-header-set.json
+$system_dir/monitor-header-remove.json
+$system_dir/monitor-browser-resume.json
+$system_dir/monitor-resumed-checks.json
+$system_dir/monitor-before-browser-pause.json
+$system_dir/monitor-browser-pause.json
+$system_dir/monitor-recovery-update.json
+$system_dir/monitor-cli-resume.json
+$system_dir/monitor-browser-test-recovery.json
+$system_dir/monitor-resolved-incident.json
 $system_dir/revoke-response.txt
 $system_dir/revoked-output.txt
 $system_dir/revoked-diagnostic.txt
@@ -229,5 +502,6 @@ assert_absent "$operator_password" $ordinary_files
 assert_absent "$session_secret" $ordinary_files
 assert_absent "$credential_token" $ordinary_files
 assert_absent "$rotated_token" $ordinary_files
+assert_absent "$monitor_header_secret" $ordinary_files
 
-echo "access and project system test passed"
+echo "access, project, and HTTP monitoring system test passed"

@@ -12,7 +12,9 @@ management including immediate tests. Incident opening, continued failure, and
 fresh-success recovery are persisted, with paginated 90-day check and incident
 history. CLI and web monitor administration cover the complete HTTP slice;
 notifications are still under active implementation;
-[`VISION.md`](./VISION.md) defines the committed MVP.
+[`VISION.md`](./VISION.md) defines the committed MVP and
+[`docs/http-monitoring.md`](./docs/http-monitoring.md) documents the complete
+implemented HTTP workflow.
 
 ## Backend development
 
@@ -138,7 +140,7 @@ The web application is then available at `http://localhost:8080`.
 
 For a disposable end-to-end check of the compiled web host, one-operator
 bootstrap, browser session, management credential rotation/revocation, and the
-same project through browser, CLI, and direct API paths, run:
+same project and HTTP monitor through browser, CLI, and direct API paths, run:
 
 ```sh
 scripts/smoke.sh
@@ -147,7 +149,9 @@ scripts/smoke.sh
 The system test uses ports 18080 and 15432 by default, creates a unique Compose
 project from an empty database, verifies that ordinary output and logs contain
 none of its generated secrets, and removes its containers and volume when it
-finishes.
+finishes. HTTP execution defaults to `https://example.com/`; restricted test
+environments can provide another public status-200 URL through
+`UPAFFE_SMOKE_HTTP_TARGET`.
 
 The default password is explicitly development-only. Set
 `UPAFFE_DEV_DB_PASSWORD`, `UPAFFE_DEV_DB_PORT`, or `UPAFFE_DEV_PORT` in the

@@ -71,6 +71,9 @@ idempotent; a different name is a conflict.
 
 ## HTTP monitoring schema
 
+The row model below is used by the complete fictional lifecycle in
+[the HTTP monitoring guide](./http-monitoring.md).
+
 `http_monitor` belongs to one project through a restrictive foreign key and
 reserves its key within that project for its lifetime. It stores non-secret
 configuration, scheduling facts, the current evaluation generation and ordered

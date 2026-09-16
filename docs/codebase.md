@@ -283,10 +283,11 @@ Run these from the repository root:
   checked-in OpenAPI document, regenerates both clients, and compiles their
   consumers.
 - `scripts/smoke.sh` builds an isolated Compose project from an empty database;
-  establishes the operator and browser session; manages one project through
-  browser, CLI, and direct API paths; proves credential rotation/revocation and
-  singular persisted identity; checks ordinary artifacts and app logs for its
-  secrets; then removes the disposable database volume.
+  establishes the operator and browser session; manages one project and HTTP
+  monitor through browser, CLI, and direct API paths; proves scheduling,
+  restart, threshold, incident, pause/resume, recovery, credential lifecycle,
+  and singular persisted identities; checks ordinary artifacts and app logs for
+  generated secrets; then removes the disposable database volume.
 - `docker compose -f deploy/docker-compose.dev.yml up --build --wait` starts the
   persistent local development environment described in
   [`operations.md`](./operations.md).
@@ -300,6 +301,8 @@ project behavior and does not assert that monitoring works.
 
 - `docs/api.md` changes with the public HTTP contract.
 - `docs/cli.md` changes with commands, configuration, output, and exit codes.
+- `docs/http-monitoring.md` connects the implemented HTTP lifecycle across the
+  operator surfaces, runtime, storage, and security boundary.
 - `docs/storage.md` changes with schema, migrations, retention, and backup
   boundaries.
 - `docs/install.md` exists when there is a supported installation procedure.
