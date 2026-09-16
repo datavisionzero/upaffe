@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Upaffe.Api.Hosting;
 using Upaffe.Api.Http;
 using Upaffe.Application.Access;
+using Upaffe.Application.Monitoring;
 using Upaffe.Application.Ports;
 using Upaffe.Application.Projects;
 using Upaffe.Infrastructure;
@@ -28,6 +29,16 @@ builder.Services.AddScoped<ListProjects>();
 builder.Services.AddScoped<RenameProject>();
 builder.Services.AddScoped<DeleteProject>();
 builder.Services.AddScoped<RestoreProject>();
+builder.Services.AddScoped<CreateHttpMonitor>();
+builder.Services.AddScoped<ReadHttpMonitor>();
+builder.Services.AddScoped<ListHttpMonitors>();
+builder.Services.AddScoped<UpdateHttpMonitor>();
+builder.Services.AddScoped<PauseHttpMonitor>();
+builder.Services.AddScoped<ResumeHttpMonitor>();
+builder.Services.AddScoped<RemoveHttpMonitor>();
+builder.Services.AddScoped<SetHttpMonitorHeader>();
+builder.Services.AddScoped<RemoveHttpMonitorHeader>();
+builder.Services.AddScoped<TestHttpMonitor>();
 builder.Services.AddHostedService<SchemaMigrationService>();
 builder.Services.AddHostedService<BootstrapService>();
 builder.Services.AddUpaffeOpenApi();
@@ -37,6 +48,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower;
     options.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+    options.SerializerOptions.NumberHandling = JsonNumberHandling.Strict;
 });
 
 var app = builder.Build();
@@ -58,6 +70,7 @@ api.MapBootstrap();
 api.MapSession();
 api.MapManagementCredentials();
 api.MapProjects();
+api.MapHttpMonitors();
 api.MapFallback(() => Results.NotFound()).PublicAccess();
 
 app.MapFallbackToFile("index.html").PublicAccess();

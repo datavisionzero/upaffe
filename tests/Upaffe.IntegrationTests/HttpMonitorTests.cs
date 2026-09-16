@@ -1,0 +1,412 @@
+using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Upaffe.Api.Http;
+using Upaffe.Application.Access;
+using Upaffe.Application.Ports;
+
+namespace Upaffe.IntegrationTests;
+
+[Collection(nameof(PostgresCollection))]
+public sealed class HttpMonitorTests(PostgresFixture postgres)
+{
+    private const string BootstrapProof = "an-http-monitor-test-bootstrap-proof-with-enough-entropy";
+    private const string Email = "operator@example.test";
+    private const string Password = "a long operator password";
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+    };
+
+    [Fact]
+    public async Task An_HTTP_monitor_has_a_complete_secret_safe_management_lifecycle()
+    {
+        var executor = new StubExecutor(new HttpExecutionResult(
+            true,
+            null,
+            "The HTTP check succeeded.",
+            200,
+            42,
+            "https://status.example.test/health"));
+        await using var instance = await EstablishedAsync(executor);
+        using var client = Client(instance);
+        var browser = await SignInAsync(client);
+        var token = await CredentialAsync(client, browser);
+        await CreateProjectAsync(client, token, "public-services");
+
+        const string targetSecret = "query-value-never-returned";
+        const string headerSecret = "header-value-never-returned";
+        var createRequest = new CreateHttpMonitorRequest(
+            "public-site",
+            "Public site",
+            $"https://status.example.test/health?token={targetSecret}",
+            200,
+            "required",
+            "ready",
+            300,
+            10,
+            3,
+            "Inspect the current deployment.",
+            "https://runbooks.example.test/public-site",
+            [new("Authorization", $"Bearer {headerSecret}")]);
+        using var createdResponse = await JsonAsync(
+            client, HttpMethod.Post, "/api/projects/public-services/http-monitors", createRequest, token);
+        var createdJson = await createdResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.True(
+            createdResponse.StatusCode == HttpStatusCode.Created,
+            $"Expected monitor creation, received {createdResponse.StatusCode}: {createdJson}");
+        Assert.DoesNotContain(targetSecret, createdJson, StringComparison.Ordinal);
+        Assert.DoesNotContain(headerSecret, createdJson, StringComparison.Ordinal);
+        var created = JsonSerializer.Deserialize<HttpMonitorResponse>(createdJson, Json)!;
+        Assert.Equal("untested", created.State);
+        Assert.Equal("https://status.example.test/health", created.TargetUrl);
+        Assert.True(created.HasTargetQuery);
+        Assert.Equal("authorization", Assert.Single(created.Headers).Name);
+
+        using (var repeated = await JsonAsync(
+            client, HttpMethod.Post, "/api/projects/public-services/http-monitors", createRequest, token))
+        {
+            Assert.Equal(HttpStatusCode.OK, repeated.StatusCode);
+            Assert.Equal(created.Id, (await MonitorAsync(repeated)).Id);
+        }
+
+        var listed = await MonitorsAsync(await SendAsync(
+            client, HttpMethod.Get, "/api/projects/public-services/http-monitors", token));
+        Assert.Equal(created.Id, Assert.Single(listed).Id);
+
+        var updated = await MonitorAsync(await JsonAsync(
+            client,
+            HttpMethod.Put,
+            "/api/projects/public-services/http-monitors/public-site",
+            new UpdateHttpMonitorRequest(
+                "Renamed public site",
+                null,
+                200,
+                "required",
+                "ready",
+                600,
+                15,
+                2,
+                null,
+                "https://runbooks.example.test/public-site",
+                created.Version),
+            token));
+        Assert.Equal("Renamed public site", updated.Name);
+        Assert.True(updated.HasTargetQuery);
+
+        const string replacementSecret = "replacement-never-returned";
+        using var headerResponse = await JsonAsync(
+            client,
+            HttpMethod.Put,
+            "/api/projects/public-services/http-monitors/public-site/headers/authorization",
+            new SetHttpMonitorHeaderRequest($"Bearer {replacementSecret}", updated.Version),
+            token);
+        var headerJson = await headerResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.DoesNotContain(replacementSecret, headerJson, StringComparison.Ordinal);
+        var withHeader = JsonSerializer.Deserialize<HttpMonitorResponse>(headerJson, Json)!;
+
+        using var testedResponse = await SendAsync(
+            client,
+            HttpMethod.Post,
+            "/api/projects/public-services/http-monitors/public-site/test",
+            token);
+        var tested = (await testedResponse.Content.ReadFromJsonAsync<HttpMonitorTestResponse>(
+            Json,
+            TestContext.Current.CancellationToken))!;
+        Assert.True(tested.Succeeded);
+        Assert.True(tested.AppliedToCurrentState);
+        Assert.Equal("healthy", tested.Monitor.State);
+        Assert.Equal(tested.CheckId, tested.Monitor.LatestResultId);
+        Assert.Equal(tested.CheckId, tested.Monitor.LatestSuccessId);
+        var execution = Assert.Single(executor.Requests);
+        Assert.Contains(targetSecret, execution.TargetUrl, StringComparison.Ordinal);
+        Assert.Equal($"Bearer {replacementSecret}", Assert.Single(execution.Headers).Value);
+
+        var paused = await MonitorAsync(await JsonAsync(
+            client,
+            HttpMethod.Post,
+            "/api/projects/public-services/http-monitors/public-site/pause",
+            new HttpMonitorVersionRequest(withHeader.Version),
+            token));
+        Assert.Equal("paused", paused.State);
+        Assert.Null(paused.NextCheckAt);
+
+        using (var pausedTest = await SendAsync(
+            client,
+            HttpMethod.Post,
+            "/api/projects/public-services/http-monitors/public-site/test",
+            token))
+        {
+            Assert.Equal(HttpStatusCode.Conflict, pausedTest.StatusCode);
+            Assert.Equal("conflict", await ProblemCode(pausedTest));
+        }
+
+        var resumed = await MonitorAsync(await JsonAsync(
+            client,
+            HttpMethod.Post,
+            "/api/projects/public-services/http-monitors/public-site/resume",
+            new HttpMonitorVersionRequest(paused.Version),
+            token));
+        Assert.Equal("untested", resumed.State);
+        Assert.NotNull(resumed.NextCheckAt);
+        Assert.Equal(tested.CheckId, resumed.LatestSuccessId);
+
+        var removed = await MonitorAsync(await SendAsync(
+            client,
+            HttpMethod.Delete,
+            $"/api/projects/public-services/http-monitors/public-site?version={resumed.Version}",
+            token));
+        Assert.NotNull(removed.DeletedAt);
+        Assert.Empty(await MonitorsAsync(await SendAsync(
+            client, HttpMethod.Get, "/api/projects/public-services/http-monitors", token)));
+        using var missing = await SendAsync(
+            client, HttpMethod.Get, "/api/projects/public-services/http-monitors/public-site", token);
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+    }
+
+    [Fact]
+    public async Task Invalid_project_configuration_and_concurrency_have_stable_contracts()
+    {
+        await using var instance = await EstablishedAsync(new StubExecutor());
+        using var client = Client(instance);
+        var browser = await SignInAsync(client);
+        var token = await CredentialAsync(client, browser);
+
+        using (var missingProject = await JsonAsync(
+            client,
+            HttpMethod.Post,
+            "/api/projects/missing/http-monitors",
+            ValidCreate(),
+            token))
+        {
+            var body = await missingProject.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+            Assert.True(
+                missingProject.StatusCode == HttpStatusCode.NotFound,
+                $"Expected missing project, received {missingProject.StatusCode}: {body}");
+        }
+
+        await CreateProjectAsync(client, token, "one-project");
+        await CreateProjectAsync(client, token, "other-project");
+        using (var invalid = await JsonAsync(
+            client,
+            HttpMethod.Post,
+            "/api/projects/one-project/http-monitors",
+            ValidCreate() with { TextCondition = "none", TextFragment = "contradiction" },
+            token))
+        {
+            var problem = await Problem(invalid);
+            Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+            Assert.Equal("validation", problem?.Code);
+        }
+
+        var created = await MonitorAsync(await JsonAsync(
+            client,
+            HttpMethod.Post,
+            "/api/projects/one-project/http-monitors",
+            ValidCreate(),
+            token));
+        using (var wrongProject = await SendAsync(
+            client,
+            HttpMethod.Get,
+            "/api/projects/other-project/http-monitors/public-site",
+            token))
+        {
+            Assert.Equal(HttpStatusCode.NotFound, wrongProject.StatusCode);
+        }
+
+        var update = new UpdateHttpMonitorRequest(
+            "First update", null, 200, "none", null, 300, 10, 3, null, null, created.Version);
+        using (var first = await JsonAsync(
+            client,
+            HttpMethod.Put,
+            "/api/projects/one-project/http-monitors/public-site",
+            update,
+            token))
+        {
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        }
+
+        using (var stale = await JsonAsync(
+            client,
+            HttpMethod.Put,
+            "/api/projects/one-project/http-monitors/public-site",
+            update with { Name = "Stale update" },
+            token))
+        {
+            Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+            Assert.Equal("conflict", await ProblemCode(stale));
+        }
+
+        using var forbiddenHeader = await JsonAsync(
+            client,
+            HttpMethod.Put,
+            "/api/projects/one-project/http-monitors/public-site/headers/host",
+            new SetHttpMonitorHeaderRequest("private.example", created.Version + 1),
+            token);
+        Assert.Equal(HttpStatusCode.BadRequest, forbiddenHeader.StatusCode);
+        Assert.Equal("validation", await ProblemCode(forbiddenHeader));
+    }
+
+    private async Task<AnInstance> EstablishedAsync(IHttpCheckExecutor executor)
+    {
+        var instance = AnInstance.Against(
+            await postgres.CreateDatabaseAsync(),
+            new Dictionary<string, string?> { [BootstrapSettings.Variable] = BootstrapProof },
+            checkExecutor: executor);
+        using var client = instance.CreateClient();
+        using var response = await client.PostAsJsonAsync(
+            "/api/bootstrap",
+            new BootstrapRequest(BootstrapProof, Email, Password),
+            TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        return instance;
+    }
+
+    private static CreateHttpMonitorRequest ValidCreate() => new(
+        "public-site",
+        "Public site",
+        "https://status.example.test/health",
+        200,
+        "none",
+        null,
+        300,
+        10,
+        3,
+        null,
+        null,
+        []);
+
+    private static async Task CreateProjectAsync(HttpClient client, string token, string key)
+    {
+        using var response = await JsonAsync(
+            client, HttpMethod.Post, "/api/projects", new CreateProjectRequest(key, key), token);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    private static HttpClient Client(AnInstance instance) =>
+        instance.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+
+    private static async Task<string> SignInAsync(HttpClient client)
+    {
+        using var response = await client.PostAsJsonAsync(
+            "/api/session",
+            new SignInRequest(Email, Password),
+            TestContext.Current.CancellationToken);
+        return Assert.Single(response.Headers.GetValues("Set-Cookie")).Split(';', 2)[0].Split('=', 2)[1];
+    }
+
+    private static async Task<string> CredentialAsync(HttpClient client, string browser)
+    {
+        using var response = await JsonAsync(
+            client,
+            HttpMethod.Post,
+            "/api/management-credentials",
+            new CreateCredentialRequest("monitor test agent"),
+            cookie: browser,
+            csrf: true);
+        return (await response.Content.ReadFromJsonAsync<IssuedCredentialResponse>(
+            Json,
+            TestContext.Current.CancellationToken))!.Token;
+    }
+
+    private static Task<HttpResponseMessage> SendAsync(
+        HttpClient client,
+        HttpMethod method,
+        string path,
+        string? bearer = null,
+        string? cookie = null,
+        bool csrf = false) =>
+        client.SendAsync(Request(method, path, bearer, cookie, csrf), TestContext.Current.CancellationToken);
+
+    private static Task<HttpResponseMessage> JsonAsync<T>(
+        HttpClient client,
+        HttpMethod method,
+        string path,
+        T body,
+        string? bearer = null,
+        string? cookie = null,
+        bool csrf = false)
+    {
+        var request = Request(method, path, bearer, cookie, csrf);
+        request.Content = JsonContent.Create(body, options: Json);
+        return client.SendAsync(request, TestContext.Current.CancellationToken);
+    }
+
+    private static HttpRequestMessage Request(
+        HttpMethod method,
+        string path,
+        string? bearer,
+        string? cookie,
+        bool csrf)
+    {
+        var request = new HttpRequestMessage(method, path);
+        if (bearer is not null)
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
+        }
+
+        if (cookie is not null)
+        {
+            request.Headers.Add("Cookie", BrowserCookie.PlainName + "=" + cookie);
+        }
+
+        if (csrf)
+        {
+            request.Headers.Add(CsrfProtection.Header, "1");
+            request.Headers.Add("Origin", "http://localhost");
+        }
+
+        return request;
+    }
+
+    private static async Task<HttpMonitorResponse> MonitorAsync(HttpResponseMessage response)
+    {
+        using (response)
+        {
+            var monitor = await response.Content.ReadFromJsonAsync<HttpMonitorResponse>(
+                Json,
+                TestContext.Current.CancellationToken);
+            Assert.NotNull(monitor);
+            return monitor;
+        }
+    }
+
+    private static async Task<HttpMonitorResponse[]> MonitorsAsync(HttpResponseMessage response)
+    {
+        using (response)
+        {
+            return (await response.Content.ReadFromJsonAsync<HttpMonitorResponse[]>(
+                Json,
+                TestContext.Current.CancellationToken))!;
+        }
+    }
+
+    private static async Task<string?> ProblemCode(HttpResponseMessage response) =>
+        (await Problem(response))?.Code;
+
+    private static Task<ProblemResponse?> Problem(HttpResponseMessage response) =>
+        response.Content.ReadFromJsonAsync<ProblemResponse>(TestContext.Current.CancellationToken);
+
+    private sealed class StubExecutor(params HttpExecutionResult[] results) : IHttpCheckExecutor
+    {
+        private readonly Queue<HttpExecutionResult> results = new(results);
+
+        public List<HttpExecutionRequest> Requests { get; } = [];
+
+        public Task<HttpExecutionResult> ExecuteAsync(
+            HttpExecutionRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Requests.Add(request);
+            if (results.Count == 0)
+            {
+                throw new InvalidOperationException("No stub HTTP result was configured.");
+            }
+
+            return Task.FromResult(results.Dequeue());
+        }
+    }
+}

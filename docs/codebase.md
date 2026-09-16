@@ -13,10 +13,12 @@ checked-in OpenAPI contract, two generated client packages, React application,
 and Go CLI exist. The access and project slice works through API, web, and CLI.
 The HTTP monitoring domain and PostgreSQL schema persist monitor configuration,
 scheduling and current-result facts, explicitly separated secrets, ordered
-checks, and incident lifecycles. A shared bounded executor can perform one
-public-internet HTTP observation; management, scheduling, and evaluation build
-on those foundations in the remaining monitoring work. Local Compose builds
-and runs the delivered slices; production delivery remains planned.
+checks, and incident lifecycles. A shared bounded executor performs one
+public-internet observation. Authenticated application and API operations now
+manage and immediately test HTTP monitors; recurring scheduling and complete
+incident evaluation build on those foundations in the remaining monitoring
+work. Local Compose builds and runs the delivered slices; production delivery
+remains planned.
 
 ## Provenance and maintenance boundary
 
@@ -105,6 +107,16 @@ already-approved connection to a loopback raw HTTP server. They exercise DNS
 changes, forbidden and mixed answers, redirects and header stripping, status
 and text failures, timeout and cancellation, TLS failure, strict encoding, and
 compressed body and header limits without contacting an external service.
+
+HTTP monitor management follows the same transport-independent application-act
+shape as projects. `IHttpMonitorStore` owns project association, idempotent
+creation, optimistic changes, secret-specific header operations, and requested
+check persistence. The nested management API exposes create/read/list/update,
+pause/resume/remove, header set/remove, and immediate-test operations. Ordinary
+snapshots contain only target-query and header metadata; only the store builds
+the executor request from explicit secret rows. An immediate test persists its
+ordered check before network I/O and completes it afterwards without shifting
+the regular due time.
 
 Unit tests protect these directions by reading the project references. A term
 introduced in code is documented with the domain model when that model lands.

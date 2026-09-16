@@ -191,6 +191,12 @@ public sealed partial class HttpMonitor
         Changed(now);
     }
 
+    public void RecordSecretChange(DateTimeOffset now)
+    {
+        EnsureLive();
+        Changed(now);
+    }
+
     public HttpCheck BeginCheck(CheckTrigger trigger, DateTimeOffset scheduledFor, DateTimeOffset startedAt)
     {
         EnsureLive();

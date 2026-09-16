@@ -5,10 +5,10 @@ Every operation is below `/api`; other paths are reserved for the SPA. There is
 no API-version segment. Each response carries `Upaffe-Version`, whose value is
 the release tag or `0.0.0-dev` for an untagged build.
 
-The first product-facing API slice covers bootstrap, browser sessions,
-management credentials, and projects. Bootstrap is public only while
-establishing the sole operator; the proof itself is a high-entropy secret
-supplied in the request body.
+The product-facing API covers bootstrap, browser sessions, management
+credentials, projects, and HTTP monitor administration. Bootstrap is public
+only while establishing the sole operator; the proof itself is a high-entropy
+secret supplied in the request body.
 
 | Method and path | Purpose |
 | --- | --- |
@@ -30,6 +30,16 @@ supplied in the request body.
 | `PUT /api/projects/{key}` | Rename a live project at the version last read. |
 | `DELETE /api/projects/{key}?version={version}` | Soft-delete a project at the version last read. |
 | `POST /api/projects/{key}/restore` | Restore a project at the version last read. |
+| `POST /api/projects/{projectKey}/http-monitors` | Create an HTTP monitor idempotently within a project. |
+| `GET /api/projects/{projectKey}/http-monitors` | List live HTTP monitors in a project. |
+| `GET /api/projects/{projectKey}/http-monitors/{monitorKey}` | Read one HTTP monitor without secret values. |
+| `PUT /api/projects/{projectKey}/http-monitors/{monitorKey}` | Update monitor configuration at the version last read. |
+| `DELETE /api/projects/{projectKey}/http-monitors/{monitorKey}?version={version}` | Remove a monitor while retaining its identity and history. |
+| `POST /api/projects/{projectKey}/http-monitors/{monitorKey}/pause` | Pause a monitor at the version last read. |
+| `POST /api/projects/{projectKey}/http-monitors/{monitorKey}/resume` | Resume a monitor and make a fresh check due. |
+| `PUT /api/projects/{projectKey}/http-monitors/{monitorKey}/headers/{name}` | Set or replace one write-only request header. |
+| `DELETE /api/projects/{projectKey}/http-monitors/{monitorKey}/headers/{name}?version={version}` | Remove one write-only request header. |
+| `POST /api/projects/{projectKey}/http-monitors/{monitorKey}/test` | Execute and record one immediate bounded check. |
 | `GET /api/openapi/v1.json` | The generated OpenAPI document. It does not list itself. |
 
 Every routed endpoint declares exactly one access boundary. Version, health,
@@ -122,6 +132,51 @@ existing key, or an attempted rename while deleted returns `409 conflict`.
 All project operations use the management boundary and therefore accept a
 browser session or management credential; anonymous requests return
 `401 authentication_required`.
+
+## HTTP monitors
+
+An HTTP monitor has a generated UUID and an immutable key scoped to its
+project. Its create and read contract includes name, query-redacted target URL,
+whether a query is configured, exact expected status, `none`, `required`, or
+`forbidden` text condition and fragment, interval and timeout seconds, failure
+threshold, optional operator instruction and runbook URL, current state and
+failure count, next due time, latest-result and latest-success IDs, header
+metadata, optimistic version, and lifecycle timestamps.
+
+Creation accepts the complete target URL and optional `{ "name", "value" }`
+headers. The first accepted key returns `201`; repeating every public and secret
+fact returns the existing monitor with `200`. A different fact for the same key
+returns `409 conflict`. Ordinary responses expose the target without its query
+and expose header names and timestamps without values. They never return enough
+information to reconstruct a query or header secret.
+
+Update carries all non-secret configuration plus the version last read.
+`target_url` is exceptional: omit or send `null` to preserve the complete
+stored target, including its write-only query; send a value to replace the
+complete target. A query can therefore survive unrelated edits without being
+revealed. Individual header `PUT` accepts `{ "value": "...", "version": N }`
+and creates or replaces the named secret. Header `DELETE` carries `version` in
+the query. Both return only refreshed monitor and header metadata.
+
+Pause, resume, and removal are explicit operations. Pause and resume accept
+`{ "version": N }`; removal uses the version query parameter. A pause clears
+the due time and shows `paused`. Resume starts a new evaluation generation,
+shows `untested`, and makes a fresh check due without discarding earlier result
+or incident facts. Removal hides the monitor from ordinary reads and lists but
+retains its key and history.
+
+The test operation runs the same bounded executor used by scheduled checks. It
+records an ordered requested check, does not move the regular next-due time,
+and applies its fresh result to the monitor under the generation and ordering
+rules. Its response contains the check ID, whether it applied to current state,
+structured outcome and reason, sanitized effective URL, response time, and the
+updated monitor. A paused or removed monitor rejects testing with `409`.
+
+Application rules validate the limits in ADR 0004 independently of JSON model
+binding. Invalid combinations return `400 validation`; unknown project/monitor
+associations return `404 not_found`; deleted projects, removed monitors, stale
+versions, and conflicting idempotent creates return `409 conflict`. All routes
+use the management boundary.
 
 ## Contract rule
 

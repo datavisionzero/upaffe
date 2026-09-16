@@ -2,9 +2,11 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Upaffe.Application.Ports;
 using Upaffe.Infrastructure.Persistence;
 
 namespace Upaffe.IntegrationTests;
@@ -13,23 +15,26 @@ internal sealed class AnInstance(
     string connectionString,
     IReadOnlyDictionary<string, string?>? settings = null,
     TimeProvider? clock = null,
-    ILoggerProvider? logProvider = null) : WebApplicationFactory<Program>
+    ILoggerProvider? logProvider = null,
+    IHttpCheckExecutor? checkExecutor = null) : WebApplicationFactory<Program>
 {
     public static async Task<AnInstance> StartedAsync(
         PostgresFixture postgres,
         IReadOnlyDictionary<string, string?>? settings = null,
         TimeProvider? clock = null,
-        ILoggerProvider? logProvider = null) =>
-        new(await postgres.CreateDatabaseAsync(), settings, clock, logProvider);
+        ILoggerProvider? logProvider = null,
+        IHttpCheckExecutor? checkExecutor = null) =>
+        new(await postgres.CreateDatabaseAsync(), settings, clock, logProvider, checkExecutor);
 
     public static AnInstance Against(
         string connectionString,
         IReadOnlyDictionary<string, string?>? settings = null,
         TimeProvider? clock = null,
-        ILoggerProvider? logProvider = null) =>
-        new(connectionString, settings, clock, logProvider);
+        ILoggerProvider? logProvider = null,
+        IHttpCheckExecutor? checkExecutor = null) =>
+        new(connectionString, settings, clock, logProvider, checkExecutor);
 
-    public AnInstance StartedAgain() => new(connectionString, settings, clock, logProvider);
+    public AnInstance StartedAgain() => new(connectionString, settings, clock, logProvider, checkExecutor);
 
     public static UpaffeDbContext ContextFor(string connectionString) =>
         new(new DbContextOptionsBuilder<UpaffeDbContext>().UseNpgsql(connectionString).Options);
@@ -60,6 +65,12 @@ internal sealed class AnInstance(
             if (clock is not null)
             {
                 services.AddSingleton(clock);
+            }
+
+            if (checkExecutor is not null)
+            {
+                services.RemoveAll<IHttpCheckExecutor>();
+                services.AddSingleton(checkExecutor);
             }
         });
         if (logProvider is not null)
