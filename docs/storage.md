@@ -113,6 +113,9 @@ monitor ID where `resolved_at is null` is the final guard against two active
 incidents for one monitor, including when application transitions race.
 Historical retention is deliberately not set by this schema migration; its
 bounded policy is decided with the history operation.
+Accepted failures update the open row's latest observation and reason, while an
+accepted success adds its immutable resolution check and time. The first and
+opening failure references remain unchanged after both updates and resolution.
 
 ## Tests
 

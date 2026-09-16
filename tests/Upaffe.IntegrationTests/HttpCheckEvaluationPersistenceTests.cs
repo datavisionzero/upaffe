@@ -112,6 +112,97 @@ public sealed class HttpCheckEvaluationPersistenceTests(PostgresFixture postgres
         Assert.Equal(1, await inspection.Incidents.CountAsync(TestContext.Current.CancellationToken));
     }
 
+    [Fact]
+    public async Task Further_failures_update_the_open_incident_without_replacing_its_origin()
+    {
+        var connectionString = await EstablishedAsync(failureThreshold: 2);
+        var first = await RunAsync(connectionString, Failure("timeout"), Noon.AddSeconds(1));
+        var opening = await RunAsync(connectionString, Failure("unexpected_status"), Noon.AddSeconds(2));
+        var latest = await RunAsync(connectionString, Failure("text_missing"), Noon.AddSeconds(3));
+
+        await using var inspection = AnInstance.ContextFor(connectionString);
+        var incident = await inspection.Incidents.SingleAsync(TestContext.Current.CancellationToken);
+        Assert.True(incident.IsOpen);
+        Assert.Equal(first.CheckId, incident.FirstFailureCheckId);
+        Assert.Equal(opening.CheckId, incident.OpeningCheckId);
+        Assert.Equal(latest.CheckId, incident.LatestFailureCheckId);
+        Assert.Equal("timeout", incident.OriginalReason);
+        Assert.Equal("text_missing", incident.LatestReason);
+        Assert.Equal(Noon.AddSeconds(3), incident.LastObservedAt);
+    }
+
+    [Fact]
+    public async Task A_fresh_success_resolves_once_and_preserves_the_failure_history()
+    {
+        var connectionString = await EstablishedAsync(failureThreshold: 1);
+        var failure = await RunAsync(connectionString, Failure("timeout"), Noon.AddSeconds(1));
+        var success = await StartAsync(connectionString, Noon.AddSeconds(2));
+
+        await using var firstContext = AnInstance.ContextFor(connectionString);
+        await using var repeatedContext = AnInstance.ContextFor(connectionString);
+        var resolutions = await Task.WhenAll(
+            new HttpMonitorStore(firstContext).CompleteTestAsync(
+                success.CheckId!.Value,
+                Success(),
+                Noon.AddSeconds(3),
+                TestContext.Current.CancellationToken),
+            new HttpMonitorStore(repeatedContext).CompleteTestAsync(
+                success.CheckId.Value,
+                Success(),
+                Noon.AddSeconds(3),
+                TestContext.Current.CancellationToken));
+
+        await using var inspection = AnInstance.ContextFor(connectionString);
+        var monitor = await inspection.HttpMonitors.SingleAsync(TestContext.Current.CancellationToken);
+        var incident = await inspection.Incidents.SingleAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(1, resolutions.Count(value => value.AppliedToCurrentState));
+        Assert.Equal(MonitorState.Healthy, monitor.State);
+        Assert.Equal(success.CheckId, monitor.LatestResultId);
+        Assert.Equal(success.CheckId, monitor.LatestSuccessId);
+        Assert.False(incident.IsOpen);
+        Assert.Equal(failure.CheckId, incident.FirstFailureCheckId);
+        Assert.Equal(failure.CheckId, incident.OpeningCheckId);
+        Assert.Equal(failure.CheckId, incident.LatestFailureCheckId);
+        Assert.Equal(success.CheckId, incident.ResolutionCheckId);
+        Assert.Equal(Noon.AddSeconds(3), incident.ResolvedAt);
+        Assert.Equal("timeout", incident.OriginalReason);
+        Assert.Equal("timeout", incident.LatestReason);
+    }
+
+    [Fact]
+    public async Task A_late_success_cannot_resolve_an_incident_opened_by_a_newer_failure()
+    {
+        var connectionString = await EstablishedAsync(failureThreshold: 1);
+        var olderSuccess = await StartAsync(connectionString, Noon.AddSeconds(1));
+        var newerFailure = await StartAsync(connectionString, Noon.AddSeconds(2));
+
+        await using (var failureContext = AnInstance.ContextFor(connectionString))
+        {
+            var applied = await new HttpMonitorStore(failureContext).CompleteTestAsync(
+                newerFailure.CheckId!.Value,
+                Failure("unexpected_status"),
+                Noon.AddSeconds(3),
+                TestContext.Current.CancellationToken);
+            Assert.True(applied.AppliedToCurrentState);
+        }
+
+        await using (var successContext = AnInstance.ContextFor(connectionString))
+        {
+            var ignored = await new HttpMonitorStore(successContext).CompleteTestAsync(
+                olderSuccess.CheckId!.Value,
+                Success(),
+                Noon.AddSeconds(4),
+                TestContext.Current.CancellationToken);
+            Assert.False(ignored.AppliedToCurrentState);
+        }
+
+        await using var inspection = AnInstance.ContextFor(connectionString);
+        var incident = await inspection.Incidents.SingleAsync(TestContext.Current.CancellationToken);
+        Assert.True(incident.IsOpen);
+        Assert.Null(incident.ResolutionCheckId);
+        Assert.Null(incident.ResolvedAt);
+    }
+
     private async Task<CompletedHttpTest> RunAsync(
         string connectionString,
         HttpExecutionResult result,

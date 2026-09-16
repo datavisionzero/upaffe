@@ -17,11 +17,25 @@ internal static class HttpCheckEvaluator
             return false;
         }
 
+        var incident = await context.Incidents.SingleOrDefaultAsync(
+            value => value.MonitorId == monitor.Id && value.ResolvedAt == null,
+            cancellationToken);
+        if (incident is not null)
+        {
+            if (check.Outcome == CheckOutcome.Success)
+            {
+                incident.Resolve(check);
+            }
+            else
+            {
+                incident.ObserveFailure(check);
+            }
+
+            return true;
+        }
+
         if (check.Outcome != CheckOutcome.Failure
-            || monitor.ConsecutiveFailures < monitor.FailureThreshold
-            || await context.Incidents.AnyAsync(
-                value => value.MonitorId == monitor.Id && value.ResolvedAt == null,
-                cancellationToken))
+            || monitor.ConsecutiveFailures < monitor.FailureThreshold)
         {
             return true;
         }
