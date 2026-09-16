@@ -154,7 +154,10 @@ Project application acts validate immutable keys, mutable names, and positive
 expected versions once for every transport. The PostgreSQL project store maps
 unique-key races to idempotent create or conflict, uses the persisted version as
 an optimistic concurrency token, and retains soft-deleted rows for explicit
-restoration.
+restoration. The generated Go client backs noninteractive `ua project`
+create/get/list/rename/delete/restore commands; they address immutable keys,
+carry explicit versions for writes, and preserve the API's stable problem
+categories in process exit codes.
 
 The local Compose environment builds the React application and .NET API into
 one development image and starts it beside PostgreSQL 18. Database readiness

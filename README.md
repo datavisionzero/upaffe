@@ -102,10 +102,16 @@ browser request, use it for noninteractive administration:
 UPAFFE_URL=http://localhost:5000 \
 UPAFFE_CREDENTIAL='<token from the explicit create response>' \
   ./ua credential list --json
+
+UPAFFE_URL=http://localhost:5000 \
+UPAFFE_CREDENTIAL='<management credential>' \
+  ./ua project create --key backup-jobs --name 'Backup jobs' --json
 ```
 
 Create and rotate print new secret material once. Lists and diagnostics never
-repeat it; see [`docs/cli.md`](./docs/cli.md) for commands and exit codes.
+repeat it. Project commands address immutable keys and use explicit versions for
+concurrent changes; see [`docs/cli.md`](./docs/cli.md) for commands and exit
+codes.
 
 ## Local Compose environment
 

@@ -70,6 +70,12 @@ ua credential create --name NAME [--url ADDRESS] [--credential TOKEN] [--json]
 ua credential list [--url ADDRESS] [--credential TOKEN] [--json]
 ua credential rotate ID [--url ADDRESS] [--credential TOKEN] [--json]
 ua credential revoke ID [--url ADDRESS] [--credential TOKEN] [--json]
+ua project create --key KEY --name NAME [--url ADDRESS] [--credential TOKEN] [--json]
+ua project get KEY [--url ADDRESS] [--credential TOKEN] [--json]
+ua project list [--deleted] [--url ADDRESS] [--credential TOKEN] [--json]
+ua project rename KEY --name NAME --version VERSION [--url ADDRESS] [--credential TOKEN] [--json]
+ua project delete KEY --version VERSION [--url ADDRESS] [--credential TOKEN] [--json]
+ua project restore KEY --version VERSION [--url ADDRESS] [--credential TOKEN] [--json]
 ```
 
 `version` prints the CLI build version and never accesses the network. `status`
@@ -95,3 +101,32 @@ commands, including issuing a replacement credential before revoking itself.
 Missing credentials exit with code 7 and `authentication_required`; invalid,
 expired, and revoked credentials use the same code with
 `authentication_rejected`.
+
+### Projects
+
+Every project command addresses the immutable project key directly; display
+names are never searched or resolved. `create` sends the key and name and is
+idempotent under the API rules. `get` reads either a live or deleted project.
+`list` returns live projects unless `--deleted` requests only deleted projects.
+`rename`, `delete`, and `restore` require the positive `--version` returned by
+the last read, so a concurrent change exits with code 4 and `conflict` instead
+of overwriting it.
+
+Project payloads consist only of the short scalar key, name, and version, so
+they are supplied as explicit flags and arguments; no editor or prompt is
+opened. Future commands that require structured documents must expose an
+explicit file/stdin flag rather than becoming interactive.
+
+JSON mode writes the API project object or list unchanged. Text mode writes one
+tab-separated project per line with the same facts in this order: key, quoted
+display name, UUID, version, `live` or `deleted`, creation time, update time,
+and deletion time (`-` when live). For example:
+
+```text
+backup-jobs	"Backup jobs"	f0187842-6f73-4c54-8a8c-57ac7c117c39	3	live	2026-09-16T12:00:00Z	2026-09-16T13:00:00Z	-
+```
+
+API `validation` and `conflict` problems exit with code 4, `not_found` with
+code 3, and authentication problems with code 7. Diagnostics include only the
+stable problem code and HTTP status, never the remote title, response body, or
+management credential.

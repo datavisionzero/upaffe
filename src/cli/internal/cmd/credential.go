@@ -14,25 +14,19 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type credentialFlags struct {
+type managementFlags struct {
 	address    string
 	credential string
 	asJSON     bool
 }
 
 func newCredential(output io.Writer, getenv environment) *cobra.Command {
-	flags := &credentialFlags{}
+	flags := &managementFlags{}
 	command := &cobra.Command{
 		Use:   "credential",
 		Short: "Manage noninteractive management credentials",
 	}
-	command.PersistentFlags().StringVar(&flags.address, "url", "", "instance address (otherwise UPAFFE_URL)")
-	command.PersistentFlags().StringVar(
-		&flags.credential,
-		"credential",
-		"",
-		"management credential (otherwise UPAFFE_CREDENTIAL)")
-	command.PersistentFlags().BoolVar(&flags.asJSON, "json", false, "write machine-readable JSON")
+	bindManagementFlags(command, flags)
 	command.AddCommand(newCredentialCreate(output, getenv, flags))
 	command.AddCommand(newCredentialList(output, getenv, flags))
 	command.AddCommand(newCredentialRotate(output, getenv, flags))
@@ -40,7 +34,17 @@ func newCredential(output io.Writer, getenv environment) *cobra.Command {
 	return command
 }
 
-func newCredentialCreate(output io.Writer, getenv environment, flags *credentialFlags) *cobra.Command {
+func bindManagementFlags(command *cobra.Command, flags *managementFlags) {
+	command.PersistentFlags().StringVar(&flags.address, "url", "", "instance address (otherwise UPAFFE_URL)")
+	command.PersistentFlags().StringVar(
+		&flags.credential,
+		"credential",
+		"",
+		"management credential (otherwise UPAFFE_CREDENTIAL)")
+	command.PersistentFlags().BoolVar(&flags.asJSON, "json", false, "write machine-readable JSON")
+}
+
+func newCredentialCreate(output io.Writer, getenv environment, flags *managementFlags) *cobra.Command {
 	var name string
 	command := &cobra.Command{
 		Use:   "create",
@@ -50,7 +54,7 @@ func newCredentialCreate(output io.Writer, getenv environment, flags *credential
 			if name == "" {
 				return process.New(process.Usage, "--name is required")
 			}
-			client, ctx, cancel, err := credentialClient(command, flags, getenv)
+			client, ctx, cancel, err := managementClient(command, flags, getenv)
 			if err != nil {
 				return err
 			}
@@ -80,13 +84,13 @@ func newCredentialCreate(output io.Writer, getenv environment, flags *credential
 	return command
 }
 
-func newCredentialList(output io.Writer, getenv environment, flags *credentialFlags) *cobra.Command {
+func newCredentialList(output io.Writer, getenv environment, flags *managementFlags) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List credential metadata without tokens",
 		Args:  cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
-			client, ctx, cancel, err := credentialClient(command, flags, getenv)
+			client, ctx, cancel, err := managementClient(command, flags, getenv)
 			if err != nil {
 				return err
 			}
@@ -115,7 +119,7 @@ func newCredentialList(output io.Writer, getenv environment, flags *credentialFl
 	}
 }
 
-func newCredentialRotate(output io.Writer, getenv environment, flags *credentialFlags) *cobra.Command {
+func newCredentialRotate(output io.Writer, getenv environment, flags *managementFlags) *cobra.Command {
 	return &cobra.Command{
 		Use:   "rotate <id>",
 		Short: "Rotate a credential and print its new token once",
@@ -125,7 +129,7 @@ func newCredentialRotate(output io.Writer, getenv environment, flags *credential
 			if err != nil {
 				return err
 			}
-			client, ctx, cancel, err := credentialClient(command, flags, getenv)
+			client, ctx, cancel, err := managementClient(command, flags, getenv)
 			if err != nil {
 				return err
 			}
@@ -151,7 +155,7 @@ func newCredentialRotate(output io.Writer, getenv environment, flags *credential
 	}
 }
 
-func newCredentialRevoke(output io.Writer, getenv environment, flags *credentialFlags) *cobra.Command {
+func newCredentialRevoke(output io.Writer, getenv environment, flags *managementFlags) *cobra.Command {
 	return &cobra.Command{
 		Use:   "revoke <id>",
 		Short: "Revoke a credential immediately",
@@ -161,7 +165,7 @@ func newCredentialRevoke(output io.Writer, getenv environment, flags *credential
 			if err != nil {
 				return err
 			}
-			client, ctx, cancel, err := credentialClient(command, flags, getenv)
+			client, ctx, cancel, err := managementClient(command, flags, getenv)
 			if err != nil {
 				return err
 			}
@@ -186,9 +190,9 @@ func newCredentialRevoke(output io.Writer, getenv environment, flags *credential
 	}
 }
 
-func credentialClient(
+func managementClient(
 	command *cobra.Command,
-	flags *credentialFlags,
+	flags *managementFlags,
 	getenv environment,
 ) (*api.ClientWithResponses, context.Context, context.CancelFunc, error) {
 	address, err := config.ResolveURL(flags.address, config.Environment(getenv))
