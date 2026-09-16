@@ -8,14 +8,14 @@ is updated as each epic changes the repository.
 HTTP, CLI, and web copy use those terms rather than inventing parallel names.
 
 Current state: the four-layer .NET 10 solution, API host, technical health and
-version endpoints, PostgreSQL context, forward-only startup migration, checked-in
-OpenAPI contract, two generated client packages, React application, and Go CLI
-exist. The access and project domain and its PostgreSQL schema form the first
-product model. A fresh instance can establish its sole operator through a
-short-lived, one-use bootstrap proof, then admit that operator through a
-revocable server-side browser session and manage projects through web or CLI.
-Local Compose builds and runs that complete slice; production delivery remains
-planned.
+version endpoints, PostgreSQL context, forward-only startup migration,
+checked-in OpenAPI contract, two generated client packages, React application,
+and Go CLI exist. The access and project slice works through API, web, and CLI.
+The HTTP monitoring domain and PostgreSQL schema now persist monitor
+configuration, scheduling and current-result facts, explicitly separated
+secrets, ordered checks, and incident lifecycles; management and execution
+operations build on that model in the remaining monitoring work. Local Compose
+builds and runs the delivered slices; production delivery remains planned.
 
 ## Provenance and maintenance boundary
 
@@ -164,6 +164,15 @@ restoration. The generated Go client backs noninteractive `ua project`
 create/get/list/rename/delete/restore commands; they address immutable keys,
 carry explicit versions for writes, and preserve the API's stable problem
 categories in process exit codes.
+
+HTTP monitor entities validate the durable limits from ADR 0004 and retain the
+state and observation ordering from ADR 0003 without taking a dependency on EF
+Core. Infrastructure maps them to PostgreSQL with a project-scoped immutable
+key, distinct latest-result and latest-success references, separate target-query
+and header-value secret tables, immutable completed check rows, and a partial
+unique index for one open incident per monitor. Scheduler leases, network
+execution, application operations, and transports are not implied by this
+schema and arrive in their owning tickets.
 
 The local Compose environment builds the React application and .NET API into
 one development image and starts it beside PostgreSQL 18. Database readiness

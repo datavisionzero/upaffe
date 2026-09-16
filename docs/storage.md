@@ -28,9 +28,10 @@ serves against a partially migrated or incompatible schema. Rolling an image
 back after a schema change requires restoring the pre-upgrade backup; there is
 no automatic downgrade path.
 
-The initial migration creates no product tables. The next migration adds only
-the access and project model decided in ADR 0002; monitoring tables arrive with
-the features that define their rules.
+The initial migration creates no product tables. The second migration adds the
+access and project model decided in ADR 0002. The third adds the HTTP monitor,
+check, and incident model decided in ADRs 0003 and 0004. Later changes add new
+forward migrations; an existing migration is never rewritten after release.
 
 Add a migration from the repository root after changing the context model:
 
@@ -65,6 +66,43 @@ and EF's concurrency token rejects a second writer that races between that
 comparison and commit. Concurrent creation of the same accepted key and name is
 idempotent; a different name is a conflict.
 
+## HTTP monitoring schema
+
+`http_monitor` belongs to one project through a restrictive foreign key and
+reserves its key within that project for its lifetime. It stores non-secret
+configuration, scheduling facts, the current evaluation generation and ordered
+sequence, consecutive failures, pause/removal timestamps, and separate foreign
+keys for the latest result and latest success. Check constraints mirror the
+interval, timeout, threshold, status, text-rule, state, sequence, and timestamp
+boundaries in ADRs 0003 and 0004. New and resumed monitors have a due time;
+paused and removed monitors do not. Its version is an optimistic concurrency
+token for management changes.
+
+The target stored on `http_monitor` never contains a query. The write-only
+query bytes live one-to-one in `http_monitor_secret`; the ordinary row records
+only whether a query exists. `http_monitor_header` contains lower-case header
+names and timestamps, while `http_monitor_header_secret` contains the UTF-8
+value behind an explicit secret read. An ordinary monitor or header query
+therefore cannot reconstruct either secret. These values must be available to
+the HTTP executor, so unlike authentication credentials they cannot be hashed.
+The database and host administrator remain trusted as established by ADR 0002;
+application output, logs, histories, and exports never expose the byte values.
+
+`http_check` represents one attempt whose ID and monitor-local sequence exist
+before execution. The row is incomplete until one immutable success or failure
+result supplies completion and diagnostic facts. A unique monitor/sequence
+index makes repeated allocation visible. Response content and target queries
+are not stored. The monitor's latest-result and latest-success references are
+independent so a current failure retains the earlier successful observation.
+
+`incident` retains the first, opening, latest-failure, and optional resolution
+check references and their ordered sequences. Original and latest reasons and
+all lifecycle times remain after resolution. A partial unique index on the
+monitor ID where `resolved_at is null` is the final guard against two active
+incidents for one monitor, including when application transitions race.
+Historical retention is deliberately not set by this schema migration; its
+bounded policy is decided with the history operation.
+
 ## Tests
 
 Integration tests use the same PostgreSQL 18 major intended for deployment.
@@ -72,5 +110,7 @@ One container is shared for a test run, while every test receives a fresh
 database. The suite proves application to an empty database, idempotent and
 concurrent startup, rejection of unknown migrations, and refusal to start when
 the database is unavailable. Persistence tests additionally exercise the
-singleton operator, secret lifecycles, revocation, expiry, and project identity
-against PostgreSQL constraints rather than an in-memory substitute.
+singleton operator, secret lifecycles, revocation, expiry, project identity,
+monitor configuration and pause transitions, separated HTTP secrets, ordered
+results, and incident uniqueness and resolution against PostgreSQL constraints
+rather than an in-memory substitute.
