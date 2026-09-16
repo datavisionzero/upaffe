@@ -18,6 +18,31 @@ commit messages, pull request titles and bodies, and issues.
 Working notes and drafts under `scratchpad/` are exempt. They are local and
 never pushed.
 
+## Tickets
+
+The implementation backlog for this repository lives in **planaffe project
+`UP`**, not in GitHub Issues or GitHub Projects. A local `.planaffe` file selects
+the project; it is intentionally ignored because the backlog is private. When a
+request names an epic, ticket, backlog item, or "next" work, inspect planaffe
+first:
+
+```sh
+pa me                         # must identify an agent, not a user
+pa epic list --status open
+pa epic view UP-E1
+pa issue view UP-42           # full project, epic, ticket, and blocker context
+```
+
+Claim only the ticket about to be implemented (`pa issue claim UP-42`), record
+useful interim facts with `pa issue comment`, and close completed work with a
+Markdown result (`pa issue close UP-42 --done --result-file -`). If work stops
+unfinished, release the claim. A blocking question belongs on the ticket with
+`pa issue ask`; a comment does not block it. Never answer a tracker question
+unless explicitly told to do so.
+
+GitHub Issues remain the public surface for outside reports and discussion;
+they are not the implementation plan.
+
 ## Repository and contributions
 
 - **Host**: GitHub — `datavisionzero/upaffe`. The repository is public and MIT
@@ -101,5 +126,4 @@ experiments. It is ignored by git and never reaches the remote. If the directory
 does not exist, proceed silently; it is not part of the published repository.
 
 The scratchpad keeps the user's working level out of the public project. GitHub
-issues are the public surface for reports and discussion from outside, and they
-are written in English like everything else that reaches the remote.
+Issues are written in English like everything else that reaches the remote.

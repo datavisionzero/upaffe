@@ -1,0 +1,29 @@
+# Architecture decisions
+
+This directory records decisions made specifically for upaffe. A decision is
+added when an implementation choice is durable, constrains later work, or
+deliberately departs from a product commitment or an adopted reference.
+
+## upaffe decisions
+
+- [0001 — Adopt the affe foundation without its domain](./0001-adopt-the-affe-foundation-without-its-domain.md)
+
+## Decisions adopted from planaffe
+
+The stack was already decided in planaffe. These ADRs are referenced rather
+than copied so that their rationale has one authoritative home:
+
+| ADR | Adopted decision |
+| --- | --- |
+| [0002](https://github.com/datavisionzero/planaffe/blob/main/docs/adr/0002-the-backend-is-four-layers-not-one-project.md) | The backend is four directed layers. |
+| [0003](https://github.com/datavisionzero/planaffe/blob/main/docs/adr/0003-the-cli-is-go-not-a-second-dotnet-binary.md) | The CLI is an independent Go client. |
+| [0004](https://github.com/datavisionzero/planaffe/blob/main/docs/adr/0004-the-frontend-is-react-not-blazor.md) | The web application is React and TypeScript. |
+| [0005](https://github.com/datavisionzero/planaffe/blob/main/docs/adr/0005-the-contract-is-checked-in-and-both-clients-are-generated-from-it.md) | One checked-in OpenAPI contract generates both clients. |
+| [0006](https://github.com/datavisionzero/planaffe/blob/main/docs/adr/0006-the-web-application-is-a-shell-before-it-is-a-screen.md) | The web application starts as a shell. |
+| [0011](https://github.com/datavisionzero/planaffe/blob/main/docs/adr/0011-the-api-carries-no-version-and-migrations-only-run-forward.md) | The API path is unversioned and database migrations only move forward. |
+| [0017](https://github.com/datavisionzero/planaffe/blob/main/docs/adr/0017-the-web-application-is-drawn-by-tailwind-and-base-ui-components-the-repository-owns.md) | Tailwind and repository-owned Base UI components draw the application. |
+
+hostingaffe is the closer implementation reference for the `/api` namespace,
+startup migration, Compose, and image shapes. Its product-specific decisions
+are not adopted implicitly. If a referenced decision stops fitting upaffe, a
+new local ADR names what is superseded and why.
