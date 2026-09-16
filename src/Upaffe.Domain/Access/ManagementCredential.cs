@@ -46,6 +46,8 @@ public sealed class ManagementCredential
 
     public void Revoke(DateTimeOffset now) => RevokedAt ??= now;
 
+    public static string ValidateName(string value) => AcceptedName(value);
+
     private static string AcceptedName(string value)
     {
         var name = (value ?? string.Empty).Trim();

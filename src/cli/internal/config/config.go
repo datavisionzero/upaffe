@@ -6,7 +6,10 @@ import (
 	"strings"
 )
 
-const URLVariable = "UPAFFE_URL"
+const (
+	URLVariable        = "UPAFFE_URL"
+	CredentialVariable = "UPAFFE_CREDENTIAL"
+)
 
 type Environment func(string) string
 
@@ -28,4 +31,15 @@ func ResolveURL(flagValue string, environment Environment) (string, error) {
 	}
 	parsed.Path = strings.TrimRight(parsed.Path, "/")
 	return strings.TrimRight(parsed.String(), "/"), nil
+}
+
+func ResolveCredential(flagValue string, environment Environment) (string, error) {
+	value := strings.TrimSpace(flagValue)
+	if value == "" {
+		value = strings.TrimSpace(environment(CredentialVariable))
+	}
+	if value == "" {
+		return "", fmt.Errorf("set --credential or %s to a management credential", CredentialVariable)
+	}
+	return value, nil
 }

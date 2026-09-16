@@ -19,13 +19,18 @@ high-entropy secret supplied in the request body.
 | `POST /api/session` | Sign in and receive a fresh server-side browser session cookie. |
 | `GET /api/session` | Inspect the operator identity admitted by the browser session. |
 | `DELETE /api/session` | Revoke the current browser session and expire its cookies. |
+| `POST /api/management-credentials` | Create a named credential and reveal its token once. |
+| `GET /api/management-credentials` | List credential metadata without tokens. |
+| `POST /api/management-credentials/{id}/rotate` | Issue a new token with a ten-minute overlap for the previous token. |
+| `DELETE /api/management-credentials/{id}` | Revoke every token for the credential immediately. |
 | `GET /api/openapi/v1.json` | The generated OpenAPI document. It does not list itself. |
 
 The technical and bootstrap operations plus sign-in are anonymous. Bootstrap is
 nevertheless authorized by its one-use proof. Reading or deleting a session
-requires its cookie. The management authorization boundary arrives in the
-following access tickets. Liveness and readiness are technical deployment
-checks; neither asserts that the monitoring loop is progressing.
+requires its cookie. Management-credential operations accept either that
+browser session or `Authorization: Bearer <token>`. Liveness and readiness are
+technical deployment checks; neither asserts that the monitoring loop is
+progressing.
 
 `POST /api/bootstrap` returns `204` and no body on success. Expected refusals use
 `application/problem+json` with a stable `code`: `validation` (`400`),
@@ -53,6 +58,28 @@ plain HTTP uses `upaffe_session`. Both are `HttpOnly`, `SameSite=Lax`, scoped to
 `/`, and carry the absolute expiry. `DELETE /api/session` additionally requires
 `X-Upaffe-CSRF: 1` and an `Origin` whose authority equals the request host. It
 revokes the server row and expires both cookie names.
+
+## Management credentials
+
+A management credential has a stable UUID and a unique operator-chosen name.
+Creation and rotation are the only responses that contain a full token, in the
+form `upaffe_<32 hex identifier>_<base64url secret>`. The public identifier
+selects the credential; PostgreSQL stores only the SHA-256 digest of the 32-byte
+secret. Lists contain metadata only, including rotation and revocation times.
+
+Rotation activates its new token immediately and keeps the previous token valid
+for exactly ten minutes so an unattended client can switch without a gap.
+Revocation is idempotent and rejects every token for that credential on its next
+request. A bearer may administer credentials but fails the browser-only session
+operation with `403 forbidden`; it cannot create an operator or alter the human
+login.
+
+No authentication returns `401 authentication_required`. A malformed, unknown,
+expired, or revoked cookie or bearer token returns the same
+`401 authentication_rejected`; ordinary responses and logs do not distinguish
+those stored states. Unknown credential IDs return `404 not_found`, duplicate
+names and rotation of a revoked credential return `409 conflict`, and invalid
+names return `400 validation`.
 
 ## Contract rule
 

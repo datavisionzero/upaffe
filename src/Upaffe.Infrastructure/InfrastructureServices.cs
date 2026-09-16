@@ -22,6 +22,7 @@ public static class InfrastructureServices
         services.AddScoped<SchemaMigrator>();
         services.AddScoped<IBootstrapStore, BootstrapStore>();
         services.AddScoped<IBrowserSessionStore, BrowserSessionStore>();
+        services.AddScoped<IManagementCredentialStore, ManagementCredentialStore>();
         services.AddSingleton<IPasswordHasher, Argon2idPasswordHasher>();
         return services;
     }

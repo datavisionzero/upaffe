@@ -95,6 +95,18 @@ UPAFFE_URL=http://localhost:5000 ./ua status --json
 Version and help are offline. `status` is the technical end-to-end diagnostic;
 it does not claim that any monitor exists or is healthy.
 
+After an initial management credential has been issued through a signed-in
+browser request, use it for noninteractive administration:
+
+```sh
+UPAFFE_URL=http://localhost:5000 \
+UPAFFE_CREDENTIAL='<token from the explicit create response>' \
+  ./ua credential list --json
+```
+
+Create and rotate print new secret material once. Lists and diagnostics never
+repeat it; see [`docs/cli.md`](./docs/cli.md) for commands and exit codes.
+
 ## Local Compose environment
 
 Build and start PostgreSQL and the complete application from a fresh checkout:

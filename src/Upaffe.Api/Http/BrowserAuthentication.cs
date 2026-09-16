@@ -11,8 +11,9 @@ namespace Upaffe.Api.Http;
 
 public static class BrowserAuthentication
 {
-    public const string Scheme = "UpaffeBrowser";
+    public const string Scheme = "UpaffeAccess";
     public const string Policy = "browser";
+    public const string ManagementPolicy = "management";
     internal const string RejectedItem = "upaffe.authentication_rejected";
 
     public static IServiceCollection AddBrowserAuthentication(this IServiceCollection services)
@@ -24,6 +25,10 @@ public static class BrowserAuthentication
                 configureOptions: null);
         services.AddAuthorizationBuilder()
             .AddPolicy(Policy, policy => policy
+                .AddAuthenticationSchemes(Scheme)
+                .RequireAuthenticatedUser()
+                .RequireClaim("access_path", "browser_session"))
+            .AddPolicy(ManagementPolicy, policy => policy
                 .AddAuthenticationSchemes(Scheme)
                 .RequireAuthenticatedUser());
         services.AddSingleton<LoginThrottle>();
@@ -43,6 +48,11 @@ public sealed class BrowserAuthenticationHandler(
         if (Context.GetEndpoint()?.Metadata.GetMetadata<IAuthorizeData>() is null)
         {
             return AuthenticateResult.NoResult();
+        }
+
+        if (Request.Headers.Authorization.ToString() is { Length: > 0 } authorization)
+        {
+            return await AuthenticateManagementAsync(authorization);
         }
 
         if (!Request.Cookies.TryGetValue(BrowserCookie.For(Request).Name, out var secret))
@@ -69,10 +79,8 @@ public sealed class BrowserAuthenticationHandler(
         }
 
         Context.Features.Set(admitted);
-        var principal = new ClaimsPrincipal(new ClaimsIdentity(
-            [new Claim(ClaimTypes.NameIdentifier, admitted.Identity.OperatorId.ToString())],
-            Scheme.Name));
-        return AuthenticateResult.Success(new AuthenticationTicket(principal, Scheme.Name));
+        Context.Features.Set(admitted.Identity);
+        return Success(admitted.Identity);
     }
 
     protected override Task HandleChallengeAsync(AuthenticationProperties properties) =>
@@ -82,6 +90,51 @@ public sealed class BrowserAuthenticationHandler(
 
     protected override Task HandleForbiddenAsync(AuthenticationProperties properties) =>
         throw Refusal.Forbidden();
+
+    private async Task<AuthenticateResult> AuthenticateManagementAsync(string authorization)
+    {
+        const string prefix = "Bearer ";
+        var token = authorization.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            ? authorization[prefix.Length..]
+            : string.Empty;
+        if (token.Contains(' ', StringComparison.Ordinal)
+            || !ManagementToken.TryParse(token, out var credentialId, out var secretHash))
+        {
+            Context.Items[BrowserAuthentication.RejectedItem] = true;
+            return AuthenticateResult.Fail("The presented credential was rejected.");
+        }
+
+        var credentials = Context.RequestServices.GetRequiredService<IManagementCredentialStore>();
+        var clock = Context.RequestServices.GetRequiredService<TimeProvider>();
+        var admitted = await credentials.AdmitAsync(
+            credentialId,
+            secretHash,
+            clock.GetUtcNow(),
+            Context.RequestAborted);
+        if (admitted is null)
+        {
+            Context.Items[BrowserAuthentication.RejectedItem] = true;
+            return AuthenticateResult.Fail("The presented credential was rejected.");
+        }
+
+        Context.Features.Set(admitted);
+        Context.Features.Set(admitted.Identity);
+        return Success(admitted.Identity);
+    }
+
+    private AuthenticateResult Success(Identity identity)
+    {
+        var path = identity.Path == AccessPath.BrowserSession
+            ? "browser_session"
+            : "management_credential";
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            [
+                new Claim(ClaimTypes.NameIdentifier, identity.OperatorId.ToString()),
+                new Claim("access_path", path),
+            ],
+            Scheme.Name));
+        return AuthenticateResult.Success(new AuthenticationTicket(principal, Scheme.Name));
+    }
 
     private static bool LooksLikeSecret(string value) =>
         value.Length == 43

@@ -30,6 +30,8 @@ public sealed class ProblemMiddleware(RequestDelegate next, ILogger<ProblemMiddl
                 "authentication_required" => StatusCodes.Status401Unauthorized,
                 "authentication_rejected" => StatusCodes.Status401Unauthorized,
                 "forbidden" => StatusCodes.Status403Forbidden,
+                "conflict" => StatusCodes.Status409Conflict,
+                "not_found" => StatusCodes.Status404NotFound,
                 _ => StatusCodes.Status400BadRequest,
             };
             logger.LogInformation(

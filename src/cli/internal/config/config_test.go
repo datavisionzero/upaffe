@@ -32,3 +32,24 @@ func TestResolveURL(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveCredential(t *testing.T) {
+	value, err := ResolveCredential("from-flag", func(string) string { return "from-environment" })
+	if err != nil || value != "from-flag" {
+		t.Fatalf("got %q, %v", value, err)
+	}
+
+	value, err = ResolveCredential("", func(key string) string {
+		if key != CredentialVariable {
+			t.Fatalf("asked for %q", key)
+		}
+		return "from-environment"
+	})
+	if err != nil || value != "from-environment" {
+		t.Fatalf("got %q, %v", value, err)
+	}
+
+	if _, err = ResolveCredential("", func(string) string { return "" }); err == nil {
+		t.Fatal("expected missing credential to fail")
+	}
+}

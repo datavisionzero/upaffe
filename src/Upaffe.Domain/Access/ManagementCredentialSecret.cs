@@ -3,6 +3,8 @@ namespace Upaffe.Domain.Access;
 /// <summary>One hashed secret belonging to a management credential.</summary>
 public sealed class ManagementCredentialSecret
 {
+    public static readonly TimeSpan RotationOverlap = TimeSpan.FromMinutes(10);
+
     private ManagementCredentialSecret()
     {
     }

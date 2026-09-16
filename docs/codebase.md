@@ -114,9 +114,11 @@ The CLI is an independent Go module whose executable is `ua`. It is designed for
 unattended use: machine-readable output, data on stdout, diagnostics on stderr,
 stable exit categories, and no implicit prompt, editor, or pager. `ua version`
 and help are offline; `ua status` resolves `--url` before `UPAFFE_URL` and calls
-the generated version operation with a bounded timeout. Its only application
-boundary is the generated Go client of the same contract used to generate the
-web application's TypeScript types. [`cli.md`](./cli.md) is the process contract.
+the generated version operation with a bounded timeout. Credential commands
+resolve `--credential` before `UPAFFE_CREDENTIAL` and call only the generated
+create, list, rotate, and revoke operations. Its only application boundary is
+the generated Go client of the same contract used to generate the web
+application's TypeScript types. [`cli.md`](./cli.md) is the process contract.
 
 The end-to-end technical path is deliberately small:
 
@@ -141,6 +143,9 @@ before persistence and consumed transactionally with operator creation.
 Browser authentication compares Argon2id work for every email outcome, stores
 only the session-secret digest, and applies both idle and absolute expiry during
 each admission. Cookie-authenticated writes pass the same-origin CSRF guard.
+Named management credentials use parseable bearer tokens with a public UUID and
+hashed secret; transactional rotation overlaps the prior digest for ten minutes
+and revocation is checked on every admission.
 
 The local Compose environment builds the React application and .NET API into
 one development image and starts it beside PostgreSQL 18. Database readiness

@@ -25,7 +25,16 @@ public sealed class ContractTests(PostgresFixture postgres)
         Assert.Equal("upaffe", document["info"]!["title"]!.GetValue<string>());
         Assert.Null(document["servers"]);
         Assert.Equal(
-            ["/api/bootstrap", "/api/health/live", "/api/health/ready", "/api/session", "/api/version"],
+            [
+                "/api/bootstrap",
+                "/api/health/live",
+                "/api/health/ready",
+                "/api/management-credentials",
+                "/api/management-credentials/{id}",
+                "/api/management-credentials/{id}/rotate",
+                "/api/session",
+                "/api/version",
+            ],
             document["paths"]!.AsObject().Select(path => path.Key).Order(StringComparer.Ordinal));
     }
 

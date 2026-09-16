@@ -57,7 +57,8 @@ cross-site form submissions from becoming management actions.
 
 A management credential has a stable ID and operator-chosen name. Its bearer
 token contains a public identifier and 32 random bytes; only a SHA-256 digest is
-stored. The complete token appears exactly once in the explicit create or
+stored. Its wire form is `upaffe_<32 hex identifier>_<base64url secret>`. The
+complete token appears exactly once in the explicit create or
 rotate response. Lists, logs, exports, and ordinary errors contain metadata
 only. Rotation activates a new secret immediately and gives the prior secret a
 ten-minute overlap before it expires. Revocation invalidates every secret for

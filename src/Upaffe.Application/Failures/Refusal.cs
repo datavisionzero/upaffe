@@ -29,4 +29,8 @@ public sealed class Refusal(
 
     public static Refusal Forbidden() =>
         new("forbidden", "This access path cannot perform that operation.");
+
+    public static Refusal Conflict(string message) => new("conflict", message);
+
+    public static Refusal NotFound(string message) => new("not_found", message);
 }

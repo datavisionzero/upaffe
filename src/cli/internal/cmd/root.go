@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -47,6 +48,7 @@ func newRoot(output io.Writer, getenv environment) *cobra.Command {
 	}
 	root.AddCommand(newVersion(output))
 	root.AddCommand(newStatus(output, getenv))
+	root.AddCommand(newCredential(output, getenv))
 	return root
 }
 
@@ -123,6 +125,18 @@ func responseError(status int) error {
 	default:
 		return process.New(process.Unexpected, "instance returned HTTP %d", status)
 	}
+}
+
+func responseProblem(status int, body []byte) error {
+	var problem api.ProblemResponse
+	if json.Unmarshal(body, &problem) == nil && problem.Code != "" {
+		classified := responseError(status)
+		var failure *process.Error
+		if errors.As(classified, &failure) {
+			return process.New(failure.Code, "%s (HTTP %d)", problem.Code, status)
+		}
+	}
+	return responseError(status)
 }
 
 func writeJSON(output io.Writer, value any) error {

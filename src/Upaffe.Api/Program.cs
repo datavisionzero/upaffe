@@ -17,6 +17,10 @@ builder.Services.AddScoped<ReadBootstrapState>();
 builder.Services.AddScoped<EstablishOperator>();
 builder.Services.AddScoped<SignIn>();
 builder.Services.AddScoped<SignOut>();
+builder.Services.AddScoped<CreateManagementCredential>();
+builder.Services.AddScoped<ListManagementCredentials>();
+builder.Services.AddScoped<RotateManagementCredential>();
+builder.Services.AddScoped<RevokeManagementCredential>();
 builder.Services.AddHostedService<SchemaMigrationService>();
 builder.Services.AddHostedService<BootstrapService>();
 builder.Services.AddUpaffeOpenApi();
@@ -45,6 +49,7 @@ api.MapInstance();
 api.MapHealth();
 api.MapBootstrap();
 api.MapSession();
+api.MapManagementCredentials();
 api.MapFallback(() => Results.NotFound());
 
 app.MapFallbackToFile("index.html");
