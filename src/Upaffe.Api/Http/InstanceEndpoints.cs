@@ -10,7 +10,7 @@ public static class InstanceEndpoints
     public static IEndpointRouteBuilder MapInstance(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet("/version", () => new VersionResponse(InstanceVersion.Value))
-            .AllowAnonymous()
+            .PublicAccess()
             .WithName("ReadVersion")
             .WithSummary("The version of this instance.")
             .Produces<VersionResponse>();

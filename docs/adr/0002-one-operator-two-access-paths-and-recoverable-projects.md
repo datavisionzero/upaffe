@@ -77,14 +77,17 @@ Endpoints are classified explicitly:
 
 - **Public**: liveness, readiness, version, bootstrap state, bootstrap, and
   sign-in.
-- **Browser-only**: sign-out and future changes to the operator's own login.
+- **Browser-only**: current-session inspection, sign-out, and future changes to
+  the operator's own login.
 - **Management**: projects and management credentials; either a valid browser
   session or a valid management credential may call them.
 
 Application operations receive an identity containing the singleton operator
 ID and the access path. They never inspect cookies or bearer headers. A new
-management endpoint must opt into the management policy; the API group is
-closed by default rather than anonymously accessible by default.
+endpoint carries one public, browser, or management metadata marker. A new
+management endpoint must opt into the management policy; an authenticated
+fallback policy closes any omitted classification rather than making it
+anonymously accessible.
 
 No credential value, cookie, password, bootstrap secret, or remote response
 content is logged. Logs may contain an operation name, outcome, access path,

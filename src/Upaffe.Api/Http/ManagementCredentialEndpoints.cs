@@ -28,7 +28,7 @@ public static class ManagementCredentialEndpoints
     public static IEndpointRouteBuilder MapManagementCredentials(this IEndpointRouteBuilder endpoints)
     {
         var credentials = endpoints.MapGroup("/management-credentials")
-            .RequireAuthorization(BrowserAuthentication.ManagementPolicy);
+            .ManagementAccess();
 
         credentials.MapPost(string.Empty, async (
                 CreateCredentialRequest request,

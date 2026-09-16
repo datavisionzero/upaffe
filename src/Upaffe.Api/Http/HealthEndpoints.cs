@@ -8,7 +8,7 @@ public static class HealthEndpoints
     public static IEndpointRouteBuilder MapHealth(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet("/health/live", () => Results.Ok(new LivenessResponse("live")))
-            .AllowAnonymous()
+            .PublicAccess()
             .WithName("ReadLiveness")
             .WithSummary("Whether the upaffe process can answer.")
             .Produces<LivenessResponse>();
@@ -35,7 +35,7 @@ public static class HealthEndpoints
                         statusCode: StatusCodes.Status503ServiceUnavailable);
                 }
             })
-            .AllowAnonymous()
+            .PublicAccess()
             .WithName("ReadReadiness")
             .WithSummary("Whether PostgreSQL answers with the expected schema.")
             .Produces<LivenessResponse>()

@@ -25,12 +25,14 @@ high-entropy secret supplied in the request body.
 | `DELETE /api/management-credentials/{id}` | Revoke every token for the credential immediately. |
 | `GET /api/openapi/v1.json` | The generated OpenAPI document. It does not list itself. |
 
-The technical and bootstrap operations plus sign-in are anonymous. Bootstrap is
-nevertheless authorized by its one-use proof. Reading or deleting a session
-requires its cookie. Management-credential operations accept either that
-browser session or `Authorization: Bearer <token>`. Liveness and readiness are
-technical deployment checks; neither asserts that the monitoring loop is
-progressing.
+Every routed endpoint declares exactly one access boundary. Version, health,
+OpenAPI, bootstrap, sign-in, and non-API fallbacks are public; bootstrap is
+nevertheless authorized by its one-use proof. Reading or deleting a session is
+browser-only. Management operations accept either that browser session or
+`Authorization: Bearer <token>`. The host has an authenticated fallback policy,
+so an endpoint without an explicit public declaration is closed rather than
+accidentally anonymous. Liveness and readiness are technical deployment checks;
+neither asserts that the monitoring loop is progressing.
 
 `POST /api/bootstrap` returns `204` and no body on success. Expected refusals use
 `application/problem+json` with a stable `code`: `validation` (`400`),
@@ -80,6 +82,10 @@ expired, or revoked cookie or bearer token returns the same
 those stored states. Unknown credential IDs return `404 not_found`, duplicate
 names and rotation of a revoked credential return `409 conflict`, and invalid
 names return `400 validation`.
+
+Authentication audit messages contain the HTTP operation, outcome, access path,
+and public session or credential ID when available. They never contain the
+presented bearer token, cookie secret, bootstrap proof, or password.
 
 ## Contract rule
 

@@ -57,7 +57,7 @@ public static class SessionEndpoints
                     cookie.Options(issued.Session.ExpiresAt));
                 return Results.NoContent();
             })
-            .AllowAnonymous()
+            .PublicAccess()
             .WithName("SignIn")
             .WithSummary("Sign in as the operator; the new session is returned as an HttpOnly cookie.")
             .Produces(StatusCodes.Status204NoContent)
@@ -73,7 +73,7 @@ public static class SessionEndpoints
                     admitted.Identity.AccessId,
                     admitted.ExpiresAt));
             })
-            .RequireAuthorization(BrowserAuthentication.Policy)
+            .BrowserAccess()
             .WithName("ReadCurrentSession")
             .WithSummary("Inspect the operator identity admitted by the current browser session.")
             .Produces<CurrentSessionResponse>()
@@ -88,7 +88,7 @@ public static class SessionEndpoints
                 BrowserCookie.Forget(http.Response);
                 return Results.NoContent();
             })
-            .RequireAuthorization(BrowserAuthentication.Policy)
+            .BrowserAccess()
             .WithName("SignOut")
             .WithSummary("Revoke and forget the current browser session.")
             .Produces(StatusCodes.Status204NoContent)

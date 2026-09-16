@@ -18,7 +18,7 @@ public static class BootstrapEndpoints
                 var state = await read.ExecuteAsync(cancellationToken);
                 return Results.Ok(new BootstrapStateResponse(state.Required, state.Available));
             })
-            .AllowAnonymous()
+            .PublicAccess()
             .WithName("ReadBootstrapState")
             .WithSummary("Whether this instance still needs and can accept its one-time bootstrap.")
             .Produces<BootstrapStateResponse>();
@@ -35,7 +35,7 @@ public static class BootstrapEndpoints
                     cancellationToken);
                 return Results.NoContent();
             })
-            .AllowAnonymous()
+            .PublicAccess()
             .WithName("EstablishOperator")
             .WithSummary("Establish the sole operator using the bounded bootstrap proof.")
             .Produces(StatusCodes.Status204NoContent)

@@ -145,7 +145,11 @@ only the session-secret digest, and applies both idle and absolute expiry during
 each admission. Cookie-authenticated writes pass the same-origin CSRF guard.
 Named management credentials use parseable bearer tokens with a public UUID and
 hashed secret; transactional rotation overlaps the prior digest for ten minutes
-and revocation is checked on every admission.
+and revocation is checked on every admission. Every routed endpoint records one
+public, browser, or management boundary in its metadata, while a global
+authenticated fallback closes an endpoint whose classification was omitted.
+Authentication audit logs identify the HTTP operation, outcome, access path,
+and public access ID without recording presented secrets.
 
 The local Compose environment builds the React application and .NET API into
 one development image and starts it beside PostgreSQL 18. Database readiness

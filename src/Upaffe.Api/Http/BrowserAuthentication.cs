@@ -24,6 +24,9 @@ public static class BrowserAuthentication
                 displayName: null,
                 configureOptions: null);
         services.AddAuthorizationBuilder()
+            .SetFallbackPolicy(new AuthorizationPolicyBuilder(Scheme)
+                .RequireAuthenticatedUser()
+                .Build())
             .AddPolicy(Policy, policy => policy
                 .AddAuthenticationSchemes(Scheme)
                 .RequireAuthenticatedUser()
@@ -80,16 +83,32 @@ public sealed class BrowserAuthenticationHandler(
 
         Context.Features.Set(admitted);
         Context.Features.Set(admitted.Identity);
+        AuditAdmitted(admitted.Identity);
         return Success(admitted.Identity);
     }
 
-    protected override Task HandleChallengeAsync(AuthenticationProperties properties) =>
-        throw (Context.Items.ContainsKey(BrowserAuthentication.RejectedItem)
-            ? Refusal.AuthenticationRejected()
-            : Refusal.AuthenticationRequired());
+    protected override Task HandleChallengeAsync(AuthenticationProperties properties)
+    {
+        var rejected = Context.Items.ContainsKey(BrowserAuthentication.RejectedItem);
+        Logger.LogInformation(
+            "Authentication {Outcome} for {Method} {Path}.",
+            rejected ? "rejected" : "required",
+            Request.Method,
+            Request.Path);
+        throw rejected ? Refusal.AuthenticationRejected() : Refusal.AuthenticationRequired();
+    }
 
-    protected override Task HandleForbiddenAsync(AuthenticationProperties properties) =>
+    protected override Task HandleForbiddenAsync(AuthenticationProperties properties)
+    {
+        var identity = Context.Features.Get<Identity>();
+        Logger.LogInformation(
+            "Authentication forbidden for {Method} {Path} via {AccessPath} {AccessId}.",
+            Request.Method,
+            Request.Path,
+            identity?.Path.ToString() ?? "unknown",
+            identity?.AccessId.ToString() ?? "unknown");
         throw Refusal.Forbidden();
+    }
 
     private async Task<AuthenticateResult> AuthenticateManagementAsync(string authorization)
     {
@@ -119,8 +138,16 @@ public sealed class BrowserAuthenticationHandler(
 
         Context.Features.Set(admitted);
         Context.Features.Set(admitted.Identity);
+        AuditAdmitted(admitted.Identity);
         return Success(admitted.Identity);
     }
+
+    private void AuditAdmitted(Identity identity) => Logger.LogInformation(
+        "Authentication admitted {Method} {Path} via {AccessPath} {AccessId}.",
+        Request.Method,
+        Request.Path,
+        identity.Path,
+        identity.AccessId);
 
     private AuthenticateResult Success(Identity identity)
     {

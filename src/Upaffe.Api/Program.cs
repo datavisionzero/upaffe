@@ -42,7 +42,7 @@ app.UseAuthentication();
 app.UseMiddleware<BrowserCsrfMiddleware>();
 app.UseAuthorization();
 
-app.MapOpenApi("/api/openapi/{documentName}.json");
+app.MapOpenApi("/api/openapi/{documentName}.json").PublicAccess();
 
 var api = app.MapGroup("/api");
 api.MapInstance();
@@ -50,9 +50,9 @@ api.MapHealth();
 api.MapBootstrap();
 api.MapSession();
 api.MapManagementCredentials();
-api.MapFallback(() => Results.NotFound());
+api.MapFallback(() => Results.NotFound()).PublicAccess();
 
-app.MapFallbackToFile("index.html");
+app.MapFallbackToFile("index.html").PublicAccess();
 
 app.Run();
 
