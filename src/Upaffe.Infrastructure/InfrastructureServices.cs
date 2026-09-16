@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Upaffe.Application.Ports;
+using Upaffe.Infrastructure.Monitoring;
 using Upaffe.Infrastructure.Persistence;
 using Upaffe.Infrastructure.Security;
 
@@ -24,6 +25,9 @@ public static class InfrastructureServices
         services.AddScoped<IBrowserSessionStore, BrowserSessionStore>();
         services.AddScoped<IManagementCredentialStore, ManagementCredentialStore>();
         services.AddScoped<IProjectStore, ProjectStore>();
+        services.AddSingleton<IHostResolver, SystemHostResolver>();
+        services.AddSingleton<IPinnedConnectionFactory, SocketPinnedConnectionFactory>();
+        services.AddSingleton<IHttpCheckExecutor, HttpCheckExecutor>();
         services.AddSingleton<IPasswordHasher, Argon2idPasswordHasher>();
         return services;
     }

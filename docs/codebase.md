@@ -11,11 +11,12 @@ Current state: the four-layer .NET 10 solution, API host, technical health and
 version endpoints, PostgreSQL context, forward-only startup migration,
 checked-in OpenAPI contract, two generated client packages, React application,
 and Go CLI exist. The access and project slice works through API, web, and CLI.
-The HTTP monitoring domain and PostgreSQL schema now persist monitor
-configuration, scheduling and current-result facts, explicitly separated
-secrets, ordered checks, and incident lifecycles; management and execution
-operations build on that model in the remaining monitoring work. Local Compose
-builds and runs the delivered slices; production delivery remains planned.
+The HTTP monitoring domain and PostgreSQL schema persist monitor configuration,
+scheduling and current-result facts, explicitly separated secrets, ordered
+checks, and incident lifecycles. A shared bounded executor can perform one
+public-internet HTTP observation; management, scheduling, and evaluation build
+on those foundations in the remaining monitoring work. Local Compose builds
+and runs the delivered slices; production delivery remains planned.
 
 ## Provenance and maintenance boundary
 
@@ -77,6 +78,33 @@ Api ──────> Application ──────> Domain
   services. Domain never references EF Core.
 - **API** is the composition root and HTTP boundary. It is the only productive
   project that knows all implementation layers.
+
+## HTTP execution boundary
+
+`IHttpCheckExecutor` is the shared application port for one observation. Its
+Infrastructure implementation owns DNS resolution, public-address
+classification, IP-pinned connections, manual redirects, system TLS
+validation, one whole-operation timeout, decompression and response limits,
+strict text decoding, and status/text evaluation. It returns stable reason
+codes and sanitized metadata; it neither schedules another run nor changes a
+monitor or incident.
+
+Each initial target and redirect hop is resolved independently. Every returned
+address must be globally reachable according to the checked IANA
+[IPv4](https://www.iana.org/assignments/iana-ipv4-special-registry/iana-ipv4-special-registry.xhtml)
+and [IPv6](https://www.iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry.xhtml)
+special-purpose registries, and IPv4 embedded in mapped or NAT64 IPv6 addresses
+is classified as IPv4. The connection callback receives only those validated
+addresses, so a second resolver lookup cannot redirect the socket. Automatic
+redirects, cookies, credentials, and proxies are disabled. Configured headers
+are applied only while the exact origin is unchanged.
+
+The test seam separates name resolution and socket connection without weakening
+production policy. Tests supply controlled public-looking answers and route the
+already-approved connection to a loopback raw HTTP server. They exercise DNS
+changes, forbidden and mixed answers, redirects and header stripping, status
+and text failures, timeout and cancellation, TLS failure, strict encoding, and
+compressed body and header limits without contacting an external service.
 
 Unit tests protect these directions by reading the project references. A term
 introduced in code is documented with the domain model when that model lands.
