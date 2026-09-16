@@ -23,7 +23,7 @@ export function problemMessage(error: unknown, status: number): string {
       : "Check the submitted facts.";
   }
   if (code === "conflict") return "The request conflicts with the current state. Refresh and try again.";
-  if (code === "not_found") return "The requested project no longer exists.";
+  if (code === "not_found") return "The requested object no longer exists.";
   if (code === "sign_in_rejected") return "The email address or password was rejected.";
   if (code === "bootstrap_rejected") return "The bootstrap proof was rejected or has expired.";
   if (code === "bootstrap_closed") return "Bootstrap has already been completed.";

@@ -4,6 +4,7 @@ import type { components } from "@/api/schema";
 import { api } from "@/api/client";
 import { csrfHeaders, problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
+import { MonitorsView } from "@/shell/MonitorsView";
 
 type Project = components["schemas"]["ProjectResponse"];
 type Session = components["schemas"]["CurrentSessionResponse"];
@@ -21,6 +22,7 @@ export function ProjectsView({ session, onSignedOut }: Props) {
   const [error, setError] = useState<string>();
   const [key, setKey] = useState("");
   const [name, setName] = useState("");
+  const [selectedProject, setSelectedProject] = useState<Project>();
 
   const load = useCallback(async () => {
     try {
@@ -118,6 +120,16 @@ export function ProjectsView({ session, onSignedOut }: Props) {
     }
   }
 
+  if (selectedProject) {
+    return (
+      <MonitorsView
+        onBack={() => setSelectedProject(undefined)}
+        onSignedOut={onSignedOut}
+        project={selectedProject}
+      />
+    );
+  }
+
   return (
     <div className="workspace">
       <header className="workspace-header">
@@ -169,7 +181,13 @@ export function ProjectsView({ session, onSignedOut }: Props) {
         {!loading && projects.length > 0 && (
           <div className="project-list">
             {projects.map((project) => (
-              <ProjectRow key={project.id} busy={busy} onMutate={mutate} project={project} />
+              <ProjectRow
+                key={project.id}
+                busy={busy}
+                onManage={() => setSelectedProject(project)}
+                onMutate={mutate}
+                project={project}
+              />
             ))}
           </div>
         )}
@@ -181,10 +199,11 @@ export function ProjectsView({ session, onSignedOut }: Props) {
 type RowProps = {
   project: Project;
   busy?: string;
+  onManage: () => void;
   onMutate: (project: Project, operation: "rename" | "delete" | "restore", nextName?: string) => Promise<void>;
 };
 
-function ProjectRow({ project, busy, onMutate }: RowProps) {
+function ProjectRow({ project, busy, onManage, onMutate }: RowProps) {
   const [name, setName] = useState(project.name);
   const isDeleted = project.deleted_at !== null;
   const working = busy?.endsWith(`:${project.key}`) ?? false;
@@ -204,17 +223,20 @@ function ProjectRow({ project, busy, onMutate }: RowProps) {
           <Button disabled={working} onClick={() => void onMutate(project, "restore")} type="button">Restore</Button>
         </div>
       ) : (
-        <form className="rename-row" onSubmit={(event) => {
-          event.preventDefault();
-          void onMutate(project, "rename", name);
-        }}>
-          <label>
-            <span className="sr-only">New display name for {project.key}</span>
-            <input aria-label={`New display name for ${project.key}`} maxLength={100} required value={name} onChange={(event) => setName(event.target.value)} />
-          </label>
-          <Button disabled={working || name === project.name} type="submit">Rename</Button>
-          <Button className="danger" disabled={working} onClick={() => void onMutate(project, "delete")} type="button">Delete</Button>
-        </form>
+        <>
+          <Button className="manage-button" disabled={working} onClick={onManage} type="button">Manage monitors</Button>
+          <form className="rename-row" onSubmit={(event) => {
+            event.preventDefault();
+            void onMutate(project, "rename", name);
+          }}>
+            <label>
+              <span className="sr-only">New display name for {project.key}</span>
+              <input aria-label={`New display name for ${project.key}`} maxLength={100} required value={name} onChange={(event) => setName(event.target.value)} />
+            </label>
+            <Button disabled={working || name === project.name} type="submit">Rename</Button>
+            <Button className="danger" disabled={working} onClick={() => void onMutate(project, "delete")} type="button">Delete</Button>
+          </form>
+        </>
       )}
     </article>
   );

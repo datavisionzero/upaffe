@@ -10,15 +10,16 @@ HTTP, CLI, and web copy use those terms rather than inventing parallel names.
 Current state: the four-layer .NET 10 solution, API host, technical health and
 version endpoints, PostgreSQL context, forward-only startup migration,
 checked-in OpenAPI contract, two generated client packages, React application,
-and Go CLI exist. The access and project slice works through API, web, and CLI.
+and Go CLI exist. Access, projects, and HTTP-monitor administration work through
+the shared API, web application, and CLI.
 The HTTP monitoring domain and PostgreSQL schema persist monitor configuration,
 scheduling and current-result facts, explicitly separated secrets, ordered
 checks, and incident lifecycles. A shared bounded executor performs one
-public-internet observation. Authenticated application and API operations now
-manage and immediately test HTTP monitors; recurring scheduling and complete
-incident evaluation build on those foundations in the remaining monitoring
-work. Local Compose builds and runs the delivered slices; production delivery
-remains planned.
+public-internet observation. Authenticated operations manage and immediately
+test HTTP monitors; recurring scheduling, threshold evaluation, incident
+lifecycle, and retained history complete the first monitoring path. Local
+Compose builds and runs the delivered slices; production delivery remains
+planned.
 
 ## Provenance and maintenance boundary
 
@@ -180,9 +181,15 @@ bootstrap and session responses into distinct first-start, sign-in, and project
 surfaces. Proofs and passwords use password inputs and leave component state as
 soon as they are submitted. The project surface lists live or deleted projects
 and creates, renames, soft-deletes, and restores them using only generated API
-operations and their optimistic versions. Native forms, visible loading, empty,
-and validation states, semantic status regions, and focus-visible controls keep
-the slice keyboard accessible. The production build lands in
+operations and their optimistic versions. A live project opens a functional
+HTTP-monitor workspace for complete public configuration, write-only header
+creation/replacement/removal, explicit lifecycle state, immediate tests, pause,
+resume, retained removal, and paginated check and incident history. The edit
+form preserves a hidden target query unless the operator explicitly replaces
+the complete target. Secret header values and replacement targets leave
+component state as soon as they are submitted. Native forms, visible loading,
+empty, validation, success, and concurrency states, semantic status regions,
+and focus-visible controls keep the slice keyboard accessible. The production build lands in
 `src/Upaffe.Api/wwwroot`, which the API process serves, so no second application
 server is required in an installation.
 
@@ -285,8 +292,9 @@ Run these from the repository root:
   [`operations.md`](./operations.md).
 
 Generated TypeScript and Go clients are prerequisites produced by their normal
-build commands, not files a contributor edits. A green system result proves the
-access and project slice, not that monitoring exists or works.
+build commands, not files a contributor edits. The component suite exercises
+the monitor interface; the disposable system test still proves only access and
+project behavior and does not assert that monitoring works.
 
 ## Documentation ownership
 

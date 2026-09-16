@@ -27,7 +27,9 @@ body {
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
 
@@ -42,7 +44,9 @@ button:disabled {
   opacity: 0.55;
 }
 
-input {
+input,
+select,
+textarea {
   box-sizing: border-box;
   width: 100%;
   border: 1px solid var(--color-line);
@@ -52,7 +56,19 @@ input {
   padding: 0.65rem 0.75rem;
 }
 
-input:focus-visible {
+textarea {
+  min-height: 5.5rem;
+  resize: vertical;
+}
+
+input[type="checkbox"] {
+  width: auto;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
@@ -197,10 +213,16 @@ h2 {
 }
 
 .project-card code,
+.monitor-card code,
+.metadata-list code,
 .version {
   color: var(--color-muted);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.8rem;
+}
+
+.manage-button {
+  margin-top: 0.75rem;
 }
 
 .rename-row {
@@ -220,6 +242,174 @@ h2 {
   border: 1px solid var(--color-line);
   border-radius: 0.45rem;
   padding: 0.6rem 0.8rem;
+}
+
+.monitor-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: 1rem;
+}
+
+.monitor-form > button,
+.header-form > button {
+  justify-self: start;
+}
+
+.wide-field,
+.secret-fields,
+.monitor-form > button {
+  grid-column: 1 / -1;
+}
+
+.checkbox-label {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.checkbox-label > span {
+  display: inline;
+  margin: 0;
+}
+
+.secret-fields {
+  margin: 0;
+  border: 1px solid var(--color-line);
+  border-radius: 0.65rem;
+  padding: 1rem;
+}
+
+.secret-fields legend {
+  padding: 0 0.35rem;
+  font-weight: 700;
+}
+
+.header-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  align-items: end;
+  gap: 0.75rem;
+  margin: 0.75rem 0;
+}
+
+.monitor-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.monitor-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-top: 1px solid var(--color-line);
+  padding: 1rem 0 0.25rem;
+}
+
+.monitor-card h3 {
+  margin-bottom: 0.2rem;
+}
+
+.monitor-target {
+  margin: 0.5rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.monitor-card-actions {
+  display: grid;
+  justify-items: end;
+  gap: 0.6rem;
+  flex: none;
+}
+
+.state {
+  display: inline-block;
+  margin-bottom: 0.45rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.state-healthy {
+  border-color: color-mix(in oklab, var(--color-accent), transparent 48%);
+}
+
+.state-failing {
+  border-color: color-mix(in oklab, var(--color-danger), transparent 40%);
+}
+
+.fact-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0;
+}
+
+.fact-grid > div {
+  min-width: 0;
+  border-top: 1px solid var(--color-line);
+  padding-top: 0.65rem;
+}
+
+.fact-grid dt {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.fact-grid dd {
+  margin: 0.3rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.operator-note {
+  margin-top: 1.25rem;
+  border-left: 3px solid var(--color-accent);
+  padding-left: 0.85rem;
+}
+
+.operator-note p {
+  margin: 0.35rem 0 0;
+  white-space: pre-wrap;
+}
+
+.metadata-list,
+.history-list {
+  margin: 1rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.metadata-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-top: 1px solid var(--color-line);
+  padding: 0.7rem 0;
+}
+
+.history-list li {
+  border-top: 1px solid var(--color-line);
+  padding: 0.7rem 0;
+}
+
+.history-list span {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--color-muted);
+}
+
+.danger-zone {
+  border-color: color-mix(in oklab, var(--color-danger), transparent 65%);
+}
+
+.confirmation {
+  justify-content: flex-start;
 }
 
 .sr-only {
@@ -242,7 +432,9 @@ h2 {
   .workspace-header,
   .section-heading,
   .project-facts,
-  .rename-row {
+  .rename-row,
+  .monitor-card,
+  .metadata-list li {
     align-items: stretch;
     flex-direction: column;
   }
@@ -250,5 +442,15 @@ h2 {
   .workspace-header > button,
   .section-heading > button {
     align-self: flex-start;
+  }
+
+  .monitor-form,
+  .header-row,
+  .fact-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .monitor-card-actions {
+    justify-items: start;
   }
 }

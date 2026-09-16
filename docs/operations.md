@@ -93,8 +93,10 @@ After sign-in, the project workspace lists live projects by default. It creates
 a project from an immutable key and mutable display name, renames at the version
 shown, soft-deletes, switches to the deleted list, and restores. A concurrent
 change is shown as a conflict and the list is refreshed rather than silently
-overwritten. The current web slice does not claim monitoring health and does
-not add operations outside the API and `ua` contracts.
+overwritten. A live project opens its HTTP monitors for configuration, current
+state, immediate tests, pause/resume, retained removal, secret-header writes,
+and check/incident history. These views report persisted monitoring facts but
+do not widen the API and `ua` contracts or replace the technical health paths.
 
 ## Change cycle
 
@@ -140,9 +142,10 @@ and rotate responses are excluded because revealing the newly issued token once
 is their documented purpose.
 
 The React component tests separately exercise the same generated browser
-operations and verify secret-state clearing, keyboard operation, and bounded
-rendering of API problems. Neither a green system test nor the existence of a
-project claims that any monitor is healthy.
+operations for access, projects, and HTTP monitors. They verify secret-state
+clearing, keyboard operation, explicit lifecycle labels, optimistic-concurrency
+refresh, and bounded rendering of API problems. The disposable system test does
+not create a monitor, so its success never claims that any monitor is healthy.
 
 Override `UPAFFE_SMOKE_APP_PORT` or `UPAFFE_SMOKE_DB_PORT` when those ports are
 occupied. The script always removes its containers and disposable volume.
