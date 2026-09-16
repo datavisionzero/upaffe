@@ -104,12 +104,14 @@ public sealed class MonitoringPersistenceTests(PostgresFixture postgres)
         var (project, monitor) = await AddMonitorAsync(context);
 
         var success = monitor.BeginCheck(CheckTrigger.Scheduled, Noon, Noon);
+        Claim(success, Noon);
         success.CompleteSuccess(Noon.AddSeconds(1), 200, 25, "https://status.example.test/health?redacted=yes");
         context.HttpChecks.Add(success);
         Assert.True(monitor.ApplyResult(success, Noon.AddSeconds(1)));
         await context.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var failure = monitor.BeginCheck(CheckTrigger.Scheduled, Noon.AddMinutes(5), Noon.AddMinutes(5));
+        Claim(failure, Noon.AddMinutes(5));
         failure.CompleteFailure(
             "unexpected_status",
             Noon.AddMinutes(5).AddSeconds(1),
@@ -151,6 +153,7 @@ public sealed class MonitoringPersistenceTests(PostgresFixture postgres)
         context.Entry(duplicate).State = EntityState.Detached;
 
         var success = monitor.BeginCheck(CheckTrigger.Scheduled, Noon.AddSeconds(5), Noon.AddSeconds(5));
+        Claim(success, Noon.AddSeconds(5));
         success.CompleteSuccess(Noon.AddSeconds(6), 200, 15, "https://status.example.test/health");
         context.HttpChecks.Add(success);
         incident.Resolve(success);
@@ -211,9 +214,13 @@ public sealed class MonitoringPersistenceTests(PostgresFixture postgres)
     private static HttpCheck FailedCheck(HttpMonitor monitor, DateTimeOffset at, string reason)
     {
         var check = monitor.BeginCheck(CheckTrigger.Scheduled, at, at);
+        Claim(check, at);
         check.CompleteFailure(reason, at.AddSeconds(1), null, 1_000, null);
         return check;
     }
+
+    private static void Claim(HttpCheck check, DateTimeOffset at) =>
+        check.ClaimExecution(Guid.NewGuid(), at, at.AddMinutes(2));
 
     private async Task<UpaffeDbContext> MigratedContextAsync()
     {

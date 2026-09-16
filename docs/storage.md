@@ -30,8 +30,9 @@ no automatic downgrade path.
 
 The initial migration creates no product tables. The second migration adds the
 access and project model decided in ADR 0002. The third adds the HTTP monitor,
-check, and incident model decided in ADRs 0003 and 0004. Later changes add new
-forward migrations; an existing migration is never rewritten after release.
+check, and incident model decided in ADRs 0003 and 0004. The fourth adds the
+durable HTTP execution lease decided in ADR 0005. Later changes add new forward
+migrations; an existing migration is never rewritten after release.
 
 Add a migration from the repository root after changing the context model:
 
@@ -95,6 +96,14 @@ index makes repeated allocation visible. Response content and target queries
 are not stored. The monitor's latest-result and latest-success references are
 independent so a current failure retains the earlier successful observation.
 
+Scheduled checks additionally retain the current execution token, lease end,
+last-attempt time, and attempt count. Claiming a due monitor and advancing its
+next due time are one transaction; recording the result is another, after the
+network request. Expired incomplete work is reclaimed with the same check ID
+and sequence. Row locks with `SKIP LOCKED` let several instances drain distinct
+work, while token comparison prevents an earlier lease holder from recording a
+second result. See ADR 0005 for restart and failure behavior.
+
 `incident` retains the first, opening, latest-failure, and optional resolution
 check references and their ordered sequences. Original and latest reasons and
 all lifecycle times remain after resolution. A partial unique index on the
@@ -112,5 +121,6 @@ concurrent startup, rejection of unknown migrations, and refusal to start when
 the database is unavailable. Persistence tests additionally exercise the
 singleton operator, secret lifecycles, revocation, expiry, project identity,
 monitor configuration and pause transitions, separated HTTP secrets, ordered
-results, and incident uniqueness and resolution against PostgreSQL constraints
-rather than an in-memory substitute.
+results, concurrent scheduler claims, expired-lease recovery, and incident
+uniqueness and resolution against PostgreSQL constraints rather than an
+in-memory substitute.

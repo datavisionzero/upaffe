@@ -49,6 +49,7 @@ internal sealed class AnInstance(
             var values = new Dictionary<string, string?>
             {
                 ["ConnectionStrings:Postgres"] = connectionString,
+                ["Monitoring:Enabled"] = "false",
             };
             if (settings is not null)
             {

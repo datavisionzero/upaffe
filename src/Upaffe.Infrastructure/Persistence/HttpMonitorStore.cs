@@ -494,30 +494,8 @@ public sealed class HttpMonitorStore(UpaffeDbContext context) : IHttpMonitorStor
 
     private async Task<HttpExecutionRequest> ExecutionRequestAsync(
         HttpMonitor monitor,
-        CancellationToken cancellationToken)
-    {
-        var targetSecret = await context.HttpMonitorSecrets.AsNoTracking().SingleAsync(
-            value => value.MonitorId == monitor.Id,
-            cancellationToken);
-        var headers = await context.HttpMonitorHeaders.AsNoTracking()
-            .Where(value => value.MonitorId == monitor.Id)
-            .Join(
-                context.HttpMonitorHeaderSecrets.AsNoTracking(),
-                header => header.Id,
-                secret => secret.HeaderId,
-                (header, secret) => new { header.Name, secret.ValueUtf8 })
-            .OrderBy(value => value.Name)
-            .ToListAsync(cancellationToken);
-        return new(
-            monitor.TargetUrl + targetSecret.RevealTargetQuery(),
-            headers.Select(value => new HttpExecutionHeader(
-                value.Name,
-                new UTF8Encoding(false, true).GetString(value.ValueUtf8))).ToArray(),
-            monitor.ExpectedStatusCode,
-            monitor.TextCondition,
-            monitor.TextFragment,
-            monitor.TimeoutSeconds);
-    }
+        CancellationToken cancellationToken) =>
+        await HttpExecutionRequestFactory.CreateAsync(context, monitor, cancellationToken);
 
     private async Task<bool> SameDefinitionAsync(
         HttpMonitor existing,

@@ -67,6 +67,10 @@ public sealed partial class HttpCheck
     public int? StatusCode { get; private set; }
     public int? ResponseTimeMilliseconds { get; private set; }
     public string? EffectiveUrl { get; private set; }
+    public Guid? ExecutionLeaseToken { get; private set; }
+    public DateTimeOffset? ExecutionLeaseUntil { get; private set; }
+    public int ExecutionAttempts { get; private set; }
+    public DateTimeOffset? LastExecutionAttemptAt { get; private set; }
     public bool IsCompleted => Outcome is not null;
 
     public static HttpCheck Begin(
@@ -77,6 +81,42 @@ public sealed partial class HttpCheck
         DateTimeOffset scheduledFor,
         DateTimeOffset startedAt) =>
         new(monitorId, evaluationGeneration, sequence, trigger, scheduledFor, startedAt);
+
+    public void ClaimExecution(Guid token, DateTimeOffset claimedAt, DateTimeOffset leaseUntil)
+    {
+        if (Trigger != CheckTrigger.Scheduled)
+        {
+            throw new InvalidOperationException("Only scheduled checks use execution leases.");
+        }
+
+        if (IsCompleted)
+        {
+            throw new InvalidOperationException("A completed check cannot be claimed.");
+        }
+
+        if (token == Guid.Empty)
+        {
+            throw new ArgumentException("An execution lease token is required.", nameof(token));
+        }
+
+        if (claimedAt < StartedAt || leaseUntil <= claimedAt)
+        {
+            throw new ArgumentOutOfRangeException(nameof(leaseUntil));
+        }
+
+        if (ExecutionLeaseUntil is not null && claimedAt < ExecutionLeaseUntil)
+        {
+            throw new InvalidOperationException("An active execution lease cannot be replaced.");
+        }
+
+        ExecutionLeaseToken = token;
+        ExecutionLeaseUntil = leaseUntil;
+        ExecutionAttempts++;
+        LastExecutionAttemptAt = claimedAt;
+    }
+
+    public bool IsClaimedBy(Guid token) =>
+        token != Guid.Empty && ExecutionLeaseToken == token;
 
     public void CompleteSuccess(
         DateTimeOffset completedAt,
@@ -116,6 +156,11 @@ public sealed partial class HttpCheck
         if (IsCompleted)
         {
             throw new InvalidOperationException("A check result is immutable once completed.");
+        }
+
+        if (Trigger == CheckTrigger.Scheduled && ExecutionLeaseToken is null)
+        {
+            throw new InvalidOperationException("A scheduled check must be claimed before completion.");
         }
 
         if (completedAt < StartedAt)

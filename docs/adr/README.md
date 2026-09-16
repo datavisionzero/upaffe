@@ -10,6 +10,7 @@ deliberately departs from a product commitment or an adopted reference.
 - [0002 — One operator, two access paths, and recoverable projects](./0002-one-operator-two-access-paths-and-recoverable-projects.md)
 - [0003 — Monitor state and incident lifecycle](./0003-monitor-state-and-incident-lifecycle.md)
 - [0004 — Bound and isolate HTTP checks](./0004-bound-and-isolate-http-checks.md)
+- [0005 — Claim scheduled HTTP work in PostgreSQL](./0005-claim-scheduled-http-work-in-postgresql.md)
 
 ## Decisions adopted from planaffe
 

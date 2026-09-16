@@ -18,6 +18,12 @@ starts it beside PostgreSQL 18. The database healthcheck must pass before the
 application is started. The application then migrates the schema and becomes
 healthy only when `/api/health/ready` verifies the database.
 
+Scheduled HTTP monitoring starts by default after migration and bootstrap. It
+uses PostgreSQL for due work and recovery, so a normal application restart does
+not require a separate queue. `Monitoring__Enabled=false` disables the worker
+for controlled maintenance or test hosts; leaving it disabled stops new checks
+and must not be treated as a healthy monitoring deployment.
+
 The default addresses are:
 
 - application: `http://localhost:8080`

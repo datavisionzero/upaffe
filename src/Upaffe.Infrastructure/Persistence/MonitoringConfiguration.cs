@@ -150,6 +150,10 @@ internal sealed class HttpCheckConfiguration : IEntityTypeConfiguration<HttpChec
             table.HasCheckConstraint("ck_http_check_status", "status_code is null or status_code between 100 and 599");
             table.HasCheckConstraint("ck_http_check_response_time", "response_time_milliseconds is null or response_time_milliseconds >= 0");
             table.HasCheckConstraint("ck_http_check_effective_url", "effective_url is null or (char_length(effective_url) between 1 and 2048 and effective_url !~ '[?#]')");
+            table.HasCheckConstraint(
+                "ck_http_check_execution_lease",
+                "(trigger = 'Requested' and execution_lease_token is null and execution_lease_until is null and execution_attempts = 0 and last_execution_attempt_at is null) or "
+                + "(trigger = 'Scheduled' and execution_lease_token is not null and execution_lease_until > last_execution_attempt_at and execution_attempts > 0 and last_execution_attempt_at >= started_at)");
         });
         builder.HasKey(value => value.Id).HasName("pk_http_check");
         builder.Property(value => value.Id).HasColumnName("id").ValueGeneratedNever();
@@ -165,9 +169,15 @@ internal sealed class HttpCheckConfiguration : IEntityTypeConfiguration<HttpChec
         builder.Property(value => value.StatusCode).HasColumnName("status_code");
         builder.Property(value => value.ResponseTimeMilliseconds).HasColumnName("response_time_milliseconds");
         builder.Property(value => value.EffectiveUrl).HasColumnName("effective_url").HasMaxLength(HttpCheck.MaximumEffectiveUrlLength);
+        builder.Property(value => value.ExecutionLeaseToken).HasColumnName("execution_lease_token");
+        builder.Property(value => value.ExecutionLeaseUntil).HasColumnName("execution_lease_until");
+        builder.Property(value => value.ExecutionAttempts).HasColumnName("execution_attempts");
+        builder.Property(value => value.LastExecutionAttemptAt).HasColumnName("last_execution_attempt_at");
         builder.Ignore(value => value.IsCompleted);
         builder.HasIndex(value => new { value.MonitorId, value.Sequence }).IsUnique().HasDatabaseName("http_check_monitor_sequence");
         builder.HasIndex(value => new { value.MonitorId, value.CompletedAt }).HasDatabaseName("http_check_monitor_completed");
+        builder.HasIndex(value => value.ExecutionLeaseUntil).HasFilter("trigger = 'Scheduled' and completed_at is null")
+            .HasDatabaseName("http_check_expired_lease");
         builder.HasOne<HttpMonitor>().WithMany().HasForeignKey(value => value.MonitorId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_http_check_monitor");
     }

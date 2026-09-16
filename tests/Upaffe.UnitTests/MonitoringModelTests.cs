@@ -39,6 +39,7 @@ public sealed class MonitoringModelTests
     {
         var monitor = NewMonitor(Guid.NewGuid());
         var success = monitor.BeginCheck(CheckTrigger.Scheduled, Noon, Noon);
+        Claim(success, Noon);
         success.CompleteSuccess(Noon.AddSeconds(1), 200, 50, "https://status.example.test/health?ignored=1");
         Assert.True(monitor.ApplyResult(success, Noon.AddSeconds(1)));
 
@@ -73,6 +74,35 @@ public sealed class MonitoringModelTests
     }
 
     [Fact]
+    public void Scheduled_work_has_one_replaceable_lease_and_does_not_replay_missed_intervals()
+    {
+        var monitor = NewMonitor(Guid.NewGuid());
+        var lateStart = Noon.AddMinutes(7);
+        var check = monitor.BeginCheck(CheckTrigger.Scheduled, Noon, lateStart);
+        var firstToken = Guid.NewGuid();
+        var secondToken = Guid.NewGuid();
+
+        check.ClaimExecution(firstToken, lateStart, lateStart.AddMinutes(2));
+        check.ClaimExecution(secondToken, lateStart.AddMinutes(3), lateStart.AddMinutes(5));
+
+        Assert.Equal(lateStart.AddMinutes(5), monitor.NextCheckAt);
+        Assert.False(check.IsClaimedBy(firstToken));
+        Assert.True(check.IsClaimedBy(secondToken));
+        Assert.Equal(2, check.ExecutionAttempts);
+        Assert.Equal(lateStart.AddMinutes(3), check.LastExecutionAttemptAt);
+    }
+
+    [Fact]
+    public void Requested_checks_cannot_acquire_scheduler_leases()
+    {
+        var monitor = NewMonitor(Guid.NewGuid());
+        var check = monitor.BeginCheck(CheckTrigger.Requested, Noon, Noon);
+
+        Assert.Throws<InvalidOperationException>(() =>
+            check.ClaimExecution(Guid.NewGuid(), Noon, Noon.AddMinutes(2)));
+    }
+
+    [Fact]
     public void An_incident_keeps_its_beginning_and_resolves_only_with_fresh_success()
     {
         var monitor = NewMonitor(Guid.NewGuid());
@@ -85,6 +115,7 @@ public sealed class MonitoringModelTests
         Assert.Equal("unexpected_status", incident.LatestReason);
 
         var success = monitor.BeginCheck(CheckTrigger.Scheduled, Noon.AddSeconds(5), Noon.AddSeconds(5));
+        Claim(success, Noon.AddSeconds(5));
         success.CompleteSuccess(Noon.AddSeconds(6), 200, 10, "https://status.example.test/health");
         incident.Resolve(success);
 
@@ -131,7 +162,11 @@ public sealed class MonitoringModelTests
     private static HttpCheck FailedCheck(HttpMonitor monitor, DateTimeOffset at, string reason)
     {
         var check = monitor.BeginCheck(CheckTrigger.Scheduled, at, at);
+        Claim(check, at);
         check.CompleteFailure(reason, at.AddSeconds(1), null, 1_000, null);
         return check;
     }
+
+    private static void Claim(HttpCheck check, DateTimeOffset at) =>
+        check.ClaimExecution(Guid.NewGuid(), at, at.AddMinutes(2));
 }

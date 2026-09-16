@@ -118,6 +118,13 @@ the executor request from explicit secret rows. An immediate test persists its
 ordered check before network I/O and completes it afterwards without shifting
 the regular due time.
 
+`IScheduledHttpCheckStore` gives the background monitoring act two short,
+durable transaction boundaries around that same executor. PostgreSQL claims a
+due monitor or an expired incomplete check with row locks and `SKIP LOCKED`.
+The application host executes outside the transaction and then completes only
+the check whose current lease token it owns. This is at-least-once HTTP
+execution with one immutable stored result, as detailed in ADR 0005.
+
 Unit tests protect these directions by reading the project references. A term
 introduced in code is documented with the domain model when that model lands.
 

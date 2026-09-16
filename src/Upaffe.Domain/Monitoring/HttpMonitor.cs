@@ -209,7 +209,7 @@ public sealed partial class HttpMonitor
         NextSequence++;
         if (trigger == CheckTrigger.Scheduled)
         {
-            NextCheckAt = scheduledFor.AddSeconds(IntervalSeconds);
+            NextCheckAt = startedAt.AddSeconds(IntervalSeconds);
         }
 
         return check;

@@ -39,8 +39,10 @@ builder.Services.AddScoped<RemoveHttpMonitor>();
 builder.Services.AddScoped<SetHttpMonitorHeader>();
 builder.Services.AddScoped<RemoveHttpMonitorHeader>();
 builder.Services.AddScoped<TestHttpMonitor>();
+builder.Services.AddScoped<RunScheduledHttpCheck>();
 builder.Services.AddHostedService<SchemaMigrationService>();
 builder.Services.AddHostedService<BootstrapService>();
+builder.Services.AddHostedService<HttpMonitoringService>();
 builder.Services.AddUpaffeOpenApi();
 builder.Services.AddBrowserAuthentication();
 
