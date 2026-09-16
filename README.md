@@ -9,8 +9,9 @@ project administration, and the first HTTP-monitoring pieces: persistent HTTP
 monitor configuration, bounded public-internet checks, durable recurring
 execution, atomic failure-threshold evaluation, and authenticated API
 management including immediate tests. Incident opening, continued failure, and
-fresh-success recovery are persisted; history operations, CLI/web monitor
-controls, and notifications are still under active implementation;
+fresh-success recovery are persisted, with paginated 90-day check and incident
+history. CLI/web monitor controls and notifications are still under active
+implementation;
 [`VISION.md`](./VISION.md) defines the committed MVP.
 
 ## Backend development

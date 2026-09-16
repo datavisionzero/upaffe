@@ -33,6 +33,8 @@ secret supplied in the request body.
 | `POST /api/projects/{projectKey}/http-monitors` | Create an HTTP monitor idempotently within a project. |
 | `GET /api/projects/{projectKey}/http-monitors` | List live HTTP monitors in a project. |
 | `GET /api/projects/{projectKey}/http-monitors/{monitorKey}` | Read one HTTP monitor without secret values. |
+| `GET /api/projects/{projectKey}/http-monitors/{monitorKey}/checks` | List completed checks newest first with cursor pagination. |
+| `GET /api/projects/{projectKey}/http-monitors/{monitorKey}/incidents` | List incidents newest first with cursor pagination. |
 | `PUT /api/projects/{projectKey}/http-monitors/{monitorKey}` | Update monitor configuration at the version last read. |
 | `DELETE /api/projects/{projectKey}/http-monitors/{monitorKey}?version={version}` | Remove a monitor while retaining its identity and history. |
 | `POST /api/projects/{projectKey}/http-monitors/{monitorKey}/pause` | Pause a monitor at the version last read. |
@@ -181,6 +183,22 @@ and applies its fresh result to the monitor under the generation and ordering
 rules. Its response contains the check ID, whether it applied to current state,
 structured outcome and reason, sanitized effective URL, response time, and the
 updated monitor. A paused or removed monitor rejects testing with `409`.
+
+Check history is separate from the compact monitor response. `GET .../checks`
+returns completed checks newest first by monitor-local sequence. Each item has
+the trigger, scheduled/start/completion times, outcome, stable failure reason,
+status, response time, and sanitized effective URL. It contains no request
+headers, target query, response body, or executor message. Incident history is
+likewise separate at `GET .../incidents` and contains its preserved first,
+opening, latest-failure, and optional resolution facts.
+
+Both history operations default to `limit=50` and accept 1 through 100.
+`before_sequence` and `before_opening_sequence` are exclusive positive cursors;
+the page returns the matching `next_before_*` cursor only when another row is
+known to exist. Removed monitors remain absent from ordinary detail operations.
+History older than the documented 90-day retention boundary may no longer be
+present, so absence before the retained window never asserts that a monitor was
+healthy.
 
 Application rules validate the limits in ADR 0004 independently of JSON model
 binding. Invalid combinations return `400 validation`; unknown project/monitor

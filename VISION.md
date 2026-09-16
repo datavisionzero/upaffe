@@ -243,9 +243,14 @@ workflow. Simple self-hosting is an MVP requirement, not a later packaging task.
 
 Scheduling, reporting deadlines, maintenance expiry, incidents, and pending
 notifications survive restarts. Repeated processing must not produce duplicate
-incidents or notification storms. Historical data has bounded retention.
-Monitoring gaps remain visible; the product does not invent successful checks
-for periods when it was offline.
+incidents or notification storms. Completed check and incident history has
+90-day retention, enforced daily. The cutoff is exclusive: facts exactly 90
+days old remain until the next run. An open incident and every check it
+references remain regardless of age until the incident is resolved. Current
+monitor facts likewise remain authoritative; absence of older detail after
+retention never implies an invented healthy period. Monitoring gaps remain
+visible; the product does not invent successful checks for periods when it was
+offline.
 
 **The monitoring system's own health is an MVP responsibility.** The dashboard
 shows overdue check execution and email delivery problems. A minimal health

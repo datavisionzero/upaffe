@@ -111,11 +111,18 @@ check references and their ordered sequences. Original and latest reasons and
 all lifecycle times remain after resolution. A partial unique index on the
 monitor ID where `resolved_at is null` is the final guard against two active
 incidents for one monitor, including when application transitions race.
-Historical retention is deliberately not set by this schema migration; its
-bounded policy is decided with the history operation.
 Accepted failures update the open row's latest observation and reason, while an
 accepted success adds its immutable resolution check and time. The first and
 opening failure references remain unchanged after both updates and resolution.
+
+Completed check and incident detail is retained for 90 days. A daily cleanup
+uses an exclusive cutoff: a fact exactly at the cutoff remains. It first removes
+resolved incidents older than the cutoff, then removes older completed checks
+and abandoned incomplete attempts. Checks referenced by any remaining incident
+or by a monitor's latest result, latest success, or current failure-streak start
+are excluded. Open incidents and every check they reference therefore survive
+regardless of age; cleanup never rewrites monitor state or creates synthetic
+successes. The retained window is evidence, not a claim of health before it.
 
 ## Tests
 
@@ -126,6 +133,7 @@ concurrent startup, rejection of unknown migrations, and refusal to start when
 the database is unavailable. Persistence tests additionally exercise the
 singleton operator, secret lifecycles, revocation, expiry, project identity,
 monitor configuration and pause transitions, separated HTTP secrets, ordered
-results, failure thresholds, repeated and competing evaluation, concurrent
+results, failure thresholds, repeated and competing evaluation, cursor
+pagination, retention boundaries and open-incident protection, concurrent
 scheduler claims, expired-lease recovery, and incident uniqueness and
 resolution against PostgreSQL constraints rather than an in-memory substitute.

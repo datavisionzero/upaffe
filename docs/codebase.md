@@ -141,6 +141,13 @@ its ID. This makes sub-threshold failure, open incident, pause, and resumed
 untested state unambiguous without turning every list response into incident
 history; paginated details use their own operation.
 
+`IHttpMonitorHistoryStore` supplies separate newest-first check and incident
+pages with exclusive sequence cursors. It also owns the daily 90-day cleanup:
+resolved incidents are removed before unreferenced old checks in one
+transaction, while monitor pointers and every remaining incident reference are
+protected. A small application act derives the exclusive cutoff from the
+injected clock; the API host runs it at startup and once per day.
+
 Unit tests protect these directions by reading the project references. A term
 introduced in code is documented with the domain model when that model lands.
 

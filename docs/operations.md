@@ -24,6 +24,12 @@ not require a separate queue. `Monitoring__Enabled=false` disables the worker
 for controlled maintenance or test hosts; leaving it disabled stops new checks
 and must not be treated as a healthy monitoring deployment.
 
+HTTP check and incident detail is pruned at startup and every 24 hours under the
+90-day product limit. `HistoryRetention__Enabled=false` disables this worker for
+controlled maintenance or tests. Leaving it disabled allows unbounded database
+growth and is not a supported steady-state configuration. Cleanup reports only
+deleted row counts and never logs retained result data or secrets.
+
 The default addresses are:
 
 - application: `http://localhost:8080`

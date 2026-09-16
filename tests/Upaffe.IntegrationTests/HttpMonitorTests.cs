@@ -314,6 +314,117 @@ public sealed class HttpMonitorTests(PostgresFixture postgres)
         Assert.Null(recovered.OpenIncidentId);
     }
 
+    [Fact]
+    public async Task Check_and_incident_history_are_cursor_paginated_and_secret_safe()
+    {
+        const string querySecret = "history-query-never-returned";
+        const string headerSecret = "history-header-never-returned";
+        const string responseSecret = "history-response-query-never-returned";
+        var executor = new StubExecutor(
+            new(false, "timeout", "The check timed out.", null, 10_000, null),
+            new(true, null, "The check succeeded.", 200, 12, $"https://status.example.test/health?proof={responseSecret}"),
+            new(false, "unexpected_status", "The status differed.", 503, 25, $"https://status.example.test/health?proof={responseSecret}"),
+            new(true, null, "The check succeeded.", 200, 13, $"https://status.example.test/health?proof={responseSecret}"),
+            new(false, "text_missing", "The text was absent.", 200, 30, $"https://status.example.test/health?proof={responseSecret}"),
+            new(true, null, "The check succeeded.", 200, 15, $"https://status.example.test/health?proof={responseSecret}"));
+        await using var instance = await EstablishedAsync(executor);
+        using var client = Client(instance);
+        var browser = await SignInAsync(client);
+        var token = await CredentialAsync(client, browser);
+        await CreateProjectAsync(client, token, "public-services");
+        var request = ValidCreate() with
+        {
+            TargetUrl = $"https://status.example.test/health?token={querySecret}",
+            FailureThreshold = 1,
+            Headers = [new("Authorization", $"Bearer {headerSecret}")],
+        };
+        _ = await MonitorAsync(await JsonAsync(
+            client, HttpMethod.Post, "/api/projects/public-services/http-monitors", request, token));
+        _ = await TestAsync(client, token);
+        _ = await TestAsync(client, token);
+        _ = await TestAsync(client, token);
+        _ = await TestAsync(client, token);
+        _ = await TestAsync(client, token);
+        _ = await TestAsync(client, token);
+
+        using var firstResponse = await SendAsync(
+            client,
+            HttpMethod.Get,
+            "/api/projects/public-services/http-monitors/public-site/checks?limit=2",
+            token);
+        var firstBody = await firstResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.DoesNotContain(querySecret, firstBody, StringComparison.Ordinal);
+        Assert.DoesNotContain(headerSecret, firstBody, StringComparison.Ordinal);
+        Assert.DoesNotContain(responseSecret, firstBody, StringComparison.Ordinal);
+        var first = JsonSerializer.Deserialize<HttpCheckHistoryPageResponse>(firstBody, Json)!;
+        Assert.Equal(new long[] { 6, 5 }, first.Items.Select(value => value.Sequence));
+        Assert.Equal(5, first.NextBeforeSequence);
+        Assert.Equal("success", first.Items[0].Outcome);
+        Assert.Equal(200, first.Items[0].StatusCode);
+        Assert.Equal(15, first.Items[0].ResponseTimeMilliseconds);
+        Assert.Equal("failure", first.Items[1].Outcome);
+        Assert.Equal("text_missing", first.Items[1].FailureReason);
+
+        using var secondResponse = await SendAsync(
+            client,
+            HttpMethod.Get,
+            $"/api/projects/public-services/http-monitors/public-site/checks?limit=2&before_sequence={first.NextBeforeSequence}",
+            token);
+        var second = (await secondResponse.Content.ReadFromJsonAsync<HttpCheckHistoryPageResponse>(
+            Json,
+            TestContext.Current.CancellationToken))!;
+        Assert.Equal(new long[] { 4, 3 }, second.Items.Select(value => value.Sequence));
+        Assert.Equal(3, second.NextBeforeSequence);
+
+        using var thirdResponse = await SendAsync(
+            client,
+            HttpMethod.Get,
+            $"/api/projects/public-services/http-monitors/public-site/checks?limit=2&before_sequence={second.NextBeforeSequence}",
+            token);
+        var third = (await thirdResponse.Content.ReadFromJsonAsync<HttpCheckHistoryPageResponse>(
+            Json,
+            TestContext.Current.CancellationToken))!;
+        Assert.Equal(new long[] { 2, 1 }, third.Items.Select(value => value.Sequence));
+        Assert.Null(third.NextBeforeSequence);
+
+        using var incidentsResponse = await SendAsync(
+            client,
+            HttpMethod.Get,
+            "/api/projects/public-services/http-monitors/public-site/incidents?limit=2",
+            token);
+        var incidents = (await incidentsResponse.Content.ReadFromJsonAsync<IncidentHistoryPageResponse>(
+            Json,
+            TestContext.Current.CancellationToken))!;
+        Assert.Equal(new long[] { 5, 3 }, incidents.Items.Select(value => value.OpeningSequence));
+        Assert.Equal(3, incidents.NextBeforeOpeningSequence);
+        Assert.All(incidents.Items, value => Assert.NotNull(value.ResolvedAt));
+
+        using var olderIncidentsResponse = await SendAsync(
+            client,
+            HttpMethod.Get,
+            $"/api/projects/public-services/http-monitors/public-site/incidents?limit=2&before_opening_sequence={incidents.NextBeforeOpeningSequence}",
+            token);
+        var olderIncidents = (await olderIncidentsResponse.Content.ReadFromJsonAsync<IncidentHistoryPageResponse>(
+            Json,
+            TestContext.Current.CancellationToken))!;
+        var oldestIncident = Assert.Single(olderIncidents.Items);
+        Assert.Equal(1, oldestIncident.FirstFailureSequence);
+        Assert.Equal(1, oldestIncident.OpeningSequence);
+        Assert.Equal(2, oldestIncident.ResolutionSequence);
+        Assert.Equal("timeout", oldestIncident.OriginalReason);
+        Assert.Equal("timeout", oldestIncident.LatestReason);
+        Assert.NotNull(oldestIncident.ResolvedAt);
+        Assert.Null(olderIncidents.NextBeforeOpeningSequence);
+
+        using var invalidLimit = await SendAsync(
+            client,
+            HttpMethod.Get,
+            "/api/projects/public-services/http-monitors/public-site/checks?limit=101",
+            token);
+        Assert.Equal(HttpStatusCode.BadRequest, invalidLimit.StatusCode);
+        Assert.Equal("validation", await ProblemCode(invalidLimit));
+    }
+
     private async Task<AnInstance> EstablishedAsync(IHttpCheckExecutor executor)
     {
         var instance = AnInstance.Against(

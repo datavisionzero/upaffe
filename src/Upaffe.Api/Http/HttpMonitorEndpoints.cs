@@ -86,6 +86,44 @@ public sealed record HttpMonitorTestResponse(
     string? EffectiveUrl,
     HttpMonitorResponse Monitor);
 
+public sealed record HttpCheckHistoryResponse(
+    Guid Id,
+    [property: JsonNumberHandling(JsonNumberHandling.Strict)] long Sequence,
+    string Trigger,
+    DateTimeOffset ScheduledFor,
+    DateTimeOffset StartedAt,
+    DateTimeOffset CompletedAt,
+    string Outcome,
+    string? FailureReason,
+    int? StatusCode,
+    int? ResponseTimeMilliseconds,
+    string? EffectiveUrl);
+
+public sealed record HttpCheckHistoryPageResponse(
+    IReadOnlyList<HttpCheckHistoryResponse> Items,
+    [property: JsonNumberHandling(JsonNumberHandling.Strict)] long? NextBeforeSequence);
+
+public sealed record IncidentHistoryResponse(
+    Guid Id,
+    Guid FirstFailureCheckId,
+    Guid OpeningCheckId,
+    Guid LatestFailureCheckId,
+    Guid? ResolutionCheckId,
+    [property: JsonNumberHandling(JsonNumberHandling.Strict)] long FirstFailureSequence,
+    [property: JsonNumberHandling(JsonNumberHandling.Strict)] long OpeningSequence,
+    [property: JsonNumberHandling(JsonNumberHandling.Strict)] long LatestFailureSequence,
+    [property: JsonNumberHandling(JsonNumberHandling.Strict)] long? ResolutionSequence,
+    DateTimeOffset BeganAt,
+    DateTimeOffset OpenedAt,
+    DateTimeOffset LastObservedAt,
+    DateTimeOffset? ResolvedAt,
+    string OriginalReason,
+    string LatestReason);
+
+public sealed record IncidentHistoryPageResponse(
+    IReadOnlyList<IncidentHistoryResponse> Items,
+    [property: JsonNumberHandling(JsonNumberHandling.Strict)] long? NextBeforeOpeningSequence);
+
 public static class HttpMonitorEndpoints
 {
     public static IEndpointRouteBuilder MapHttpMonitors(this IEndpointRouteBuilder endpoints)
@@ -160,6 +198,50 @@ public static class HttpMonitorEndpoints
             .WithName("ReadHttpMonitor")
             .WithSummary("Read an HTTP monitor without returning secret values.")
             .Produces<HttpMonitorResponse>()
+            .Produces<ProblemResponse>(StatusCodes.Status400BadRequest, "application/problem+json")
+            .Produces<ProblemResponse>(StatusCodes.Status401Unauthorized, "application/problem+json")
+            .Produces<ProblemResponse>(StatusCodes.Status404NotFound, "application/problem+json");
+
+        monitors.MapGet("/{monitorKey}/checks", async (
+                string projectKey,
+                string monitorKey,
+                long? before_sequence,
+                int? limit,
+                HttpContext http,
+                ListHttpCheckHistory list,
+                CancellationToken cancellationToken) =>
+            CheckHistoryResponse(await list.ExecuteAsync(
+                http.ActingIdentity(),
+                projectKey,
+                monitorKey,
+                before_sequence,
+                limit,
+                cancellationToken)))
+            .WithName("ListHttpCheckHistory")
+            .WithSummary("List completed HTTP checks newest first with cursor pagination.")
+            .Produces<HttpCheckHistoryPageResponse>()
+            .Produces<ProblemResponse>(StatusCodes.Status400BadRequest, "application/problem+json")
+            .Produces<ProblemResponse>(StatusCodes.Status401Unauthorized, "application/problem+json")
+            .Produces<ProblemResponse>(StatusCodes.Status404NotFound, "application/problem+json");
+
+        monitors.MapGet("/{monitorKey}/incidents", async (
+                string projectKey,
+                string monitorKey,
+                long? before_opening_sequence,
+                int? limit,
+                HttpContext http,
+                ListIncidentHistory list,
+                CancellationToken cancellationToken) =>
+            IncidentHistoryResponse(await list.ExecuteAsync(
+                http.ActingIdentity(),
+                projectKey,
+                monitorKey,
+                before_opening_sequence,
+                limit,
+                cancellationToken)))
+            .WithName("ListIncidentHistory")
+            .WithSummary("List HTTP incidents newest first with cursor pagination.")
+            .Produces<IncidentHistoryPageResponse>()
             .Produces<ProblemResponse>(StatusCodes.Status400BadRequest, "application/problem+json")
             .Produces<ProblemResponse>(StatusCodes.Status401Unauthorized, "application/problem+json")
             .Produces<ProblemResponse>(StatusCodes.Status404NotFound, "application/problem+json");
@@ -358,6 +440,40 @@ public static class HttpMonitorEndpoints
         value.Result.ResponseTimeMilliseconds,
         value.Result.EffectiveUrl,
         Response(value.Monitor));
+
+    private static HttpCheckHistoryPageResponse CheckHistoryResponse(HttpCheckHistoryPage value) => new(
+        value.Items.Select(item => new HttpCheckHistoryResponse(
+            item.Id,
+            item.Sequence,
+            item.Trigger.ToString().ToLowerInvariant(),
+            item.ScheduledFor,
+            item.StartedAt,
+            item.CompletedAt,
+            item.Outcome.ToString().ToLowerInvariant(),
+            item.FailureReason,
+            item.StatusCode,
+            item.ResponseTimeMilliseconds,
+            item.EffectiveUrl)).ToArray(),
+        value.NextBeforeSequence);
+
+    private static IncidentHistoryPageResponse IncidentHistoryResponse(IncidentHistoryPage value) => new(
+        value.Items.Select(item => new IncidentHistoryResponse(
+            item.Id,
+            item.FirstFailureCheckId,
+            item.OpeningCheckId,
+            item.LatestFailureCheckId,
+            item.ResolutionCheckId,
+            item.FirstFailureSequence,
+            item.OpeningSequence,
+            item.LatestFailureSequence,
+            item.ResolutionSequence,
+            item.BeganAt,
+            item.OpenedAt,
+            item.LastObservedAt,
+            item.ResolvedAt,
+            item.OriginalReason,
+            item.LatestReason)).ToArray(),
+        value.NextBeforeOpeningSequence);
 
     private static long? ParsedVersion(string value) =>
         long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed)

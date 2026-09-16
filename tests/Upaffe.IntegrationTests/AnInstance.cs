@@ -50,6 +50,7 @@ internal sealed class AnInstance(
             {
                 ["ConnectionStrings:Postgres"] = connectionString,
                 ["Monitoring:Enabled"] = "false",
+                ["HistoryRetention:Enabled"] = "false",
             };
             if (settings is not null)
             {
