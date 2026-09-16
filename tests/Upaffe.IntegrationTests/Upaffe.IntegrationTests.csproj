@@ -4,12 +4,16 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Upaffe.Api/Upaffe.Api.csproj" />
+    <ProjectReference Include="../../src/Upaffe.Infrastructure/Upaffe.Infrastructure.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="xunit.v3" />
+    <PackageReference Include="SSH.NET" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

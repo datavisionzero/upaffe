@@ -1,3 +1,5 @@
+using Upaffe.Infrastructure.Persistence;
+
 namespace Upaffe.Api.Http;
 
 /// <summary>The foundation's process-only liveness endpoint.</summary>
@@ -10,6 +12,34 @@ public static class HealthEndpoints
             .WithName("ReadLiveness")
             .WithSummary("Whether the upaffe process can answer.")
             .Produces<LivenessResponse>();
+
+        endpoints.MapGet("/health/ready", async (
+                SchemaMigrator migrator,
+                ILoggerFactory loggers,
+                CancellationToken cancellationToken) =>
+            {
+                try
+                {
+                    return await migrator.AppliedAsync(cancellationToken)
+                        ? Results.Ok(new LivenessResponse("ready"))
+                        : Results.Json(
+                            new LivenessResponse("not-ready"),
+                            statusCode: StatusCodes.Status503ServiceUnavailable);
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    loggers.CreateLogger(typeof(HealthEndpoints)).LogWarning(
+                        exception, "Readiness could not be established.");
+                    return Results.Json(
+                        new LivenessResponse("not-ready"),
+                        statusCode: StatusCodes.Status503ServiceUnavailable);
+                }
+            })
+            .AllowAnonymous()
+            .WithName("ReadReadiness")
+            .WithSummary("Whether PostgreSQL answers with the expected schema.")
+            .Produces<LivenessResponse>()
+            .Produces<LivenessResponse>(StatusCodes.Status503ServiceUnavailable);
 
         return endpoints;
     }

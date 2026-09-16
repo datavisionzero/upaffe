@@ -4,10 +4,10 @@
 lives, which way dependencies point, and which artifacts are authoritative. It
 is updated as each epic changes the repository.
 
-Current state: the four-layer .NET 10 solution, API host, technical liveness
-endpoint, and their first tests exist. Persistence, clients, web, CLI, delivery,
-and interface documents described below remain planned until their owning
-ticket lands.
+Current state: the four-layer .NET 10 solution, API host, technical health
+endpoints, PostgreSQL context and forward-only startup migration exist. Clients,
+web, CLI, and delivery described below remain planned until their owning ticket
+lands.
 
 ## Provenance and maintenance boundary
 
@@ -39,7 +39,7 @@ upaffe/
 ├─ src/
 │  ├─ Upaffe.Domain/         domain rules
 │  ├─ Upaffe.Application/    use cases and required ports
-│  ├─ Upaffe.Infrastructure/ adapters; PostgreSQL follows in UP-4
+│  ├─ Upaffe.Infrastructure/ PostgreSQL and external adapters
 │  ├─ Upaffe.Api/            HTTP and composition root
 │  ├─ cli/                   standalone Go CLI `ua` (planned: UP-7)
 │  └─ web/                   React application (planned: UP-6)
@@ -102,9 +102,11 @@ application.
 ## Persistence and delivery
 
 PostgreSQL is the sole application database. Infrastructure owns EF Core and a
-forward-only migration chain; the API host owns startup migration. Integration
-tests use real PostgreSQL and isolate their data. These are planned in UP-4 and
-become statements of existing behavior only after that ticket lands.
+forward-only migration chain; the API host applies it before serving. Two starts
+serialize migration through a PostgreSQL advisory lock, and an older binary
+refuses a database containing unknown migrations. Integration tests use a real
+PostgreSQL 18 container and isolate every test in its own database. The full
+rule is in [`storage.md`](./storage.md).
 
 Docker Compose is the supported deployment direction. UP-8 provides the local
 development environment; production images, upgrades, backup, restore, and
