@@ -30,3 +30,24 @@ While the host is running, `GET /api/health/live` checks only that the process
 can answer. It is a technical liveness signal, not evidence that monitoring is
 working. `GET /api/health/ready` additionally verifies that PostgreSQL answers
 with exactly the migration set known to this build.
+
+## API contract and generated clients
+
+`docs/api/openapi.json` is the checked-in source for the TypeScript and Go
+clients. Generated client files are deliberately ignored and recreated before
+their consumers build:
+
+```sh
+npm ci --prefix src/web
+npm run generate --prefix src/web
+(cd src/cli && go generate ./... && go test ./...)
+```
+
+After changing an endpoint, recapture the contract from the running in-process
+host and run the combined consistency check:
+
+```sh
+UPAFFE_CAPTURE_CONTRACT=1 dotnet test tests/Upaffe.IntegrationTests \
+  --filter FullyQualifiedName~ContractTests
+scripts/check-contract.sh
+```

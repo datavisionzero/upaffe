@@ -1,0 +1,11 @@
+{
+  "name": "upaffe-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "openapi-typescript ../../docs/api/openapi.json --output src/api/schema.d.ts"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.13.0"
+  }
+}

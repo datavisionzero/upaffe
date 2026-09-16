@@ -8,4 +8,7 @@
     <ProjectReference Include="../Upaffe.Application/Upaffe.Application.csproj" />
     <ProjectReference Include="../Upaffe.Infrastructure/Upaffe.Infrastructure.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+  </ItemGroup>
 </Project>

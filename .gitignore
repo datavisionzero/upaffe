@@ -16,5 +16,19 @@ artifacts/
 *.suo
 .vs/
 
+# Generated API clients. The checked-in OpenAPI document is the source.
+/src/web/src/api/schema.d.ts
+/src/cli/internal/api/client.gen.go
+
+# JavaScript dependencies and build output.
+node_modules/
+dist/
+*.tsbuildinfo
+npm-debug.log*
+
+# Locally built executables.
+/ua
+/src/cli/ua
+
 # macOS
 .DS_Store

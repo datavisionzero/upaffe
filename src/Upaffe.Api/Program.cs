@@ -11,6 +11,7 @@ var database = DatabaseSettings.FromConnectionString(
     builder.Configuration.GetConnectionString(DatabaseSettings.ConnectionStringName));
 builder.Services.AddUpaffeInfrastructure(database);
 builder.Services.AddHostedService<SchemaMigrationService>();
+builder.Services.AddUpaffeOpenApi();
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -20,7 +21,13 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 var app = builder.Build();
 
-app.MapGroup("/api").MapHealth();
+app.UseUpaffeVersion();
+
+app.MapOpenApi("/api/openapi/{documentName}.json");
+
+var api = app.MapGroup("/api");
+api.MapInstance();
+api.MapHealth();
 
 app.Run();
 

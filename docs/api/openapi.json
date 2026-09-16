@@ -1,0 +1,114 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "upaffe",
+    "description": "The HTTP surface of one upaffe instance. Every endpoint is under /api; every response carries Upaffe-Version.",
+    "version": "0.0.0-dev"
+  },
+  "paths": {
+    "/api/version": {
+      "get": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "The version of this instance.",
+        "operationId": "ReadVersion",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health/live": {
+      "get": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Whether the upaffe process can answer.",
+        "operationId": "ReadLiveness",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LivenessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health/ready": {
+      "get": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Whether PostgreSQL answers with the expected schema.",
+        "operationId": "ReadReadiness",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LivenessResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LivenessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "LivenessResponse": {
+        "required": [
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "VersionResponse": {
+        "required": [
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "upaffe"
+    }
+  ]
+}

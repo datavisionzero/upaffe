@@ -4,10 +4,10 @@
 lives, which way dependencies point, and which artifacts are authoritative. It
 is updated as each epic changes the repository.
 
-Current state: the four-layer .NET 10 solution, API host, technical health
-endpoints, PostgreSQL context and forward-only startup migration exist. Clients,
-web, CLI, and delivery described below remain planned until their owning ticket
-lands.
+Current state: the four-layer .NET 10 solution, API host, technical health and
+version endpoints, PostgreSQL context, forward-only startup migration, checked-in
+OpenAPI contract, and two generated client packages exist. The web and CLI
+applications that consume those packages and delivery remain planned.
 
 ## Provenance and maintenance boundary
 
@@ -29,7 +29,7 @@ upaffe/
 ├─ deploy/                   local Compose now; production packaging later
 ├─ docs/
 │  ├─ adr/                   local and adopted architecture decisions
-│  ├─ api/openapi.json       checked-in HTTP contract (planned: UP-5)
+│  ├─ api/openapi.json       checked-in HTTP contract
 │  ├─ codebase.md            this map
 │  ├─ api.md                 HTTP conventions and surface, when implemented
 │  ├─ cli.md                 CLI contract, when implemented
@@ -75,10 +75,17 @@ introduced in code is documented with the domain model when that model lands.
 
 ## Interfaces and generated artifacts
 
-The HTTP contract is an artifact, not a second description of the API. UP-5
-will capture it deterministically at `docs/api/openapi.json` and generate the
-TypeScript and Go clients from it. The web application and CLI do not share
-backend assemblies or reimplement endpoint shapes by hand.
+The HTTP contract is an artifact, not a second description of the API. A
+contract integration test captures the running host deterministically at
+`docs/api/openapi.json` and fails when the checked-in document differs. The
+TypeScript schema in `src/web/src/api/schema.d.ts` and Go client in
+`src/cli/internal/api/client.gen.go` are generated from that one file.
+
+Only the contract is committed. Generated outputs are ignored because every
+web and Go build regenerates them first; a generator failure or a client compile
+failure therefore fails the build rather than leaving a stale checked-in copy.
+`scripts/check-contract.sh` performs the implementation/contract comparison and
+both generation paths.
 
 Every API endpoint lives below `/api`; every other route is available to the
 SPA. `GET /api/health/live` is the technical health path established by the
@@ -93,11 +100,11 @@ The web application is a Vite/React/TypeScript project built independently from
 components use Base UI. The production build is later served by the API process,
 so no second application server is required in an installation.
 
-The CLI is an independent Go module whose executable is `ua`. It is designed
+The CLI is an independent Go module whose executable will be `ua`. It is designed
 for unattended use: machine-readable output, data on stdout, diagnostics on
 stderr, stable exit categories, and no implicit prompt, editor, or pager. Its
-only application boundary is the same generated API client used by the web
-application.
+only application boundary is the generated Go client of the same contract used
+to generate the web application's TypeScript types.
 
 ## Persistence and delivery
 
