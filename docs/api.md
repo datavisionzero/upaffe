@@ -23,6 +23,12 @@ high-entropy secret supplied in the request body.
 | `GET /api/management-credentials` | List credential metadata without tokens. |
 | `POST /api/management-credentials/{id}/rotate` | Issue a new token with a ten-minute overlap for the previous token. |
 | `DELETE /api/management-credentials/{id}` | Revoke every token for the credential immediately. |
+| `POST /api/projects` | Create a project idempotently by its immutable key. |
+| `GET /api/projects?deleted=false` | List live projects, or deleted projects with `deleted=true`. |
+| `GET /api/projects/{key}` | Read a live or deleted project by immutable key. |
+| `PUT /api/projects/{key}` | Rename a live project at the version last read. |
+| `DELETE /api/projects/{key}?version={version}` | Soft-delete a project at the version last read. |
+| `POST /api/projects/{key}/restore` | Restore a project at the version last read. |
 | `GET /api/openapi/v1.json` | The generated OpenAPI document. It does not list itself. |
 
 Every routed endpoint declares exactly one access boundary. Version, health,
@@ -86,6 +92,35 @@ names return `400 validation`.
 Authentication audit messages contain the HTTP operation, outcome, access path,
 and public session or credential ID when available. They never contain the
 presented bearer token, cookie secret, bootstrap proof, or password.
+
+## Projects
+
+Every project has a generated internal UUID, an immutable lower-case key, and a
+mutable display name. Keys match `^[a-z][a-z0-9-]{1,39}$`; names are trimmed and
+contain 1–100 characters. Every response includes the current positive
+`version`, creation and update times, and a nullable deletion time.
+
+`POST /api/projects` accepts `key` and `name`. A new key returns `201`; repeating
+the same accepted key and name returns the existing project with `200`, the same
+UUID, and no version change. Reusing the key with another name returns
+`409 conflict`, including while the original project is deleted. Creation never
+implicitly restores a deleted project.
+
+`GET /api/projects` lists live projects by key. `deleted=true` lists only
+deleted projects. `GET /api/projects/{key}` reads either state so a caller can
+obtain the version needed for restoration. Rename accepts `{ "name": "...",
+"version": 1 }`; restore accepts `{ "version": 3 }`; delete carries the same
+positive version as its `version` query parameter. A successful change returns
+the full project and increments its version. Repeating delete at the current
+deleted version or restore at the current live version is idempotent and does
+not increment it.
+
+An unknown key returns `404 not_found`. Invalid keys, names, or versions return
+`400 validation` with field errors. A stale version, a different name for an
+existing key, or an attempted rename while deleted returns `409 conflict`.
+All project operations use the management boundary and therefore accept a
+browser session or management credential; anonymous requests return
+`401 authentication_required`.
 
 ## Contract rule
 

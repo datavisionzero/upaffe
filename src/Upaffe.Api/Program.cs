@@ -4,6 +4,7 @@ using Upaffe.Api.Hosting;
 using Upaffe.Api.Http;
 using Upaffe.Application.Access;
 using Upaffe.Application.Ports;
+using Upaffe.Application.Projects;
 using Upaffe.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -21,6 +22,12 @@ builder.Services.AddScoped<CreateManagementCredential>();
 builder.Services.AddScoped<ListManagementCredentials>();
 builder.Services.AddScoped<RotateManagementCredential>();
 builder.Services.AddScoped<RevokeManagementCredential>();
+builder.Services.AddScoped<CreateProject>();
+builder.Services.AddScoped<ReadProject>();
+builder.Services.AddScoped<ListProjects>();
+builder.Services.AddScoped<RenameProject>();
+builder.Services.AddScoped<DeleteProject>();
+builder.Services.AddScoped<RestoreProject>();
 builder.Services.AddHostedService<SchemaMigrationService>();
 builder.Services.AddHostedService<BootstrapService>();
 builder.Services.AddUpaffeOpenApi();
@@ -50,6 +57,7 @@ api.MapHealth();
 api.MapBootstrap();
 api.MapSession();
 api.MapManagementCredentials();
+api.MapProjects();
 api.MapFallback(() => Results.NotFound()).PublicAccess();
 
 app.MapFallbackToFile("index.html").PublicAccess();

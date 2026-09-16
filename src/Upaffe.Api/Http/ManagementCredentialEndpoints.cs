@@ -1,7 +1,5 @@
 using Upaffe.Application.Access;
-using Upaffe.Application.Failures;
 using Upaffe.Application.Ports;
-using Upaffe.Domain.Access;
 
 namespace Upaffe.Api.Http;
 
@@ -37,7 +35,7 @@ public static class ManagementCredentialEndpoints
                 CancellationToken cancellationToken) =>
             {
                 var issued = await create.ExecuteAsync(
-                    Current(http),
+                    http.ActingIdentity(),
                     request.Name,
                     cancellationToken);
                 return Results.Created(
@@ -57,7 +55,7 @@ public static class ManagementCredentialEndpoints
                 ListManagementCredentials list,
                 CancellationToken cancellationToken) =>
             {
-                var rows = await list.ExecuteAsync(Current(http), cancellationToken);
+            var rows = await list.ExecuteAsync(http.ActingIdentity(), cancellationToken);
                 return Results.Ok(rows.Select(Response));
             })
             .WithName("ListManagementCredentials")
@@ -71,7 +69,7 @@ public static class ManagementCredentialEndpoints
                 RotateManagementCredential rotate,
                 CancellationToken cancellationToken) =>
             Results.Ok(Response(await rotate.ExecuteAsync(
-                Current(http),
+                http.ActingIdentity(),
                 id,
                 cancellationToken))))
             .WithName("RotateManagementCredential")
@@ -88,7 +86,7 @@ public static class ManagementCredentialEndpoints
                 RevokeManagementCredential revoke,
                 CancellationToken cancellationToken) =>
             {
-                await revoke.ExecuteAsync(Current(http), id, cancellationToken);
+                await revoke.ExecuteAsync(http.ActingIdentity(), id, cancellationToken);
                 return Results.NoContent();
             })
             .WithName("RevokeManagementCredential")
@@ -100,9 +98,6 @@ public static class ManagementCredentialEndpoints
 
         return endpoints;
     }
-
-    private static Identity Current(HttpContext context) =>
-        context.Features.Get<Identity>() ?? throw Refusal.AuthenticationRequired();
 
     private static CredentialResponse Response(CredentialMetadata value) => new(
         value.Id,

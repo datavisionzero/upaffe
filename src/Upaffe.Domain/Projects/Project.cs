@@ -15,8 +15,8 @@ public sealed partial class Project
     private Project(string key, string name, DateTimeOffset now)
     {
         Id = Guid.NewGuid();
-        Key = AcceptedKey(key);
-        Name = AcceptedName(name);
+        Key = ValidateKey(key);
+        Name = ValidateName(name);
         Version = 1;
         CreatedAt = now;
         UpdatedAt = now;
@@ -35,7 +35,7 @@ public sealed partial class Project
     public void Rename(string name, DateTimeOffset now)
     {
         EnsureLive();
-        Name = AcceptedName(name);
+        Name = ValidateName(name);
         Changed(now);
     }
 
@@ -75,7 +75,7 @@ public sealed partial class Project
         UpdatedAt = now;
     }
 
-    private static string AcceptedKey(string value)
+    public static string ValidateKey(string value)
     {
         var key = (value ?? string.Empty).Trim();
         if (!KeyPattern().IsMatch(key))
@@ -88,7 +88,7 @@ public sealed partial class Project
         return key;
     }
 
-    private static string AcceptedName(string value)
+    public static string ValidateName(string value)
     {
         var name = (value ?? string.Empty).Trim();
         if (name.Length is < 1 or > MaximumNameLength)

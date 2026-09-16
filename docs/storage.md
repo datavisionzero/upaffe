@@ -60,7 +60,10 @@ its secret rows unusable without revealing them.
 Projects have an internal UUID and an immutable unique key. The mutable name,
 optimistic version, and deletion timestamp change without changing either
 identity. Deleted keys remain reserved so restoration cannot collide with a
-replacement project.
+replacement project. API writes compare the version last read before mutation,
+and EF's concurrency token rejects a second writer that races between that
+comparison and commit. Concurrent creation of the same accepted key and name is
+idempotent; a different name is a conflict.
 
 ## Tests
 

@@ -51,6 +51,8 @@ public sealed class AccessBoundaryTests(PostgresFixture postgres)
         AssertBoundary(routes, "/api/session", "DELETE", AccessBoundary.Browser);
         AssertBoundary(routes, "/api/management-credentials", "GET", AccessBoundary.Management);
         AssertBoundary(routes, "/api/management-credentials", "POST", AccessBoundary.Management);
+        AssertBoundary(routes, "/api/projects", "GET", AccessBoundary.Management);
+        AssertBoundary(routes, "/api/projects", "POST", AccessBoundary.Management);
 
         var policies = instance.Services.GetRequiredService<IAuthorizationPolicyProvider>();
         var fallback = await policies.GetFallbackPolicyAsync();

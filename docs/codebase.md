@@ -150,6 +150,11 @@ public, browser, or management boundary in its metadata, while a global
 authenticated fallback closes an endpoint whose classification was omitted.
 Authentication audit logs identify the HTTP operation, outcome, access path,
 and public access ID without recording presented secrets.
+Project application acts validate immutable keys, mutable names, and positive
+expected versions once for every transport. The PostgreSQL project store maps
+unique-key races to idempotent create or conflict, uses the persisted version as
+an optimistic concurrency token, and retains soft-deleted rows for explicit
+restoration.
 
 The local Compose environment builds the React application and .NET API into
 one development image and starts it beside PostgreSQL 18. Database readiness

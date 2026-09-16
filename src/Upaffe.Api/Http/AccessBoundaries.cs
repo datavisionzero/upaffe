@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
+using Upaffe.Application.Failures;
+using Upaffe.Domain.Access;
 
 namespace Upaffe.Api.Http;
 
@@ -13,6 +15,9 @@ public enum AccessBoundary
 /// <summary>Records a boundary in endpoint metadata and applies its authorization contract.</summary>
 public static class AccessBoundaryExtensions
 {
+    public static Identity ActingIdentity(this HttpContext context) =>
+        context.Features.Get<Identity>() ?? throw Refusal.AuthenticationRequired();
+
     public static T PublicAccess<T>(this T builder) where T : IEndpointConventionBuilder
     {
         builder.AllowAnonymous();

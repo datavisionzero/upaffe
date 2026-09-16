@@ -23,6 +23,7 @@ public static class InfrastructureServices
         services.AddScoped<IBootstrapStore, BootstrapStore>();
         services.AddScoped<IBrowserSessionStore, BrowserSessionStore>();
         services.AddScoped<IManagementCredentialStore, ManagementCredentialStore>();
+        services.AddScoped<IProjectStore, ProjectStore>();
         services.AddSingleton<IPasswordHasher, Argon2idPasswordHasher>();
         return services;
     }
