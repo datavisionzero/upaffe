@@ -44,6 +44,9 @@ public sealed class ScheduledHttpCheckPersistenceTests(PostgresFixture postgres)
         Assert.True(check.IsCompleted);
         Assert.Equal(1, check.ExecutionAttempts);
         Assert.Equal(Noon.AddMinutes(5), monitor.NextCheckAt);
+        Assert.Equal(MonitorState.Healthy, monitor.State);
+        Assert.Equal(check.Id, monitor.LatestResultId);
+        Assert.Equal(check.Id, monitor.LatestSuccessId);
     }
 
     [Fact]

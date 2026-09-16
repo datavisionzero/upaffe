@@ -31,8 +31,10 @@ no automatic downgrade path.
 The initial migration creates no product tables. The second migration adds the
 access and project model decided in ADR 0002. The third adds the HTTP monitor,
 check, and incident model decided in ADRs 0003 and 0004. The fourth adds the
-durable HTTP execution lease decided in ADR 0005. Later changes add new forward
-migrations; an existing migration is never rewritten after release.
+durable HTTP execution lease decided in ADR 0005. The fifth adds the persistent
+start of the current failure streak used for threshold evaluation. Later
+changes add new forward migrations; an existing migration is never rewritten
+after release.
 
 Add a migration from the repository root after changing the context model:
 
@@ -72,12 +74,12 @@ idempotent; a different name is a conflict.
 `http_monitor` belongs to one project through a restrictive foreign key and
 reserves its key within that project for its lifetime. It stores non-secret
 configuration, scheduling facts, the current evaluation generation and ordered
-sequence, consecutive failures, pause/removal timestamps, and separate foreign
-keys for the latest result and latest success. Check constraints mirror the
-interval, timeout, threshold, status, text-rule, state, sequence, and timestamp
-boundaries in ADRs 0003 and 0004. New and resumed monitors have a due time;
-paused and removed monitors do not. Its version is an optimistic concurrency
-token for management changes.
+sequence, consecutive failures and their first check, pause/removal timestamps,
+and separate foreign keys for the latest result and latest success. Check
+constraints mirror the interval, timeout, threshold, status, text-rule, state,
+sequence, and timestamp boundaries in ADRs 0003 and 0004. New and resumed
+monitors have a due time; paused and removed monitors do not. Its version is an
+optimistic concurrency token for management changes.
 
 The target stored on `http_monitor` never contains a query. The write-only
 query bytes live one-to-one in `http_monitor_secret`; the ordinary row records
@@ -121,6 +123,6 @@ concurrent startup, rejection of unknown migrations, and refusal to start when
 the database is unavailable. Persistence tests additionally exercise the
 singleton operator, secret lifecycles, revocation, expiry, project identity,
 monitor configuration and pause transitions, separated HTTP secrets, ordered
-results, concurrent scheduler claims, expired-lease recovery, and incident
-uniqueness and resolution against PostgreSQL constraints rather than an
-in-memory substitute.
+results, failure thresholds, repeated and competing evaluation, concurrent
+scheduler claims, expired-lease recovery, and incident uniqueness and
+resolution against PostgreSQL constraints rather than an in-memory substitute.

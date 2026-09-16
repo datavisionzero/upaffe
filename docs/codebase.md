@@ -125,6 +125,14 @@ The application host executes outside the transaction and then completes only
 the check whose current lease token it owns. This is at-least-once HTTP
 execution with one immutable stored result, as detailed in ADR 0005.
 
+Both requested and scheduled completion lock the check and then its monitor
+before applying the result. The shared evaluator updates latest-result,
+latest-success, visible state, failure count, and persistent failure-streak
+start in the same transaction as completion. Repeated or older sequences are
+ignored. Reaching the configured threshold creates the first incident from the
+persisted beginning of that streak; PostgreSQL's unique open-incident index and
+the monitor lock keep competing completions from opening two.
+
 Unit tests protect these directions by reading the project references. A term
 introduced in code is documented with the domain model when that model lands.
 

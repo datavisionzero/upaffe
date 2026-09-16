@@ -84,6 +84,7 @@ public sealed partial class HttpMonitor
     public long NextSequence { get; private set; }
     public long LastAppliedSequence { get; private set; }
     public int ConsecutiveFailures { get; private set; }
+    public Guid? FailureStreakStartId { get; private set; }
     public DateTimeOffset? NextCheckAt { get; private set; }
     public Guid? LatestResultId { get; private set; }
     public Guid? LatestSuccessId { get; private set; }
@@ -175,6 +176,7 @@ public sealed partial class HttpMonitor
         PausedAt = null;
         EvaluationGeneration++;
         ConsecutiveFailures = 0;
+        FailureStreakStartId = null;
         NextCheckAt = now;
         Changed(now);
     }
@@ -235,10 +237,12 @@ public sealed partial class HttpMonitor
             State = MonitorState.Healthy;
             LatestSuccessId = check.Id;
             ConsecutiveFailures = 0;
+            FailureStreakStartId = null;
         }
         else
         {
             State = MonitorState.Failing;
+            FailureStreakStartId ??= check.Id;
             ConsecutiveFailures++;
         }
 

@@ -70,6 +70,7 @@ public sealed class MonitoringModelTests
         Assert.False(monitor.ApplyResult(newer, Noon.AddSeconds(4)));
         Assert.Equal(MonitorState.Failing, monitor.State);
         Assert.Equal(newer.Id, monitor.LatestResultId);
+        Assert.Equal(newer.Id, monitor.FailureStreakStartId);
         Assert.Null(monitor.LatestSuccessId);
     }
 

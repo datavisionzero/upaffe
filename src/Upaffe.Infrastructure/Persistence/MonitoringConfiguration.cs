@@ -25,7 +25,10 @@ internal sealed class HttpMonitorConfiguration : IEntityTypeConfiguration<HttpMo
             table.HasCheckConstraint("ck_http_monitor_state", "state in ('Untested', 'Healthy', 'Failing', 'Paused')");
             table.HasCheckConstraint("ck_http_monitor_generation", "evaluation_generation > 0");
             table.HasCheckConstraint("ck_http_monitor_sequence", "next_sequence > 0 and last_applied_sequence >= 0 and last_applied_sequence < next_sequence");
-            table.HasCheckConstraint("ck_http_monitor_failures", "consecutive_failures >= 0");
+            table.HasCheckConstraint(
+                "ck_http_monitor_failures",
+                "(consecutive_failures = 0 and failure_streak_start_id is null) or "
+                + "(consecutive_failures > 0 and failure_streak_start_id is not null)");
             table.HasCheckConstraint("ck_http_monitor_version", "version > 0");
             table.HasCheckConstraint("ck_http_monitor_updated", "updated_at >= created_at");
             table.HasCheckConstraint(
@@ -55,6 +58,7 @@ internal sealed class HttpMonitorConfiguration : IEntityTypeConfiguration<HttpMo
         builder.Property(value => value.NextSequence).HasColumnName("next_sequence");
         builder.Property(value => value.LastAppliedSequence).HasColumnName("last_applied_sequence");
         builder.Property(value => value.ConsecutiveFailures).HasColumnName("consecutive_failures");
+        builder.Property(value => value.FailureStreakStartId).HasColumnName("failure_streak_start_id");
         builder.Property(value => value.NextCheckAt).HasColumnName("next_check_at");
         builder.Property(value => value.LatestResultId).HasColumnName("latest_result_id");
         builder.Property(value => value.LatestSuccessId).HasColumnName("latest_success_id");
@@ -66,12 +70,15 @@ internal sealed class HttpMonitorConfiguration : IEntityTypeConfiguration<HttpMo
         builder.HasIndex(value => new { value.ProjectId, value.Key }).IsUnique().HasDatabaseName("http_monitor_project_key");
         builder.HasIndex(value => value.NextCheckAt).HasFilter("deleted_at is null and state <> 'Paused'")
             .HasDatabaseName("http_monitor_due");
+        builder.HasIndex(value => value.FailureStreakStartId).HasDatabaseName("http_monitor_failure_streak_start");
         builder.HasOne<Project>().WithMany().HasForeignKey(value => value.ProjectId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_http_monitor_project");
         builder.HasOne<HttpCheck>().WithMany().HasForeignKey(value => value.LatestResultId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_http_monitor_latest_result");
         builder.HasOne<HttpCheck>().WithMany().HasForeignKey(value => value.LatestSuccessId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_http_monitor_latest_success");
+        builder.HasOne<HttpCheck>().WithMany().HasForeignKey(value => value.FailureStreakStartId)
+            .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_http_monitor_failure_streak_start");
     }
 }
 

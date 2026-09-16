@@ -309,8 +309,18 @@ public sealed class HttpMonitorStore(UpaffeDbContext context) : IHttpMonitorStor
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var check = await context.HttpChecks.SingleOrDefaultAsync(value => value.Id == checkId, cancellationToken)
-            ?? throw new InvalidOperationException("The requested HTTP check no longer exists.");
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        if (!await PostgresRowLocks.HttpCheckAsync(context, checkId, transaction, cancellationToken))
+        {
+            throw new InvalidOperationException("The requested HTTP check no longer exists.");
+        }
+
+        var check = await context.HttpChecks.SingleAsync(value => value.Id == checkId, cancellationToken);
+        if (!await PostgresRowLocks.HttpMonitorAsync(context, check.MonitorId, transaction, cancellationToken))
+        {
+            throw new InvalidOperationException("The requested HTTP monitor no longer exists.");
+        }
+
         var monitor = await context.HttpMonitors.SingleAsync(value => value.Id == check.MonitorId, cancellationToken);
         var projectKey = await context.Projects.Where(value => value.Id == monitor.ProjectId)
             .Select(value => value.Key)
@@ -336,8 +346,9 @@ public sealed class HttpMonitorStore(UpaffeDbContext context) : IHttpMonitorStor
             }
         }
 
-        var applied = monitor.ApplyResult(check, now);
+        var applied = await HttpCheckEvaluator.ApplyAsync(context, monitor, check, now, cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return new(check.Id, applied, result, await SnapshotAsync(monitor, projectKey, cancellationToken));
     }
 

@@ -95,13 +95,12 @@ public sealed class ScheduledHttpCheckStore(UpaffeDbContext context) : ISchedule
         CancellationToken cancellationToken)
     {
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
-        var lockedId = await SelectCheckIdAsync(checkId, transaction, cancellationToken);
-        if (lockedId is null)
+        if (!await PostgresRowLocks.HttpCheckAsync(context, checkId, transaction, cancellationToken))
         {
             throw new InvalidOperationException("The scheduled HTTP check no longer exists.");
         }
 
-        var check = await context.HttpChecks.SingleAsync(value => value.Id == lockedId, cancellationToken);
+        var check = await context.HttpChecks.SingleAsync(value => value.Id == checkId, cancellationToken);
         if (check.IsCompleted)
         {
             await transaction.CommitAsync(cancellationToken);
@@ -114,7 +113,14 @@ public sealed class ScheduledHttpCheckStore(UpaffeDbContext context) : ISchedule
             return ScheduledHttpCheckCompletion.LeaseLost;
         }
 
+        if (!await PostgresRowLocks.HttpMonitorAsync(context, check.MonitorId, transaction, cancellationToken))
+        {
+            throw new InvalidOperationException("The scheduled HTTP monitor no longer exists.");
+        }
+
+        var monitor = await context.HttpMonitors.SingleAsync(value => value.Id == check.MonitorId, cancellationToken);
         Complete(check, result, now);
+        await HttpCheckEvaluator.ApplyAsync(context, monitor, check, now, cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return ScheduledHttpCheckCompletion.Completed;
@@ -130,19 +136,6 @@ public sealed class ScheduledHttpCheckStore(UpaffeDbContext context) : ISchedule
         command.Transaction = transaction.GetDbTransaction();
         command.CommandText = sql;
         command.Parameters.Add(new NpgsqlParameter<DateTimeOffset>("now", now));
-        var result = await command.ExecuteScalarAsync(cancellationToken);
-        return result is Guid id ? id : null;
-    }
-
-    private async Task<Guid?> SelectCheckIdAsync(
-        Guid checkId,
-        IDbContextTransaction transaction,
-        CancellationToken cancellationToken)
-    {
-        await using var command = context.Database.GetDbConnection().CreateCommand();
-        command.Transaction = transaction.GetDbTransaction();
-        command.CommandText = "select id from http_check where id = @id for update";
-        command.Parameters.Add(new NpgsqlParameter<Guid>("id", checkId));
         var result = await command.ExecuteScalarAsync(cancellationToken);
         return result is Guid id ? id : null;
     }
