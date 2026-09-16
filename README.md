@@ -107,3 +107,19 @@ The default password is explicitly development-only. Set
 `UPAFFE_DEV_DB_PASSWORD`, `UPAFFE_DEV_DB_PORT`, or `UPAFFE_DEV_PORT` in the
 shell or an ignored `deploy/.env` when local ports or credentials must differ.
 See [`docs/operations.md`](./docs/operations.md) for restart and reset commands.
+
+## Complete local check
+
+CI runs on every push to `main` and every pull request, including contributions
+from forks. It needs no private secret and validates .NET, the React application,
+the Go CLI, the checked-in OpenAPI contract, generated clients, and the Compose
+definition. Run the same essential checks locally with Docker available:
+
+```sh
+scripts/check.sh
+```
+
+The .NET and Go versions come from `global.json` and `src/cli/go.mod`; the
+workflow pins Node.js 24 for the web build. Generated clients and build outputs
+are never uploaded; the workflow uses only the package-manager caches provided
+by the Node.js and Go setup actions.

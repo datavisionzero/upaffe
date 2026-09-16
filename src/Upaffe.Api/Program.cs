@@ -30,6 +30,7 @@ app.MapOpenApi("/api/openapi/{documentName}.json");
 var api = app.MapGroup("/api");
 api.MapInstance();
 api.MapHealth();
+api.MapFallback(() => Results.NotFound());
 
 app.MapFallbackToFile("index.html");
 

@@ -6,7 +6,7 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 dotnet test "$root/tests/Upaffe.IntegrationTests" \
   --filter FullyQualifiedName~ContractTests
 
-npm run generate --prefix "$root/src/web"
+npm run typecheck --prefix "$root/src/web"
 
 cd "$root/src/cli"
 go generate ./...

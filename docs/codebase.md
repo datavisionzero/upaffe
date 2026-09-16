@@ -26,7 +26,7 @@ they demonstrate a general mechanism.
 
 ```text
 upaffe/
-├─ .github/workflows/        CI (planned: UP-9)
+├─ .github/workflows/        build, test, contract, and Compose validation
 ├─ deploy/                   local Compose and development image
 ├─ docs/
 │  ├─ adr/                   local and adopted architecture decisions
@@ -126,9 +126,11 @@ one development image and starts it beside PostgreSQL 18. Database readiness
 gates application startup, application readiness verifies the migrated
 database, and a named volume preserves local state across ordinary restarts.
 Production images, reverse proxying, upgrades, backup, restore, and
-failed-upgrade recovery belong to the later operations epic. GitHub Actions in
-UP-9 reproduces the documented local build, test, and generation checks without
-requiring private secrets from contributors.
+failed-upgrade recovery belong to the later operations epic. GitHub Actions
+reproduces the documented local build, test, generation, and Compose validation
+without requiring private secrets from contributors. Only the setup actions'
+package-manager caches persist between jobs; generated clients and distributable
+build outputs are rebuilt and are not uploaded.
 
 ## Documentation ownership
 
