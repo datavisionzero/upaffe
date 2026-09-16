@@ -1,0 +1,12 @@
+# Personal, machine-local agent instructions.
+CLAUDE.local.md
+
+# The project file: points this repository at the private planaffe backlog.
+/.planaffe
+
+# Working material, deliberately not part of the repository.
+# Research notes, drafts, throwaway scripts.
+/scratchpad/
+
+# macOS
+.DS_Store
