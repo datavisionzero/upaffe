@@ -6,8 +6,8 @@ is updated as each epic changes the repository.
 
 Current state: the four-layer .NET 10 solution, API host, technical health and
 version endpoints, PostgreSQL context, forward-only startup migration, checked-in
-OpenAPI contract, two generated client packages, and the React application shell
-exist. The CLI application and delivery remain planned.
+OpenAPI contract, two generated client packages, React application shell, and
+Go CLI exist. Delivery remains planned.
 
 ## Provenance and maintenance boundary
 
@@ -41,7 +41,7 @@ upaffe/
 │  ├─ Upaffe.Application/    use cases and required ports
 │  ├─ Upaffe.Infrastructure/ PostgreSQL and external adapters
 │  ├─ Upaffe.Api/            HTTP and composition root
-│  ├─ cli/                   standalone Go CLI `ua` (planned: UP-7)
+│  ├─ cli/                   standalone Go CLI `ua`
 │  └─ web/                   React application
 └─ tests/
    ├─ Upaffe.UnitTests/
@@ -103,11 +103,13 @@ HTTP refusal, and a network failure without rendering response content. The
 production build lands in `src/Upaffe.Api/wwwroot`, which the API process serves,
 so no second application server is required in an installation.
 
-The CLI is an independent Go module whose executable will be `ua`. It is designed
-for unattended use: machine-readable output, data on stdout, diagnostics on
-stderr, stable exit categories, and no implicit prompt, editor, or pager. Its
-only application boundary is the generated Go client of the same contract used
-to generate the web application's TypeScript types.
+The CLI is an independent Go module whose executable is `ua`. It is designed for
+unattended use: machine-readable output, data on stdout, diagnostics on stderr,
+stable exit categories, and no implicit prompt, editor, or pager. `ua version`
+and help are offline; `ua status` resolves `--url` before `UPAFFE_URL` and calls
+the generated version operation with a bounded timeout. Its only application
+boundary is the generated Go client of the same contract used to generate the
+web application's TypeScript types. [`cli.md`](./cli.md) is the process contract.
 
 ## Persistence and delivery
 

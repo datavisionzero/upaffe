@@ -72,3 +72,20 @@ process serves it:
 ```sh
 npm run build --prefix src/web
 ```
+
+## CLI development
+
+The standalone Go CLI is `ua`. It regenerates its API package before checks:
+
+```sh
+cd src/cli
+go generate ./...
+go vet ./...
+go test ./...
+go build -o ua ./cmd/ua
+./ua version --json
+UPAFFE_URL=http://localhost:5000 ./ua status --json
+```
+
+Version and help are offline. `status` is the technical end-to-end diagnostic;
+it does not claim that any monitor exists or is healthy.
