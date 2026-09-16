@@ -195,6 +195,15 @@ func managementClient(
 	flags *managementFlags,
 	getenv environment,
 ) (*api.ClientWithResponses, context.Context, context.CancelFunc, error) {
+	return managementClientWithTimeout(command, flags, getenv, 10*time.Second)
+}
+
+func managementClientWithTimeout(
+	command *cobra.Command,
+	flags *managementFlags,
+	getenv environment,
+	timeout time.Duration,
+) (*api.ClientWithResponses, context.Context, context.CancelFunc, error) {
 	address, err := config.ResolveURL(flags.address, config.Environment(getenv))
 	if err != nil {
 		return nil, nil, nil, process.New(process.Usage, "%v", err)
@@ -212,7 +221,7 @@ func managementClient(
 	if err != nil {
 		return nil, nil, nil, process.New(process.Usage, "invalid instance address: %v", err)
 	}
-	ctx, cancel := context.WithTimeout(command.Context(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(command.Context(), timeout)
 	return client, ctx, cancel, nil
 }
 

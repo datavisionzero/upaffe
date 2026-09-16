@@ -235,14 +235,24 @@ create/get/list/rename/delete/restore commands; they address immutable keys,
 carry explicit versions for writes, and preserve the API's stable problem
 categories in process exit codes.
 
+The same generated client backs the complete noninteractive `ua monitor`
+surface: create, list, detail, update, removal, pause, resume, immediate test,
+header replacement/removal, and paginated check and incident history. Structured
+and secret-bearing writes come from an explicit bounded JSON file or stdin, not
+command-line values. Ordinary text and JSON output use only the API's redacted
+monitor and history responses. List and detail locate the current
+`latest_result_id` in bounded history pages while a failure streak is active, so
+sub-threshold errors remain visible even though compact monitor state contains
+only its reference. An immediate check failure has its own process category
+after its structured result is written; HTTP/API failures retain the shared
+categories.
+
 HTTP monitor entities validate the durable limits from ADR 0004 and retain the
 state and observation ordering from ADR 0003 without taking a dependency on EF
 Core. Infrastructure maps them to PostgreSQL with a project-scoped immutable
 key, distinct latest-result and latest-success references, separate target-query
 and header-value secret tables, immutable completed check rows, and a partial
-unique index for one open incident per monitor. Scheduler leases, network
-execution, application operations, and transports are not implied by this
-schema and arrive in their owning tickets.
+unique index for one open incident per monitor.
 
 The local Compose environment builds the React application and .NET API into
 one development image and starts it beside PostgreSQL 18. Database readiness

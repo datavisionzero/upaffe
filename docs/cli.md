@@ -2,7 +2,7 @@
 
 `ua` is the noninteractive client of upaffe's public HTTP API. It is a separate
 Go binary and imports no .NET assembly. Commands never open a prompt, editor, or
-pager. A command reads stdin only when a future flag explicitly says so.
+pager. A command reads stdin only when `--file -` explicitly says so.
 
 ## Build
 
@@ -55,6 +55,7 @@ code and HTTP status, such as `authentication_rejected (HTTP 401)`.
 | 2 | usage or missing configuration |
 | 3 | endpoint or object not found |
 | 4 | request refused by validation or conflict |
+| 5 | an immediate monitor check completed with a failure |
 | 7 | unauthenticated or unauthorized |
 | 10 | instance or network unreachable |
 
@@ -76,6 +77,18 @@ ua project list [--deleted] [--url ADDRESS] [--credential TOKEN] [--json]
 ua project rename KEY --name NAME --version VERSION [--url ADDRESS] [--credential TOKEN] [--json]
 ua project delete KEY --version VERSION [--url ADDRESS] [--credential TOKEN] [--json]
 ua project restore KEY --version VERSION [--url ADDRESS] [--credential TOKEN] [--json]
+ua monitor create PROJECT_KEY --file PATH|- [--url ADDRESS] [--credential TOKEN] [--json]
+ua monitor list PROJECT_KEY [--url ADDRESS] [--credential TOKEN] [--json]
+ua monitor get PROJECT_KEY MONITOR_KEY [--url ADDRESS] [--credential TOKEN] [--json]
+ua monitor update PROJECT_KEY MONITOR_KEY --file PATH|- [--url ADDRESS] [--credential TOKEN] [--json]
+ua monitor delete PROJECT_KEY MONITOR_KEY --version VERSION [--url ADDRESS] [--credential TOKEN] [--json]
+ua monitor pause PROJECT_KEY MONITOR_KEY --version VERSION [--url ADDRESS] [--credential TOKEN] [--json]
+ua monitor resume PROJECT_KEY MONITOR_KEY --version VERSION [--url ADDRESS] [--credential TOKEN] [--json]
+ua monitor test PROJECT_KEY MONITOR_KEY [--url ADDRESS] [--credential TOKEN] [--json]
+ua monitor checks PROJECT_KEY MONITOR_KEY [--before-sequence N] [--limit N] [--url ADDRESS] [--credential TOKEN] [--json]
+ua monitor incidents PROJECT_KEY MONITOR_KEY [--before-opening-sequence N] [--limit N] [--url ADDRESS] [--credential TOKEN] [--json]
+ua monitor header set PROJECT_KEY MONITOR_KEY NAME --file PATH|- [--url ADDRESS] [--credential TOKEN] [--json]
+ua monitor header remove PROJECT_KEY MONITOR_KEY NAME --version VERSION [--url ADDRESS] [--credential TOKEN] [--json]
 ```
 
 `version` prints the CLI build version and never accesses the network. `status`
@@ -130,3 +143,64 @@ API `validation` and `conflict` problems exit with code 4, `not_found` with
 code 3, and authentication problems with code 7. Diagnostics include only the
 stable problem code and HTTP status, never the remote title, response body, or
 management credential.
+
+### HTTP monitors
+
+Every monitor command addresses an immutable project key and project-scoped
+monitor key. Monitor UUIDs are returned as durable facts but are never resolved
+from display names. Mutations use the positive version returned by the last
+read; stale versions exit with code 4 and `conflict`.
+
+Create, update, and header-set documents are read only from the explicit
+`--file` operand. `--file -` reads one document from stdin, which is convenient
+for a secret-store pipe; a path should refer to a file protected by appropriate
+filesystem permissions. Input is limited to 1 MiB, must contain exactly one
+JSON object, and rejects unknown properties. The CLI never includes submitted
+content in input-error diagnostics.
+
+A create document uses the API's complete monitor shape. Header values and the
+target query are accepted here but never appear in the returned text or JSON:
+
+```json
+{
+  "key": "homepage",
+  "name": "Public homepage",
+  "target_url": "https://status.example.test/health?access=secret-from-store",
+  "expected_status_code": 200,
+  "text_condition": "contains",
+  "text_fragment": "ready",
+  "interval_seconds": 60,
+  "timeout_seconds": 10,
+  "failure_threshold": 3,
+  "instruction": "Inspect the public endpoint",
+  "runbook_url": "https://docs.example.test/runbooks/homepage",
+  "headers": [
+    {"name": "Authorization", "value": "Bearer secret-from-store"}
+  ]
+}
+```
+
+An update document carries `version` and every non-secret setting. Omitting or
+setting `target_url` to `null` preserves the complete existing URL, including
+its hidden query. A value replaces it. Header replacement is separate and uses
+`{"value":"secret-from-store","version":4}`; there is deliberately no
+header-value command-line flag that could be retained in shell history or
+process inspection.
+
+`list` and `get` expose `untested`, `healthy`, `failing`, and `paused` directly,
+together with the failure count and threshold, open incident ID, next due time,
+and latest applied failure details when a failure streak is active. Their JSON
+objects add `latest_check` when those details exist. The embedded monitor and
+history objects are otherwise the checked-in API shapes and contain no target
+query, request-header value, response body, or executor message.
+
+`test` waits up to 75 seconds so the API can honor the monitor's bounded
+60-second execution timeout. Both output modes report success, status, response
+time, stable reason, check ID, and whether the result affected current state. A
+completed failure still writes that structured result, then exits with code 5;
+transport, authentication, and API failures retain their ordinary categories.
+
+`checks` and `incidents` return newest-first pages. Their cursor flags are
+exclusive and `--limit` accepts 1 through 100; omitting the limit lets the API
+use its default of 50. JSON mode writes the page object including its next
+cursor. Text mode writes one tab-separated result per line.

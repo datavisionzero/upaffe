@@ -118,7 +118,10 @@ UPAFFE_CREDENTIAL='<management credential>' \
 Create and rotate print new secret material once. Lists and diagnostics never
 repeat it. Project commands address immutable keys and use explicit versions for
 concurrent changes; see [`docs/cli.md`](./docs/cli.md) for commands and exit
-codes.
+codes. The same CLI completely administers HTTP monitors, runs immediate checks,
+and reads check and incident history. Secret-bearing monitor configuration is
+accepted only from an explicit JSON file or stdin and is never returned by
+ordinary text or JSON output.
 
 ## Local Compose environment
 

@@ -11,6 +11,7 @@ const (
 	Usage        = 2
 	NotFound     = 3
 	Refused      = 4
+	CheckFailed  = 5
 	Unauthorized = 7
 	Unreachable  = 10
 )
