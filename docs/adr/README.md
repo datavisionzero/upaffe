@@ -8,6 +8,7 @@ deliberately departs from a product commitment or an adopted reference.
 
 - [0001 — Adopt the affe foundation without its domain](./0001-adopt-the-affe-foundation-without-its-domain.md)
 - [0002 — One operator, two access paths, and recoverable projects](./0002-one-operator-two-access-paths-and-recoverable-projects.md)
+- [0003 — Monitor state and incident lifecycle](./0003-monitor-state-and-incident-lifecycle.md)
 
 ## Decisions adopted from planaffe
 
