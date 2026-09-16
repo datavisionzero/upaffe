@@ -1,44 +1,69 @@
-import { Button } from "@/components/Button";
-import { useInstance } from "@/shell/useInstance";
+import { useCallback, useEffect, useState } from "react";
+import type { components } from "@/api/schema";
+
+import { api } from "@/api/client";
+import { problemMessage } from "@/api/problems";
+import { BootstrapView, SignInView } from "@/shell/AccessViews";
+import { ProjectsView } from "@/shell/ProjectsView";
+
+type Session = components["schemas"]["CurrentSessionResponse"];
+type Screen =
+  | { state: "loading" }
+  | { state: "bootstrap"; available: boolean }
+  | { state: "signin" }
+  | { state: "projects"; session: Session }
+  | { state: "failed"; reason: string };
 
 export function App() {
-  const { instance, ask } = useInstance();
+  const [screen, setScreen] = useState<Screen>({ state: "loading" });
+
+  const enter = useCallback(async () => {
+    try {
+      const bootstrap = await api.GET("/api/bootstrap");
+      if (!bootstrap.data) {
+        setScreen({ state: "failed", reason: problemMessage(bootstrap.error, bootstrap.response.status) });
+        return;
+      }
+      if (bootstrap.data.required) {
+        setScreen({ state: "bootstrap", available: bootstrap.data.available });
+        return;
+      }
+
+      const session = await api.GET("/api/session");
+      if (session.data) setScreen({ state: "projects", session: session.data });
+      else if (session.response.status === 401) setScreen({ state: "signin" });
+      else setScreen({ state: "failed", reason: problemMessage(session.error, session.response.status) });
+    } catch {
+      setScreen({ state: "failed", reason: "The instance could not be reached." });
+    }
+  }, []);
+
+  useEffect(() => {
+    const start = window.setTimeout(() => void enter(), 0);
+    return () => window.clearTimeout(start);
+  }, [enter]);
+
+  const reenter = useCallback(() => {
+    setScreen({ state: "loading" });
+    void enter();
+  }, [enter]);
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-2xl flex-col justify-center gap-8 px-5 py-12">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">upaffe</h1>
-        <p className="text-muted text-balance">
-          The monitoring foundation is connected. Projects and monitors arrive in later epics.
-        </p>
-      </header>
-
-      <section aria-labelledby="instance" className="border-line flex flex-col gap-3 rounded-lg border p-5">
-        <h2 id="instance" className="text-sm font-medium tracking-wide uppercase">
-          Technical connection
-        </h2>
-
-        {instance.state === "asking" && <p role="status">Asking the instance…</p>}
-        {instance.state === "answered" && (
-          <p role="status">
-            The API answered as version <span className="text-accent font-mono">{instance.version}</span>.
-          </p>
-        )}
-        {instance.state === "refused" && <p role="alert">{instance.reason}</p>}
-        {instance.state === "unreachable" && (
-          <p role="alert">Nothing answered at this address. {instance.reason}</p>
-        )}
-
-        {instance.state !== "asking" && (
-          <div>
-            <Button onClick={ask}>Ask again</Button>
-          </div>
-        )}
-      </section>
-
-      <footer className="text-muted text-sm">
-        This shell and the <code className="font-mono">ua</code> CLI use the same checked-in API contract.
-      </footer>
+    <main className="app-shell">
+      {screen.state === "loading" && <p className="loading" role="status">Opening the instance…</p>}
+      {screen.state === "bootstrap" && (
+        <BootstrapView available={screen.available} onEstablished={() => setScreen({ state: "signin" })} onRefresh={reenter} />
+      )}
+      {screen.state === "signin" && <SignInView onSignedIn={reenter} />}
+      {screen.state === "projects" && <ProjectsView onSignedOut={() => setScreen({ state: "signin" })} session={screen.session} />}
+      {screen.state === "failed" && (
+        <section className="panel panel-narrow">
+          <p className="eyebrow">Connection</p>
+          <h1>Instance unavailable</h1>
+          <p role="alert">{screen.reason}</p>
+          <button className="retry" onClick={reenter} type="button">Try again</button>
+        </section>
+      )}
     </main>
   );
 }

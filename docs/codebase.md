@@ -9,12 +9,13 @@ HTTP, CLI, and web copy use those terms rather than inventing parallel names.
 
 Current state: the four-layer .NET 10 solution, API host, technical health and
 version endpoints, PostgreSQL context, forward-only startup migration, checked-in
-OpenAPI contract, two generated client packages, React application shell, and
-Go CLI exist. The access and project domain and its PostgreSQL schema now form
-the first product model. A fresh instance can establish its sole operator
-through a short-lived, one-use bootstrap proof, then admit that operator through
-a revocable server-side browser session. Local Compose builds and runs that
-complete skeleton; production delivery remains planned.
+OpenAPI contract, two generated client packages, React application, and Go CLI
+exist. The access and project domain and its PostgreSQL schema form the first
+product model. A fresh instance can establish its sole operator through a
+short-lived, one-use bootstrap proof, then admit that operator through a
+revocable server-side browser session and manage projects through web or CLI.
+Local Compose builds and runs that complete slice; production delivery remains
+planned.
 
 ## Provenance and maintenance boundary
 
@@ -104,11 +105,16 @@ arrives with the monitoring loop.
 
 The web application is a Vite/React/TypeScript project built independently from
 .NET during development. Tailwind supplies the light/dark token layer and
-repository-owned components wrap Base UI primitives. Its first screen calls the
-generated `/api/version` operation and visibly distinguishes an answer, a bounded
-HTTP refusal, and a network failure without rendering response content. The
-production build lands in `src/Upaffe.Api/wwwroot`, which the API process serves,
-so no second application server is required in an installation.
+repository-owned components wrap Base UI primitives. It routes the generated
+bootstrap and session responses into distinct first-start, sign-in, and project
+surfaces. Proofs and passwords use password inputs and leave component state as
+soon as they are submitted. The project surface lists live or deleted projects
+and creates, renames, soft-deletes, and restores them using only generated API
+operations and their optimistic versions. Native forms, visible loading, empty,
+and validation states, semantic status regions, and focus-visible controls keep
+the slice keyboard accessible. The production build lands in
+`src/Upaffe.Api/wwwroot`, which the API process serves, so no second application
+server is required in an installation.
 
 The CLI is an independent Go module whose executable is `ua`. It is designed for
 unattended use: machine-readable output, data on stdout, diagnostics on stderr,
@@ -123,7 +129,7 @@ application's TypeScript types. [`cli.md`](./cli.md) is the process contract.
 The end-to-end technical path is deliberately small:
 
 ```text
-docs/api/openapi.json ──> TypeScript types ──> web shell ─┐
+docs/api/openapi.json ──> TypeScript types ──> web app ───┐
                        └─> Go client ────────> ua CLI ────┼─> API ─> PostgreSQL
                                                          ┘
 ```
