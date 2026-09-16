@@ -89,3 +89,21 @@ UPAFFE_URL=http://localhost:5000 ./ua status --json
 
 Version and help are offline. `status` is the technical end-to-end diagnostic;
 it does not claim that any monitor exists or is healthy.
+
+## Local Compose environment
+
+Build and start PostgreSQL and the complete application from a fresh checkout:
+
+```sh
+docker compose -f deploy/docker-compose.dev.yml up --build --wait
+curl --fail http://localhost:8080/api/health/ready
+go -C src/cli generate ./...
+UPAFFE_URL=http://localhost:8080 go -C src/cli run ./cmd/ua status --json
+```
+
+The web application is then available at `http://localhost:8080`.
+
+The default password is explicitly development-only. Set
+`UPAFFE_DEV_DB_PASSWORD`, `UPAFFE_DEV_DB_PORT`, or `UPAFFE_DEV_PORT` in the
+shell or an ignored `deploy/.env` when local ports or credentials must differ.
+See [`docs/operations.md`](./docs/operations.md) for restart and reset commands.

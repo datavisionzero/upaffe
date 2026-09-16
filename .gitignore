@@ -33,5 +33,10 @@ npm-debug.log*
 # The SPA is generated into the API host for production builds.
 /src/Upaffe.Api/wwwroot/
 
+# Local Compose configuration and persistent state.
+.env
+/deploy/.env
+/volume/
+
 # macOS
 .DS_Store

@@ -7,7 +7,8 @@ is updated as each epic changes the repository.
 Current state: the four-layer .NET 10 solution, API host, technical health and
 version endpoints, PostgreSQL context, forward-only startup migration, checked-in
 OpenAPI contract, two generated client packages, React application shell, and
-Go CLI exist. Delivery remains planned.
+Go CLI exist. Local Compose builds and runs that complete skeleton; production
+delivery remains planned.
 
 ## Provenance and maintenance boundary
 
@@ -26,7 +27,7 @@ they demonstrate a general mechanism.
 ```text
 upaffe/
 ├─ .github/workflows/        CI (planned: UP-9)
-├─ deploy/                   local Compose now; production packaging later
+├─ deploy/                   local Compose and development image
 ├─ docs/
 │  ├─ adr/                   local and adopted architecture decisions
 │  ├─ api/openapi.json       checked-in HTTP contract
@@ -35,7 +36,7 @@ upaffe/
 │  ├─ cli.md                 CLI contract, when implemented
 │  ├─ storage.md             schema and retention rules, when implemented
 │  ├─ install.md             supported installation, when implemented
-│  └─ operations.md          operating procedures, when implemented
+│  └─ operations.md          supported local operating procedures
 ├─ src/
 │  ├─ Upaffe.Domain/         domain rules
 │  ├─ Upaffe.Application/    use cases and required ports
@@ -45,7 +46,7 @@ upaffe/
 │  └─ web/                   React application
 └─ tests/
    ├─ Upaffe.UnitTests/
-   └─ Upaffe.IntegrationTests/  (planned: UP-3)
+   └─ Upaffe.IntegrationTests/
 ```
 
 Planned entries document a settled responsibility, not behavior that already
@@ -120,8 +121,11 @@ refuses a database containing unknown migrations. Integration tests use a real
 PostgreSQL 18 container and isolate every test in its own database. The full
 rule is in [`storage.md`](./storage.md).
 
-Docker Compose is the supported deployment direction. UP-8 provides the local
-development environment; production images, upgrades, backup, restore, and
+The local Compose environment builds the React application and .NET API into
+one development image and starts it beside PostgreSQL 18. Database readiness
+gates application startup, application readiness verifies the migrated
+database, and a named volume preserves local state across ordinary restarts.
+Production images, reverse proxying, upgrades, backup, restore, and
 failed-upgrade recovery belong to the later operations epic. GitHub Actions in
 UP-9 reproduces the documented local build, test, and generation checks without
 requiring private secrets from contributors.
@@ -133,7 +137,8 @@ requiring private secrets from contributors.
 - `docs/storage.md` changes with schema, migrations, retention, and backup
   boundaries.
 - `docs/install.md` exists when there is a supported installation procedure.
-- `docs/operations.md` exists when there is a supported operational procedure.
+- `docs/operations.md` currently owns the local Compose lifecycle and grows
+  with supported production procedures later.
 
 Those files are created with the behavior they describe. Until then, this map
 names their future responsibility without pretending that the interface or

@@ -1,0 +1,42 @@
+name: upaffe-dev
+
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: upaffe
+      POSTGRES_USER: upaffe
+      POSTGRES_PASSWORD: ${UPAFFE_DEV_DB_PASSWORD:-local-development-only}
+    ports:
+      - "${UPAFFE_DEV_DB_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U upaffe -d upaffe"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.dev
+    environment:
+      ConnectionStrings__Postgres: >-
+        Host=db;Port=5432;Database=upaffe;Username=upaffe;Password=${UPAFFE_DEV_DB_PASSWORD:-local-development-only}
+    ports:
+      - "${UPAFFE_DEV_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+        restart: true
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/api/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+volumes:
+  postgres-data:

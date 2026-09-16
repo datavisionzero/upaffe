@@ -1,0 +1,12 @@
+.git
+.github
+.planaffe
+.env
+deploy/.env
+scratchpad
+**/bin
+**/obj
+**/node_modules
+src/Upaffe.Api/wwwroot
+volume
+artifacts
