@@ -10,8 +10,9 @@ HTTP, CLI, and web copy use those terms rather than inventing parallel names.
 Current state: the four-layer .NET 10 solution, API host, technical health and
 version endpoints, PostgreSQL context, forward-only startup migration, checked-in
 OpenAPI contract, two generated client packages, React application shell, and
-Go CLI exist. Local Compose builds and runs that complete skeleton; production
-delivery remains planned.
+Go CLI exist. The access and project domain and its PostgreSQL schema now form
+the first product model. Local Compose builds and runs that complete skeleton;
+production delivery remains planned.
 
 ## Provenance and maintenance boundary
 
@@ -65,8 +66,8 @@ Api ──────> Application ──────> Domain
  └────────> Infrastructure ──>
 ```
 
-- **Domain** holds monitoring terms and rules. It has no project or package
-  references.
+- **Domain** holds access, project, and monitoring terms and rules. It has no
+  project or package references.
 - **Application** holds operations and the ports they require. It can reference
   Domain and nothing outward.
 - **Infrastructure** implements Application ports using PostgreSQL and external
@@ -130,7 +131,9 @@ forward-only migration chain; the API host applies it before serving. Two starts
 serialize migration through a PostgreSQL advisory lock, and an older binary
 refuses a database containing unknown migrations. Integration tests use a real
 PostgreSQL 18 container and isolate every test in its own database. The full
-rule is in [`storage.md`](./storage.md).
+rule is in [`storage.md`](./storage.md). Access rows retain only password hashes
+or fixed-length secret digests; database constraints enforce the singleton
+operator, credential lifecycles, and stable project identity.
 
 The local Compose environment builds the React application and .NET API into
 one development image and starts it beside PostgreSQL 18. Database readiness

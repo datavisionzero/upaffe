@@ -1,3 +1,1 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <!-- Domain types arrive with the monitoring work that owns them. -->
-</Project>
+<Project Sdk="Microsoft.NET.Sdk" />
