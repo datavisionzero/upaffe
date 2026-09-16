@@ -30,5 +30,8 @@ npm-debug.log*
 /ua
 /src/cli/ua
 
+# The SPA is generated into the API host for production builds.
+/src/Upaffe.Api/wwwroot/
+
 # macOS
 .DS_Store

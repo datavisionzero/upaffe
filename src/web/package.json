@@ -3,9 +3,44 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "generate": "openapi-typescript ../../docs/api/openapi.json --output src/api/schema.d.ts"
+    "generate": "openapi-typescript ../../docs/api/openapi.json --output src/api/schema.d.ts",
+    "predev": "npm run generate",
+    "dev": "vite",
+    "prebuild": "npm run generate",
+    "build": "tsc -b && vite build",
+    "pretypecheck": "npm run generate",
+    "typecheck": "tsc -b",
+    "pretest": "npm run generate",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@base-ui/react": "^1.8.0",
+    "@tailwindcss/vite": "^4",
+    "openapi-fetch": "^0.17.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "tailwindcss": "^4"
   },
   "devDependencies": {
-    "openapi-typescript": "^7.13.0"
+    "@eslint/js": "^10",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
+    "@types/node": "^24",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6",
+    "eslint": "^10",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17",
+    "jsdom": "^30.0.1",
+    "openapi-typescript": "^7.13.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8",
+    "vite": "^8",
+    "vitest": "^4.1.11"
   }
 }

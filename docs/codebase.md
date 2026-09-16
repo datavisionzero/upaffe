@@ -6,8 +6,8 @@ is updated as each epic changes the repository.
 
 Current state: the four-layer .NET 10 solution, API host, technical health and
 version endpoints, PostgreSQL context, forward-only startup migration, checked-in
-OpenAPI contract, and two generated client packages exist. The web and CLI
-applications that consume those packages and delivery remain planned.
+OpenAPI contract, two generated client packages, and the React application shell
+exist. The CLI application and delivery remain planned.
 
 ## Provenance and maintenance boundary
 
@@ -42,7 +42,7 @@ upaffe/
 │  ├─ Upaffe.Infrastructure/ PostgreSQL and external adapters
 │  ├─ Upaffe.Api/            HTTP and composition root
 │  ├─ cli/                   standalone Go CLI `ua` (planned: UP-7)
-│  └─ web/                   React application (planned: UP-6)
+│  └─ web/                   React application
 └─ tests/
    ├─ Upaffe.UnitTests/
    └─ Upaffe.IntegrationTests/  (planned: UP-3)
@@ -96,8 +96,11 @@ arrives with the monitoring loop.
 ## Web and CLI
 
 The web application is a Vite/React/TypeScript project built independently from
-.NET during development. Tailwind supplies the token layer and repository-owned
-components use Base UI. The production build is later served by the API process,
+.NET during development. Tailwind supplies the light/dark token layer and
+repository-owned components wrap Base UI primitives. Its first screen calls the
+generated `/api/version` operation and visibly distinguishes an answer, a bounded
+HTTP refusal, and a network failure without rendering response content. The
+production build lands in `src/Upaffe.Api/wwwroot`, which the API process serves,
 so no second application server is required in an installation.
 
 The CLI is an independent Go module whose executable will be `ua`. It is designed

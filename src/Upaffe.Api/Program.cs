@@ -22,12 +22,16 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 var app = builder.Build();
 
 app.UseUpaffeVersion();
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
 app.MapOpenApi("/api/openapi/{documentName}.json");
 
 var api = app.MapGroup("/api");
 api.MapInstance();
 api.MapHealth();
+
+app.MapFallbackToFile("index.html");
 
 app.Run();
 

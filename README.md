@@ -51,3 +51,24 @@ UPAFFE_CAPTURE_CONTRACT=1 dotnet test tests/Upaffe.IntegrationTests \
   --filter FullyQualifiedName~ContractTests
 scripts/check-contract.sh
 ```
+
+## Web development
+
+The React application uses the Node version required by `src/web/package.json`'s
+toolchain and regenerates its API types before every build, typecheck, and test:
+
+```sh
+npm ci --prefix src/web
+npm run typecheck --prefix src/web
+npm test --prefix src/web
+npm run lint --prefix src/web
+npm run dev --prefix src/web
+```
+
+The development server forwards `/api` to the .NET host on port 5000. A
+production build writes into `src/Upaffe.Api/wwwroot`, where the same .NET
+process serves it:
+
+```sh
+npm run build --prefix src/web
+```
