@@ -2027,6 +2027,7 @@
           "next_check_at",
           "latest_result_id",
           "latest_success_id",
+          "open_incident_id",
           "headers",
           "version",
           "created_at",
@@ -2114,6 +2115,13 @@
             "format": "uuid"
           },
           "latest_success_id": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "open_incident_id": {
             "type": [
               "null",
               "string"

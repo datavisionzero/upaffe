@@ -470,6 +470,10 @@ public sealed class HttpMonitorStore(UpaffeDbContext context) : IHttpMonitorStor
         string projectKey,
         CancellationToken cancellationToken)
     {
+        var openIncidentId = await context.Incidents.AsNoTracking()
+            .Where(value => value.MonitorId == monitor.Id && value.ResolvedAt == null)
+            .Select(value => (Guid?)value.Id)
+            .SingleOrDefaultAsync(cancellationToken);
         var headers = await context.HttpMonitorHeaders.AsNoTracking()
             .Where(value => value.MonitorId == monitor.Id)
             .OrderBy(value => value.Name)
@@ -495,6 +499,7 @@ public sealed class HttpMonitorStore(UpaffeDbContext context) : IHttpMonitorStor
             monitor.NextCheckAt,
             monitor.LatestResultId,
             monitor.LatestSuccessId,
+            openIncidentId,
             headers,
             monitor.Version,
             monitor.CreatedAt,

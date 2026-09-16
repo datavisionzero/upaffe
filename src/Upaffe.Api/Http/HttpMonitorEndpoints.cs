@@ -67,6 +67,7 @@ public sealed record HttpMonitorResponse(
     DateTimeOffset? NextCheckAt,
     Guid? LatestResultId,
     Guid? LatestSuccessId,
+    Guid? OpenIncidentId,
     IReadOnlyList<HttpHeaderResponse> Headers,
     [property: JsonNumberHandling(JsonNumberHandling.Strict)] long Version,
     DateTimeOffset CreatedAt,
@@ -335,6 +336,7 @@ public static class HttpMonitorEndpoints
         value.NextCheckAt,
         value.LatestResultId,
         value.LatestSuccessId,
+        value.OpenIncidentId,
         value.Headers.Select(header => new HttpHeaderResponse(
             header.Id,
             header.Name,

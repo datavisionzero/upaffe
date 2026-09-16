@@ -136,6 +136,10 @@ failure updates that incident's latest observation and reason without changing
 its origin. A later accepted success resolves it with the recovery check and
 time. Because all three transitions follow `ApplyResult` in the same locked
 transaction, late and repeated results cannot change incident history.
+Compact monitor snapshots query the open incident separately and expose only
+its ID. This makes sub-threshold failure, open incident, pause, and resumed
+untested state unambiguous without turning every list response into incident
+history; paginated details use their own operation.
 
 Unit tests protect these directions by reading the project references. A term
 introduced in code is documented with the domain model when that model lands.

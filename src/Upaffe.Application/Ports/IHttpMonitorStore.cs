@@ -28,6 +28,7 @@ public sealed record HttpMonitorSnapshot(
     DateTimeOffset? NextCheckAt,
     Guid? LatestResultId,
     Guid? LatestSuccessId,
+    Guid? OpenIncidentId,
     IReadOnlyList<HttpHeaderSnapshot> Headers,
     long Version,
     DateTimeOffset CreatedAt,

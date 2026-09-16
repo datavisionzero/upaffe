@@ -249,6 +249,71 @@ public sealed class HttpMonitorTests(PostgresFixture postgres)
         Assert.Equal("validation", await ProblemCode(forbiddenHeader));
     }
 
+    [Fact]
+    public async Task Monitor_responses_distinguish_subthreshold_incident_pause_resume_and_recovery()
+    {
+        var executor = new StubExecutor(
+            new(false, "timeout", "The check timed out.", null, 10_000, null),
+            new(false, "unexpected_status", "The status differed.", 503, 20, "https://status.example.test/health"),
+            new(false, "text_missing", "The text was absent.", 200, 30, "https://status.example.test/health"),
+            new(true, null, "The check succeeded.", 200, 15, "https://status.example.test/health"));
+        await using var instance = await EstablishedAsync(executor);
+        using var client = Client(instance);
+        var browser = await SignInAsync(client);
+        var token = await CredentialAsync(client, browser);
+        await CreateProjectAsync(client, token, "public-services");
+
+        var created = await MonitorAsync(await JsonAsync(
+            client,
+            HttpMethod.Post,
+            "/api/projects/public-services/http-monitors",
+            ValidCreate() with { FailureThreshold = 2 },
+            token));
+        Assert.Equal("untested", created.State);
+        Assert.Null(created.OpenIncidentId);
+
+        var first = (await TestAsync(client, token)).Monitor;
+        Assert.Equal("failing", first.State);
+        Assert.Equal(1, first.ConsecutiveFailures);
+        Assert.Null(first.OpenIncidentId);
+
+        var opening = (await TestAsync(client, token)).Monitor;
+        Assert.Equal("failing", opening.State);
+        Assert.Equal(2, opening.ConsecutiveFailures);
+        Assert.NotNull(opening.OpenIncidentId);
+
+        var paused = await MonitorAsync(await JsonAsync(
+            client,
+            HttpMethod.Post,
+            "/api/projects/public-services/http-monitors/public-site/pause",
+            new HttpMonitorVersionRequest(opening.Version),
+            token));
+        Assert.Equal("paused", paused.State);
+        Assert.Null(paused.NextCheckAt);
+        Assert.Equal(opening.OpenIncidentId, paused.OpenIncidentId);
+
+        var resumed = await MonitorAsync(await JsonAsync(
+            client,
+            HttpMethod.Post,
+            "/api/projects/public-services/http-monitors/public-site/resume",
+            new HttpMonitorVersionRequest(paused.Version),
+            token));
+        Assert.Equal("untested", resumed.State);
+        Assert.Equal(0, resumed.ConsecutiveFailures);
+        Assert.NotNull(resumed.NextCheckAt);
+        Assert.Equal(opening.OpenIncidentId, resumed.OpenIncidentId);
+
+        var freshFailure = (await TestAsync(client, token)).Monitor;
+        Assert.Equal("failing", freshFailure.State);
+        Assert.Equal(1, freshFailure.ConsecutiveFailures);
+        Assert.Equal(opening.OpenIncidentId, freshFailure.OpenIncidentId);
+
+        var recovered = (await TestAsync(client, token)).Monitor;
+        Assert.Equal("healthy", recovered.State);
+        Assert.Equal(0, recovered.ConsecutiveFailures);
+        Assert.Null(recovered.OpenIncidentId);
+    }
+
     private async Task<AnInstance> EstablishedAsync(IHttpCheckExecutor executor)
     {
         var instance = AnInstance.Against(
@@ -283,6 +348,19 @@ public sealed class HttpMonitorTests(PostgresFixture postgres)
         using var response = await JsonAsync(
             client, HttpMethod.Post, "/api/projects", new CreateProjectRequest(key, key), token);
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    private static async Task<HttpMonitorTestResponse> TestAsync(HttpClient client, string token)
+    {
+        using var response = await SendAsync(
+            client,
+            HttpMethod.Post,
+            "/api/projects/public-services/http-monitors/public-site/test",
+            token);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<HttpMonitorTestResponse>(
+            Json,
+            TestContext.Current.CancellationToken))!;
     }
 
     private static HttpClient Client(AnInstance instance) =>

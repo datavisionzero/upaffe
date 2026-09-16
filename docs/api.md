@@ -141,7 +141,10 @@ whether a query is configured, exact expected status, `none`, `required`, or
 `forbidden` text condition and fragment, interval and timeout seconds, failure
 threshold, optional operator instruction and runbook URL, current state and
 failure count, next due time, latest-result and latest-success IDs, header
-metadata, optimistic version, and lifecycle timestamps.
+metadata, optimistic version, and lifecycle timestamps. `open_incident_id` is
+present exactly while an incident remains unresolved. In combination with the
+state and failure count, it distinguishes a visible sub-threshold failure from
+an open incident, including across pause and resume.
 
 Creation accepts the complete target URL and optional `{ "name", "value" }`
 headers. The first accepted key returns `201`; repeating every public and secret
@@ -164,6 +167,13 @@ the due time and shows `paused`. Resume starts a new evaluation generation,
 shows `untested`, and makes a fresh check due without discarding earlier result
 or incident facts. Removal hides the monitor from ordinary reads and lists but
 retains its key and history.
+
+A check that completes before a competing pause may apply normally and is then
+preserved under the paused state. A check that completes after pause is retained
+as history but cannot change monitor or incident state. Resume starts a new
+evaluation generation, so a check begun before that pause cannot evaluate the
+resumed monitor regardless of which completion wins the race. Pause and resume
+never resolve an open incident; only a fresh accepted success does.
 
 The test operation runs the same bounded executor used by scheduled checks. It
 records an ordered requested check, does not move the regular next-due time,

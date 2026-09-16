@@ -203,6 +203,81 @@ public sealed class HttpCheckEvaluationPersistenceTests(PostgresFixture postgres
         Assert.Null(incident.ResolvedAt);
     }
 
+    [Fact]
+    public async Task A_check_racing_with_pause_has_one_of_two_serial_results_and_never_unpauses_the_monitor()
+    {
+        var connectionString = await EstablishedAsync(failureThreshold: 1);
+        var started = await StartAsync(connectionString, Noon.AddSeconds(1));
+        await using var pauseContext = AnInstance.ContextFor(connectionString);
+        await using var completionContext = AnInstance.ContextFor(connectionString);
+
+        var pauseTask = new HttpMonitorStore(pauseContext).PauseAsync(
+            "public-services",
+            "public-site",
+            1,
+            Noon.AddSeconds(2),
+            TestContext.Current.CancellationToken);
+        var completionTask = new HttpMonitorStore(completionContext).CompleteTestAsync(
+            started.CheckId!.Value,
+            Failure("timeout"),
+            Noon.AddSeconds(2),
+            TestContext.Current.CancellationToken);
+        await Task.WhenAll(pauseTask, completionTask);
+        var pause = await pauseTask;
+        var completion = await completionTask;
+
+        Assert.Equal(HttpMonitorMutation.Changed, pause.Outcome);
+        await using var inspection = AnInstance.ContextFor(connectionString);
+        var monitor = await inspection.HttpMonitors.SingleAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(MonitorState.Paused, monitor.State);
+        Assert.Null(monitor.NextCheckAt);
+        Assert.True(await inspection.HttpChecks.SingleAsync(TestContext.Current.CancellationToken) is { IsCompleted: true });
+        Assert.Equal(
+            completion.AppliedToCurrentState ? 1 : 0,
+            await inspection.Incidents.CountAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task A_pre_pause_check_racing_with_resume_cannot_evaluate_the_new_generation()
+    {
+        var connectionString = await EstablishedAsync(failureThreshold: 1);
+        var started = await StartAsync(connectionString, Noon.AddSeconds(1));
+        await using (var pauseContext = AnInstance.ContextFor(connectionString))
+        {
+            var paused = await new HttpMonitorStore(pauseContext).PauseAsync(
+                "public-services",
+                "public-site",
+                1,
+                Noon.AddSeconds(2),
+                TestContext.Current.CancellationToken);
+            Assert.Equal(HttpMonitorMutation.Changed, paused.Outcome);
+        }
+
+        await using var resumeContext = AnInstance.ContextFor(connectionString);
+        await using var completionContext = AnInstance.ContextFor(connectionString);
+        var resumeTask = new HttpMonitorStore(resumeContext).ResumeAsync(
+            "public-services",
+            "public-site",
+            2,
+            Noon.AddSeconds(3),
+            TestContext.Current.CancellationToken);
+        var completionTask = new HttpMonitorStore(completionContext).CompleteTestAsync(
+            started.CheckId!.Value,
+            Failure("timeout"),
+            Noon.AddSeconds(3),
+            TestContext.Current.CancellationToken);
+        await Task.WhenAll(resumeTask, completionTask);
+
+        Assert.Equal(HttpMonitorMutation.Changed, (await resumeTask).Outcome);
+        Assert.False((await completionTask).AppliedToCurrentState);
+        await using var inspection = AnInstance.ContextFor(connectionString);
+        var monitor = await inspection.HttpMonitors.SingleAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(MonitorState.Untested, monitor.State);
+        Assert.Equal(0, monitor.ConsecutiveFailures);
+        Assert.Equal(Noon.AddSeconds(3), monitor.NextCheckAt);
+        Assert.Empty(await inspection.Incidents.ToListAsync(TestContext.Current.CancellationToken));
+    }
+
     private async Task<CompletedHttpTest> RunAsync(
         string connectionString,
         HttpExecutionResult result,
