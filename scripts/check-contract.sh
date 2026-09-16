@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 
 dotnet test "$root/tests/Upaffe.IntegrationTests" \
   --filter FullyQualifiedName~ContractTests

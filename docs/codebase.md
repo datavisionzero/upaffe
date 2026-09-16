@@ -112,6 +112,14 @@ the generated version operation with a bounded timeout. Its only application
 boundary is the generated Go client of the same contract used to generate the
 web application's TypeScript types. [`cli.md`](./cli.md) is the process contract.
 
+The end-to-end technical path is deliberately small:
+
+```text
+docs/api/openapi.json ──> TypeScript types ──> web shell ─┐
+                       └─> Go client ────────> ua CLI ────┼─> API ─> PostgreSQL
+                                                         ┘
+```
+
 ## Persistence and delivery
 
 PostgreSQL is the sole application database. Infrastructure owns EF Core and a
@@ -131,6 +139,27 @@ reproduces the documented local build, test, generation, and Compose validation
 without requiring private secrets from contributors. Only the setup actions'
 package-manager caches persist between jobs; generated clients and distributable
 build outputs are rebuilt and are not uploaded.
+
+## Development and verification commands
+
+Run these from the repository root:
+
+- `scripts/check.sh` reproduces the essential .NET, web, CLI, contract-client,
+  and Compose checks performed by CI.
+- `scripts/check-contract.sh` compares the running API description with the
+  checked-in OpenAPI document, regenerates both clients, and compiles their
+  consumers.
+- `scripts/smoke.sh` builds an isolated Compose project, checks the web shell,
+  liveness, readiness, version operation, and CLI path, then removes its
+  disposable database volume.
+- `docker compose -f deploy/docker-compose.dev.yml up --build --wait` starts the
+  persistent local development environment described in
+  [`operations.md`](./operations.md).
+
+Generated TypeScript and Go clients are prerequisites produced by their normal
+build commands, not files a contributor edits. A green technical health or
+smoke result proves only that the foundation is connected; it does not claim
+that monitoring exists or works.
 
 ## Documentation ownership
 
