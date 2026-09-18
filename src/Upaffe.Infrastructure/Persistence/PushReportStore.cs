@@ -81,6 +81,7 @@ public sealed class PushReportStore(UpaffeDbContext context) : IPushReportStore
             submission.Outcome,
             submission.DiagnosticReason);
         context.PushReports.Add(report);
+        await PushReportEvaluator.ApplyAsync(context, monitor, report, cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(PushReportMutation.Accepted, Receipt(report, duplicate: false));

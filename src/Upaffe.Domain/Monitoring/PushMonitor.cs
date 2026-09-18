@@ -210,6 +210,38 @@ public sealed partial class PushMonitor
         return report;
     }
 
+    public bool ApplyReport(PushReport report)
+    {
+        ArgumentNullException.ThrowIfNull(report);
+        EnsureLive();
+        if (!report.Applicable
+            || State == MonitorState.Paused
+            || report.MonitorId != Id
+            || report.EvaluationGeneration != EvaluationGeneration
+            || report.Sequence != LastAppliedSequence)
+        {
+            return false;
+        }
+
+        if (report.Outcome == ReportOutcome.Success)
+        {
+            State = MonitorState.Healthy;
+            LatestSuccessId = report.Id;
+            NextDeadlineAt = report.ReceivedAt.AddSeconds(IntervalSeconds + ToleranceSeconds);
+        }
+        else
+        {
+            State = MonitorState.Failing;
+            if (Mode == PushMonitorMode.StateReport)
+            {
+                NextDeadlineAt = report.ReceivedAt.AddSeconds(IntervalSeconds + ToleranceSeconds);
+            }
+        }
+
+        UpdatedAt = report.ReceivedAt;
+        return true;
+    }
+
     public void RecordCredentialChange(DateTimeOffset now)
     {
         EnsureLive();

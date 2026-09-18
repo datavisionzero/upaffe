@@ -149,6 +149,25 @@ transaction, while monitor pointers and every remaining incident reference are
 protected. A small application act derives the exclusive cutoff from the
 injected clock; the API host runs it at startup and once per day.
 
+Push reports enter through either the bearer-authenticated JSON operation or
+the secret-path compatibility operation. Both resolve the credential digest
+and delegate to one PostgreSQL report store. That store locks the monitor row,
+assigns the monitor-local sequence, records the immutable report, and evaluates
+current state and the open incident before committing once. The sender's
+observation time decides whether a report is applicable; every accepted report
+still records the server receipt time and sequence, so an older observation is
+durable evidence without being allowed to reverse current facts.
+
+The shared push evaluator applies the two reporting-mode contracts. A fresh
+job-completion success advances the next completion deadline, while its
+explicit failure opens or updates an incident without implying that another
+job completed. Every fresh state report, including failure, proves liveness and
+therefore advances the freshness deadline. Applicable failure immediately
+opens one incident regardless of tolerance, repeated failure updates that same
+episode without replacing its origin, and an applicable success resolves it.
+The monitor lock plus the database's single-open-incident index make these
+transitions repeatable under concurrent submissions.
+
 Unit tests protect these directions by reading the project references. A term
 introduced in code is documented with the domain model when that model lands.
 

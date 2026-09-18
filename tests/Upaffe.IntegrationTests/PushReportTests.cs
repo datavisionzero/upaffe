@@ -47,13 +47,67 @@ public sealed class PushReportTests(PostgresFixture postgres)
         var late = await Submit(client, setup.ReportingToken, Guid.NewGuid(), Noon.AddMinutes(-2), "success");
         Assert.False(late.Applied);
         Assert.Equal(3, late.Sequence);
+        var recovery = await Submit(client, setup.ReportingToken, Guid.NewGuid(), Noon.AddSeconds(1), "success");
+        Assert.True(recovery.Applied);
+        Assert.Equal(4, recovery.Sequence);
 
         await using var context = AnInstance.ContextFor(setup.ConnectionString);
-        Assert.Equal(3, await context.PushReports.CountAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(4, await context.PushReports.CountAsync(TestContext.Current.CancellationToken));
         var monitor = await context.PushMonitors.SingleAsync(TestContext.Current.CancellationToken);
-        Assert.Equal(Noon.AddMinutes(-1), monitor.LastAppliedObservedAt);
-        Assert.Equal(2, monitor.LastAppliedSequence);
-        Assert.Equal(late.ReceivedAt, monitor.LastReceivedAt);
+        Assert.Equal(Domain.Monitoring.MonitorState.Healthy, monitor.State);
+        Assert.Equal(Noon.AddSeconds(1), monitor.LastAppliedObservedAt);
+        Assert.Equal(4, monitor.LastAppliedSequence);
+        Assert.Equal(recovery.ReceivedAt, monitor.LastReceivedAt);
+        Assert.Equal(Noon.AddHours(25), monitor.NextDeadlineAt);
+        Assert.NotNull(monitor.LatestSuccessId);
+        var incident = await context.PushIncidents.SingleAsync(TestContext.Current.CancellationToken);
+        Assert.False(incident.IsOpen);
+        Assert.Equal(2, incident.OpeningSequence);
+        Assert.Equal(4, incident.ResolutionSequence);
+        Assert.Equal("reported_failure", incident.OriginalReason);
+    }
+
+    [Fact]
+    public async Task State_reports_refresh_freshness_on_failure_and_reuse_one_incident()
+    {
+        var clock = new MutableTimeProvider(Noon);
+        var setup = await EstablishedAsync(clock);
+        await using var instance = setup.Instance;
+        using var client = setup.Client;
+        Assert.Equal(HttpStatusCode.Created, (await JsonAsync(client, HttpMethod.Post, "/api/projects/backups/push-monitors",
+            new CreatePushMonitorRequest("local-health", "Local health", "state_report", 60, 30, null, null), setup.ManagementToken)).StatusCode);
+        using var issued = await Send(client, HttpMethod.Post,
+            "/api/projects/backups/push-monitors/local-health/reporting-credential", setup.ManagementToken);
+        var token = JsonDocument.Parse(await issued.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))
+            .RootElement.GetProperty("token").GetString()!;
+
+        await Submit(client, token, Guid.NewGuid(), Noon.AddSeconds(-1), "success");
+        clock.Advance(TimeSpan.FromSeconds(10));
+        await Submit(client, token, Guid.NewGuid(), Noon.AddSeconds(5), "failure", "condition failed");
+        await using (var afterFailure = AnInstance.ContextFor(setup.ConnectionString))
+        {
+            var monitor = await afterFailure.PushMonitors.SingleAsync(value => value.Key == "local-health", TestContext.Current.CancellationToken);
+            Assert.Equal(Domain.Monitoring.MonitorState.Failing, monitor.State);
+            Assert.Equal(Noon.AddSeconds(100), monitor.NextDeadlineAt);
+            Assert.Equal(Noon.AddSeconds(10), monitor.LastReceivedAt);
+            Assert.NotNull(monitor.LatestSuccessId);
+            Assert.True((await afterFailure.PushIncidents.SingleAsync(TestContext.Current.CancellationToken)).IsOpen);
+        }
+
+        clock.Advance(TimeSpan.FromSeconds(10));
+        await Submit(client, token, Guid.NewGuid(), Noon.AddSeconds(15), "failure", "still failed");
+        clock.Advance(TimeSpan.FromSeconds(10));
+        await Submit(client, token, Guid.NewGuid(), Noon.AddSeconds(25), "success");
+        await using var recovered = AnInstance.ContextFor(setup.ConnectionString);
+        var stored = await recovered.PushMonitors.SingleAsync(value => value.Key == "local-health", TestContext.Current.CancellationToken);
+        Assert.Equal(Domain.Monitoring.MonitorState.Healthy, stored.State);
+        Assert.Equal(Noon.AddSeconds(120), stored.NextDeadlineAt);
+        var incidents = await recovered.PushIncidents.ToListAsync(TestContext.Current.CancellationToken);
+        var incident = Assert.Single(incidents);
+        Assert.False(incident.IsOpen);
+        Assert.Equal(2, incident.OpeningSequence);
+        Assert.Equal(3, incident.LatestFailureSequence);
+        Assert.Equal(4, incident.ResolutionSequence);
     }
 
     [Fact]
@@ -103,6 +157,35 @@ public sealed class PushReportTests(PostgresFixture postgres)
         Assert.Equal(1, receipts.Count(value => value!.Duplicate));
         await using var context = AnInstance.ContextFor(setup.ConnectionString);
         Assert.Equal(1, await context.PushReports.CountAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Concurrent_distinct_failures_apply_newest_observation_and_open_one_incident()
+    {
+        var setup = await EstablishedAsync(new MutableTimeProvider(Noon));
+        await using var instance = setup.Instance;
+        using var client = setup.Client;
+        var responses = await Task.WhenAll(
+            JsonAsync(client, HttpMethod.Post, "/api/reports",
+                new SubmitPushReportRequest(Guid.NewGuid(), Noon, "failure", "first failure"), setup.ReportingToken),
+            JsonAsync(client, HttpMethod.Post, "/api/reports",
+                new SubmitPushReportRequest(Guid.NewGuid(), Noon.AddSeconds(1), "failure", "newest failure"), setup.ReportingToken));
+        Assert.All(responses, value => Assert.Equal(HttpStatusCode.Accepted, value.StatusCode));
+
+        await using var context = AnInstance.ContextFor(setup.ConnectionString);
+        var reports = await context.PushReports.OrderBy(value => value.Sequence)
+            .ToListAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(2, reports.Count);
+        var newest = Assert.Single(reports, value => value.ObservedAt == Noon.AddSeconds(1));
+        Assert.True(newest.Applicable);
+        var monitor = await context.PushMonitors.SingleAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(Domain.Monitoring.MonitorState.Failing, monitor.State);
+        Assert.Equal(newest.Sequence, monitor.LastAppliedSequence);
+        Assert.Equal(newest.ObservedAt, monitor.LastAppliedObservedAt);
+        Assert.Equal(Noon.AddHours(25), monitor.NextDeadlineAt);
+        var incident = await context.PushIncidents.SingleAsync(TestContext.Current.CancellationToken);
+        Assert.True(incident.IsOpen);
+        Assert.Equal(newest.Id, incident.LatestFailureReportId);
     }
 
     [Fact]

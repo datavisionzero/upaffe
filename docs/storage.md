@@ -145,10 +145,12 @@ invariants from ADR 0006.
 internal ID is separate from the sender's report ID. Unique monitor/report-ID
 and monitor/sequence indexes make retries and competing allocation visible.
 The row records both sender observation time and authoritative server receipt
-time, outcome, bounded diagnostic reason, generation, and whether upaffe
-created it for a crossed deadline. Checks enforce the accepted clock window
-and prevent a success or ordinary external report from masquerading as a
-missing-report observation.
+time, outcome, bounded diagnostic reason, generation, whether it is applicable
+to current state, and whether upaffe created it for a crossed deadline. A
+report is applicable only when its sender observation is newer than the last
+applied observation in the current evaluation generation. Checks enforce the
+accepted clock window and prevent a success or ordinary external report from
+masquerading as a missing-report observation.
 
 `reporting_credential` is one-to-one with a push monitor and carries only
 issue, rotation, and revocation metadata. Each `reporting_credential_secret`
@@ -162,6 +164,15 @@ but its opening, latest failure, and optional resolution references target push
 reports. A partial unique index prevents concurrent writers from opening two
 incidents for one push monitor. Stable reasons distinguish explicit
 `reported_failure` from `report_missing`; sender diagnostics remain separate.
+External report insertion, current monitor evaluation, and incident transition
+share one transaction under a monitor row lock. An applicable job-completion
+success advances its deadline; an explicit job failure does not. Every
+applicable state report advances its freshness deadline, including a failure
+that proves the sender is alive but unhealthy. Either mode opens an incident on
+the first explicit failure without waiting for tolerance, reuses it for later
+failures while preserving its opening facts, and resolves it only with a newer
+applicable success. Older or duplicate reports remain immutable history and do
+not alter deadlines, state, success pointers, or incidents.
 
 Push history uses the same 90-day exclusive cutoff and reference protection as
 HTTP history. Current receipt, success, deadline, state, and incident facts are
