@@ -74,6 +74,62 @@ _Avoid_: Monitor key
 A monitor that evaluates an HTTP or HTTPS target by actively making requests.
 _Avoid_: Website, endpoint, uptime check
 
+**Push monitor**:
+A monitor whose observations are submitted by an external script or
+application rather than produced by an upaffe check. It has either job
+completion or state report mode.
+_Avoid_: Heartbeat, HTTP monitor, remote check
+
+**Job completion**:
+The push-monitor mode in which each success means one job completed and moves
+the next success deadline. A failure is immediate evidence of a failed job but
+does not move that deadline.
+_Avoid_: State report, job start, process liveness
+
+**State report**:
+The push-monitor mode in which every report describes the sender's latest
+evaluation of a condition. Success and failure both prove the sender reported,
+while only success makes the monitored condition healthy.
+_Avoid_: Job completion, check result
+
+**Report**:
+One immutable success or failure observation submitted to a push monitor. A
+JSON report has a sender-chosen report ID and observation time; a simple secret
+route creates a success observed when upaffe receives the request.
+_Avoid_: Check, monitor state, incident
+
+**Received at**:
+The server-assigned instant when upaffe accepts a report. It is authoritative
+for evidence freshness and cannot be supplied by the sender.
+_Avoid_: Observed at, last received
+
+**Last received**:
+The most recent authoritative receipt time that counts as evidence the sender
+is still reporting. It is retained separately from health and last success.
+_Avoid_: Latest result, latest success
+
+**Last success**:
+For a push monitor, the newest applicable successful report in observation
+order. In job-completion mode it anchors the next success deadline; in either
+mode it is retained when a later report fails.
+_Avoid_: Last received, recovery, healthy state
+
+**Reporting deadline**:
+The persisted instant by which the next required success or report must arrive:
+the interval plus tolerance after the applicable anchor. Crossing it produces
+one missing-report failure observation, not a synthetic report.
+_Avoid_: Calendar schedule, check due time, timeout
+
+**Tolerance**:
+The configured grace duration added once to a push monitor's interval. It
+applies to missing evidence and never delays an explicit failure.
+_Avoid_: Failure threshold, retry delay, maintenance
+
+**Reporting credential**:
+A monitor-scoped, independently rotatable and revocable secret that may submit
+reports only to its push monitor. It grants no management or read access.
+_Avoid_: Management credential, browser session, operator account
+
 **Check**:
 One scheduled or explicitly requested attempt to evaluate an active monitor.
 It has a stable check ID and a monitor-local order assigned before execution.
@@ -122,7 +178,7 @@ _Avoid_: Recovery, healthy state
 ## Deliberately absent
 
 An instance has no organizations, memberships, invitations, human roles, or
-additional human accounts. A monitor's reporting token and the shared SMTP
-credential are separate later concepts; neither is a management credential.
+additional human accounts. A reporting credential and the shared SMTP
+credential are not management credentials.
 Maintenance is not a synonym for pause: it suppresses notifications while
 monitoring continues.
