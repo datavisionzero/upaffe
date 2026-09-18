@@ -190,7 +190,11 @@ Push history uses the same 90-day exclusive cutoff and reference protection as
 HTTP history. Current receipt, success, deadline, state, and incident facts are
 stored on durable rows and are never reconstructed from whatever detail remains
 after retention. Report-ID uniqueness is retained for the full 90-day retry
-boundary.
+boundary. Cleanup first removes resolved push incidents older than the cutoff,
+then removes older reports unless a monitor points to them as latest report or
+success or a remaining incident uses them for opening, latest failure, or
+resolution. Open incidents and all of their referenced reports survive
+regardless of age; an observation exactly at the cutoff survives.
 
 ## Tests
 

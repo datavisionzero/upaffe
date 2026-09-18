@@ -186,6 +186,13 @@ initial deadline, and leaves retained report, success, and incident references
 intact. A duplicate from an older generation keeps its original receipt but
 does not evaluate again; a new applicable success is required for recovery.
 
+`IPushMonitorHistoryStore` supplies separate newest-first report and incident
+pages with the shared exclusive sequence cursors. Its API projection replaces
+sender diagnostics with stable reasons and never joins reporting credentials.
+The companion daily retention act removes resolved incidents before
+unreferenced reports at the same exclusive 90-day cutoff as HTTP history;
+monitor pointers and every remaining incident reference are protected.
+
 Unit tests protect these directions by reading the project references. A term
 introduced in code is documented with the domain model when that model lands.
 

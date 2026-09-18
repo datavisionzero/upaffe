@@ -280,6 +280,68 @@ public sealed class PushReportTests(PostgresFixture postgres)
     }
 
     [Fact]
+    public async Task Management_history_is_newest_first_cursor_stable_and_redacts_sender_data()
+    {
+        var setup = await EstablishedAsync(new MutableTimeProvider(Noon));
+        await using var instance = setup.Instance;
+        using var client = setup.Client;
+        await Submit(client, setup.ReportingToken, Guid.NewGuid(), Noon.AddSeconds(-6), "success");
+        await Submit(client, setup.ReportingToken, Guid.NewGuid(), Noon.AddSeconds(-5), "failure", "private sender detail");
+        await Submit(client, setup.ReportingToken, Guid.NewGuid(), Noon.AddSeconds(-4), "success");
+        var late = await Submit(client, setup.ReportingToken, Guid.NewGuid(), Noon.AddSeconds(-5), "failure", "another private detail");
+        Assert.False(late.Applied);
+        await Submit(client, setup.ReportingToken, Guid.NewGuid(), Noon.AddSeconds(-3), "failure", "latest private detail");
+        await Submit(client, setup.ReportingToken, Guid.NewGuid(), Noon.AddSeconds(-2), "success");
+
+        using var firstResponse = await Send(client, HttpMethod.Get,
+            "/api/projects/backups/push-monitors/nightly-backup/reports?limit=2", setup.ManagementToken);
+        var firstBody = await firstResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.DoesNotContain(setup.ReportingToken, firstBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("private", firstBody, StringComparison.Ordinal);
+        var first = JsonSerializer.Deserialize<PushReportHistoryPageResponse>(firstBody, Json)!;
+        Assert.Equal(new long[] { 6, 5 }, first.Items.Select(value => value.Sequence));
+        Assert.Equal(5, first.NextBeforeSequence);
+        Assert.Equal("reported_failure", first.Items[1].Reason);
+
+        using var secondResponse = await Send(client, HttpMethod.Get,
+            $"/api/projects/backups/push-monitors/nightly-backup/reports?limit=2&before_sequence={first.NextBeforeSequence}", setup.ManagementToken);
+        var second = (await secondResponse.Content.ReadFromJsonAsync<PushReportHistoryPageResponse>(Json, TestContext.Current.CancellationToken))!;
+        Assert.Equal(new long[] { 4, 3 }, second.Items.Select(value => value.Sequence));
+        Assert.False(second.Items[0].Applicable);
+        Assert.Equal(3, second.NextBeforeSequence);
+
+        using var thirdResponse = await Send(client, HttpMethod.Get,
+            $"/api/projects/backups/push-monitors/nightly-backup/reports?limit=2&before_sequence={second.NextBeforeSequence}", setup.ManagementToken);
+        var third = (await thirdResponse.Content.ReadFromJsonAsync<PushReportHistoryPageResponse>(Json, TestContext.Current.CancellationToken))!;
+        Assert.Equal(new long[] { 2, 1 }, third.Items.Select(value => value.Sequence));
+        Assert.Null(third.NextBeforeSequence);
+
+        using var incidentResponse = await Send(client, HttpMethod.Get,
+            "/api/projects/backups/push-monitors/nightly-backup/incidents?limit=1", setup.ManagementToken);
+        var incidents = (await incidentResponse.Content.ReadFromJsonAsync<PushIncidentHistoryPageResponse>(Json, TestContext.Current.CancellationToken))!;
+        var newestIncident = Assert.Single(incidents.Items);
+        Assert.Equal(5, newestIncident.OpeningSequence);
+        Assert.Equal(6, newestIncident.ResolutionSequence);
+        Assert.Equal("reported_failure", newestIncident.OriginalReason);
+        Assert.Equal(5, incidents.NextBeforeOpeningSequence);
+        using var olderIncidentResponse = await Send(client, HttpMethod.Get,
+            $"/api/projects/backups/push-monitors/nightly-backup/incidents?limit=1&before_opening_sequence={incidents.NextBeforeOpeningSequence}", setup.ManagementToken);
+        var olderIncidents = (await olderIncidentResponse.Content.ReadFromJsonAsync<PushIncidentHistoryPageResponse>(Json, TestContext.Current.CancellationToken))!;
+        Assert.Equal(2, Assert.Single(olderIncidents.Items).OpeningSequence);
+        Assert.Null(olderIncidents.NextBeforeOpeningSequence);
+
+        using var invalidLimit = await Send(client, HttpMethod.Get,
+            "/api/projects/backups/push-monitors/nightly-backup/reports?limit=101", setup.ManagementToken);
+        Assert.Equal(HttpStatusCode.BadRequest, invalidLimit.StatusCode);
+        using var invalidCursor = await Send(client, HttpMethod.Get,
+            "/api/projects/backups/push-monitors/nightly-backup/incidents?before_opening_sequence=0", setup.ManagementToken);
+        Assert.Equal(HttpStatusCode.BadRequest, invalidCursor.StatusCode);
+        using var anonymous = await Send(client, HttpMethod.Get,
+            "/api/projects/backups/push-monitors/nightly-backup/reports");
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
+    }
+
+    [Fact]
     public async Task Simple_secret_route_accepts_get_and_post_and_never_logs_the_secret()
     {
         var clock = new MutableTimeProvider(Noon);

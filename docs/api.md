@@ -286,6 +286,18 @@ report success. Unknown, expired, and revoked URL secrets use the same
 path segment before routing and application logs; standard request-start logs
 are disabled because they run before application middleware.
 
+Push report history is available separately at `GET
+.../push-monitors/{monitorKey}/reports`. It returns immutable reports newest
+first with internal and sender report IDs, generation and sequence, observation
+and receipt times, outcome, applicability, and only the stable
+`reported_failure` or `report_missing` reason. Sender diagnostic text and
+reporting credentials are deliberately absent. `GET
+.../push-monitors/{monitorKey}/incidents` returns preserved opening,
+latest-failure, and optional recovery report references, sequences, times, and
+stable original/latest reasons. Both endpoints use the same default limit 50,
+maximum 100, and exclusive `before_sequence` or `before_opening_sequence`
+cursors as HTTP history.
+
 ## Contract rule
 
 `docs/api/openapi.json` is checked in and is the source for both clients. It is

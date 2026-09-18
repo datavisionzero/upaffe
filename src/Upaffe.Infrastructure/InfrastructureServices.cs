@@ -30,6 +30,7 @@ public static class InfrastructureServices
         services.AddScoped<IReportingCredentialStore, ReportingCredentialStore>();
         services.AddScoped<IPushReportStore, PushReportStore>();
         services.AddScoped<IPushDeadlineStore, PushDeadlineStore>();
+        services.AddScoped<IPushMonitorHistoryStore, PushMonitorHistoryStore>();
         services.AddScoped<IHttpMonitorHistoryStore, HttpMonitorHistoryStore>();
         services.AddScoped<IScheduledHttpCheckStore, ScheduledHttpCheckStore>();
         services.AddSingleton<IHostResolver, SystemHostResolver>();

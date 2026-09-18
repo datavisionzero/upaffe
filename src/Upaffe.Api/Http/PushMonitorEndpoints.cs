@@ -27,6 +27,40 @@ public sealed record ReportingCredentialResponse(Guid Id, DateTimeOffset Created
 public sealed record IssuedReportingCredentialResponse(Guid Id, string Token, string ReportUrl, DateTimeOffset CreatedAt,
     DateTimeOffset? RotatedAt, DateTimeOffset? PreviousValidUntil);
 
+public sealed record PushReportHistoryResponse(
+    Guid Id,
+    Guid ReportId,
+    [property: JsonNumberHandling(JsonNumberHandling.Strict)] long EvaluationGeneration,
+    [property: JsonNumberHandling(JsonNumberHandling.Strict)] long Sequence,
+    DateTimeOffset ObservedAt,
+    DateTimeOffset ReceivedAt,
+    string Outcome,
+    string? Reason,
+    bool Applicable);
+
+public sealed record PushReportHistoryPageResponse(
+    IReadOnlyList<PushReportHistoryResponse> Items,
+    [property: JsonNumberHandling(JsonNumberHandling.Strict)] long? NextBeforeSequence);
+
+public sealed record PushIncidentHistoryResponse(
+    Guid Id,
+    Guid OpeningReportId,
+    Guid LatestFailureReportId,
+    Guid? ResolutionReportId,
+    [property: JsonNumberHandling(JsonNumberHandling.Strict)] long OpeningSequence,
+    [property: JsonNumberHandling(JsonNumberHandling.Strict)] long LatestFailureSequence,
+    [property: JsonNumberHandling(JsonNumberHandling.Strict)] long? ResolutionSequence,
+    DateTimeOffset BeganAt,
+    DateTimeOffset OpenedAt,
+    DateTimeOffset LastObservedAt,
+    DateTimeOffset? ResolvedAt,
+    string OriginalReason,
+    string LatestReason);
+
+public sealed record PushIncidentHistoryPageResponse(
+    IReadOnlyList<PushIncidentHistoryResponse> Items,
+    [property: JsonNumberHandling(JsonNumberHandling.Strict)] long? NextBeforeOpeningSequence);
+
 public static class PushMonitorEndpoints
 {
     public static IEndpointRouteBuilder MapPushMonitors(this IEndpointRouteBuilder endpoints)
@@ -50,6 +84,40 @@ public static class PushMonitorEndpoints
         monitors.MapGet("/{monitorKey}", async (string projectKey, string monitorKey, HttpContext http, ReadPushMonitor read, CancellationToken cancellationToken) =>
             Response(await read.ExecuteAsync(http.ActingIdentity(), projectKey, monitorKey, cancellationToken)))
             .WithName("ReadPushMonitor").WithSummary("Read a push monitor without its reporting secret.").Produces<PushMonitorResponse>().Produces<ProblemResponse>(401).Produces<ProblemResponse>(404);
+
+        monitors.MapGet("/{monitorKey}/reports", async (
+                string projectKey,
+                string monitorKey,
+                long? before_sequence,
+                int? limit,
+                HttpContext http,
+                ListPushReportHistory list,
+                CancellationToken cancellationToken) =>
+            ReportHistoryResponse(await list.ExecuteAsync(
+                http.ActingIdentity(), projectKey, monitorKey, before_sequence, limit, cancellationToken)))
+            .WithName("ListPushReportHistory")
+            .WithSummary("List push reports newest first with cursor pagination.")
+            .Produces<PushReportHistoryPageResponse>()
+            .Produces<ProblemResponse>(400)
+            .Produces<ProblemResponse>(401)
+            .Produces<ProblemResponse>(404);
+
+        monitors.MapGet("/{monitorKey}/incidents", async (
+                string projectKey,
+                string monitorKey,
+                long? before_opening_sequence,
+                int? limit,
+                HttpContext http,
+                ListPushIncidentHistory list,
+                CancellationToken cancellationToken) =>
+            IncidentHistoryResponse(await list.ExecuteAsync(
+                http.ActingIdentity(), projectKey, monitorKey, before_opening_sequence, limit, cancellationToken)))
+            .WithName("ListPushIncidentHistory")
+            .WithSummary("List push incidents newest first with cursor pagination.")
+            .Produces<PushIncidentHistoryPageResponse>()
+            .Produces<ProblemResponse>(400)
+            .Produces<ProblemResponse>(401)
+            .Produces<ProblemResponse>(404);
 
         monitors.MapPut("/{monitorKey}", async (string projectKey, string monitorKey, UpdatePushMonitorRequest request, HttpContext http,
             UpdatePushMonitor update, CancellationToken cancellationToken) => Response(await update.ExecuteAsync(http.ActingIdentity(), projectKey,
@@ -107,4 +175,34 @@ public static class PushMonitorEndpoints
     private static IssuedReportingCredentialResponse Issued(IssuedReportingCredential value) =>
         new(value.Credential.Id, value.Token, $"/api/report/{value.Token}", value.Credential.CreatedAt,
             value.Credential.RotatedAt, value.PreviousValidUntil);
+
+    private static PushReportHistoryPageResponse ReportHistoryResponse(PushReportHistoryPage value) => new(
+        value.Items.Select(item => new PushReportHistoryResponse(
+            item.Id,
+            item.ReportId,
+            item.EvaluationGeneration,
+            item.Sequence,
+            item.ObservedAt,
+            item.ReceivedAt,
+            item.Outcome.ToString().ToLowerInvariant(),
+            item.Reason,
+            item.Applicable)).ToArray(),
+        value.NextBeforeSequence);
+
+    private static PushIncidentHistoryPageResponse IncidentHistoryResponse(PushIncidentHistoryPage value) => new(
+        value.Items.Select(item => new PushIncidentHistoryResponse(
+            item.Id,
+            item.OpeningReportId,
+            item.LatestFailureReportId,
+            item.ResolutionReportId,
+            item.OpeningSequence,
+            item.LatestFailureSequence,
+            item.ResolutionSequence,
+            item.BeganAt,
+            item.OpenedAt,
+            item.LastObservedAt,
+            item.ResolvedAt,
+            item.OriginalReason,
+            item.LatestReason)).ToArray(),
+        value.NextBeforeOpeningSequence);
 }

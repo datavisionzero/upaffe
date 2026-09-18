@@ -60,11 +60,15 @@ builder.Services.AddScoped<RotateReportingCredential>();
 builder.Services.AddScoped<RevokeReportingCredential>();
 builder.Services.AddScoped<SubmitPushReport>();
 builder.Services.AddScoped<SubmitSimplePushReport>();
+builder.Services.AddScoped<ListPushReportHistory>();
+builder.Services.AddScoped<ListPushIncidentHistory>();
+builder.Services.AddScoped<PrunePushMonitorHistory>();
 builder.Services.AddHostedService<SchemaMigrationService>();
 builder.Services.AddHostedService<BootstrapService>();
 builder.Services.AddHostedService<HttpMonitoringService>();
 builder.Services.AddHostedService<PushMonitoringService>();
 builder.Services.AddHostedService<HttpHistoryRetentionService>();
+builder.Services.AddHostedService<PushHistoryRetentionService>();
 builder.Services.AddUpaffeOpenApi();
 builder.Services.AddBrowserAuthentication();
 
