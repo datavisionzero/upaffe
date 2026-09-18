@@ -168,6 +168,17 @@ episode without replacing its origin, and an applicable success resolves it.
 The monitor lock plus the database's single-open-incident index make these
 transitions repeatable under concurrent submissions.
 
+`IPushDeadlineStore` is the durable boundary for silence detection. PostgreSQL
+claims a strictly crossed monitor deadline with a bounded lease and
+`SKIP LOCKED`; a crashed worker can therefore be replaced after lease expiry.
+Completion locks and rereads the monitor before creating one synthetic
+`report_missing` observation at the persisted deadline. A concurrent fresh
+report that moved the deadline supersedes the claim. The synthetic observation
+and its state and incident transition commit together, while a filtered unique
+index prevents two observations for one generation and deadline. Processed
+deadlines remain unchanged and are excluded by that durable observation, so a
+late worker records the real gap once instead of replaying artificial windows.
+
 Unit tests protect these directions by reading the project references. A term
 introduced in code is documented with the domain model when that model lands.
 

@@ -28,8 +28,9 @@ public sealed class PushReport
 
         if (evaluationGeneration < 1
             || sequence < 1
-            || observedAt > receivedAt.AddMinutes(5)
-            || observedAt < receivedAt.AddDays(-90))
+            || (isDeadlineObservation && observedAt > receivedAt)
+            || (!isDeadlineObservation
+                && (observedAt > receivedAt.AddMinutes(5) || observedAt < receivedAt.AddDays(-90))))
         {
             throw new ArgumentOutOfRangeException(nameof(sequence));
         }

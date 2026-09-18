@@ -34,8 +34,9 @@ check, and incident model decided in ADRs 0003 and 0004. The fourth adds the
 durable HTTP execution lease decided in ADR 0005. The fifth adds the persistent
 start of the current failure streak used for threshold evaluation. The sixth
 adds push monitors, reports, incidents, and reporting credentials decided in
-ADR 0006. Later changes add new forward migrations; an existing migration is
-never rewritten after release.
+ADR 0006. The seventh adds durable push-deadline leases and the unique
+synthetic-observation boundary. Later changes add new forward migrations; an
+existing migration is never rewritten after release.
 
 Add a migration from the repository root after changing the context model:
 
@@ -134,7 +135,8 @@ successes. The retained window is evidence, not a claim of health before it.
 its lifetime. It stores the immutable reporting mode, interval, tolerance,
 state, optimistic version, lifecycle timestamps, evaluation generation,
 monitor-local sequence allocation, last applied observation order, last
-receipt, and the next persisted deadline. Independent latest-report and
+receipt, the next persisted deadline, and an optional bounded deadline-worker
+lease. Independent latest-report and
 latest-success foreign keys preserve the distinction between recent evidence
 and recent success. New and resumed monitors have a deadline; paused and
 removed monitors cannot have one. Database checks enforce the 30-second to
@@ -173,6 +175,16 @@ the first explicit failure without waiting for tolerance, reuses it for later
 failures while preserving its opening facts, and resolves it only with a newer
 applicable success. Older or duplicate reports remain immutable history and do
 not alter deadlines, state, success pointers, or incidents.
+
+The deadline worker claims only a strictly crossed deadline whose prior lease
+is absent or expired. Claim tokens and expiry survive process loss; completion
+rereads the locked monitor and abandons work when a fresh report, pause,
+resume, or removal superseded it. A synthetic `report_missing` stores the
+persisted deadline as its observation time and the worker time as its receipt
+time, without pretending that a sender report was received. A partial unique
+index on monitor, generation, and deadline makes that observation singular.
+Once present it excludes the unchanged deadline from future claims, preserving
+the real monitoring gap without manufacturing missed intervals.
 
 Push history uses the same 90-day exclusive cutoff and reference protection as
 HTTP history. Current receipt, success, deadline, state, and incident facts are

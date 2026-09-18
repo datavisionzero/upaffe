@@ -65,6 +65,8 @@ public sealed partial class PushMonitor
     public DateTimeOffset? NextDeadlineAt { get; private set; }
     public Guid? LatestReportId { get; private set; }
     public Guid? LatestSuccessId { get; private set; }
+    public Guid? DeadlineLeaseToken { get; private set; }
+    public DateTimeOffset? DeadlineLeaseUntil { get; private set; }
     public long Version { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
@@ -120,6 +122,7 @@ public sealed partial class PushMonitor
         State = MonitorState.Paused;
         PausedAt = now;
         NextDeadlineAt = null;
+        ClearDeadlineLease();
         Changed(now);
     }
 
@@ -148,6 +151,7 @@ public sealed partial class PushMonitor
 
         DeletedAt = now;
         NextDeadlineAt = null;
+        ClearDeadlineLease();
         Changed(now);
     }
 
@@ -191,7 +195,7 @@ public sealed partial class PushMonitor
     public PushReport MissDeadline(DateTimeOffset processedAt)
     {
         EnsureLive();
-        if (State == MonitorState.Paused || NextDeadlineAt is null || processedAt < NextDeadlineAt)
+        if (State == MonitorState.Paused || NextDeadlineAt is null || processedAt <= NextDeadlineAt)
         {
             throw new InvalidOperationException("The monitor has no crossed reporting deadline.");
         }
@@ -208,6 +212,31 @@ public sealed partial class PushMonitor
         LastAppliedObservedAt = report.ObservedAt;
         UpdatedAt = processedAt;
         return report;
+    }
+
+    public void ClaimDeadline(Guid token, DateTimeOffset claimedAt, DateTimeOffset leaseUntil)
+    {
+        EnsureLive();
+        if (token == Guid.Empty
+            || State == MonitorState.Paused
+            || NextDeadlineAt is null
+            || claimedAt <= NextDeadlineAt
+            || leaseUntil <= claimedAt)
+        {
+            throw new ArgumentException("A live crossed deadline and bounded lease are required.");
+        }
+
+        DeadlineLeaseToken = token;
+        DeadlineLeaseUntil = leaseUntil;
+    }
+
+    public bool IsDeadlineClaimedBy(Guid token) =>
+        token != Guid.Empty && DeadlineLeaseToken == token;
+
+    public void ClearDeadlineLease()
+    {
+        DeadlineLeaseToken = null;
+        DeadlineLeaseUntil = null;
     }
 
     public bool ApplyReport(PushReport report)
@@ -232,7 +261,7 @@ public sealed partial class PushMonitor
         else
         {
             State = MonitorState.Failing;
-            if (Mode == PushMonitorMode.StateReport)
+            if (Mode == PushMonitorMode.StateReport && !report.IsDeadlineObservation)
             {
                 NextDeadlineAt = report.ReceivedAt.AddSeconds(IntervalSeconds + ToleranceSeconds);
             }

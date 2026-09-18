@@ -20,6 +20,13 @@ internal static class PostgresRowLocks
         CancellationToken cancellationToken) =>
         ExistsAsync(context, "select id from http_monitor where id = @id for update", id, transaction, cancellationToken);
 
+    public static Task<bool> PushMonitorAsync(
+        UpaffeDbContext context,
+        Guid id,
+        IDbContextTransaction transaction,
+        CancellationToken cancellationToken) =>
+        ExistsAsync(context, "select id from push_monitor where id = @id for update", id, transaction, cancellationToken);
+
     private static async Task<bool> ExistsAsync(
         UpaffeDbContext context,
         string sql,

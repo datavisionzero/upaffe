@@ -29,9 +29,12 @@ internal sealed class PushMonitorConfiguration : IEntityTypeConfiguration<PushMo
                 + "(last_applied_sequence > 0 and last_applied_observed_at is not null)");
             table.HasCheckConstraint(
                 "ck_push_monitor_receipt",
-                "(last_received_at is null and latest_report_id is null) or "
-                + "(last_received_at is not null and latest_report_id is not null)");
+                "last_received_at is null or latest_report_id is not null");
             table.HasCheckConstraint("ck_push_monitor_latest", "latest_success_id is null or latest_report_id is not null");
+            table.HasCheckConstraint(
+                "ck_push_monitor_deadline_lease",
+                "(deadline_lease_token is null and deadline_lease_until is null) or "
+                + "(deadline_lease_token is not null and deadline_lease_until is not null)");
             table.HasCheckConstraint("ck_push_monitor_version", "version > 0");
             table.HasCheckConstraint("ck_push_monitor_updated", "updated_at >= created_at");
             table.HasCheckConstraint(
@@ -61,6 +64,8 @@ internal sealed class PushMonitorConfiguration : IEntityTypeConfiguration<PushMo
         builder.Property(value => value.NextDeadlineAt).HasColumnName("next_deadline_at");
         builder.Property(value => value.LatestReportId).HasColumnName("latest_report_id");
         builder.Property(value => value.LatestSuccessId).HasColumnName("latest_success_id");
+        builder.Property(value => value.DeadlineLeaseToken).HasColumnName("deadline_lease_token");
+        builder.Property(value => value.DeadlineLeaseUntil).HasColumnName("deadline_lease_until");
         builder.Property(value => value.Version).HasColumnName("version").IsConcurrencyToken();
         builder.Property(value => value.CreatedAt).HasColumnName("created_at");
         builder.Property(value => value.UpdatedAt).HasColumnName("updated_at");
@@ -69,6 +74,8 @@ internal sealed class PushMonitorConfiguration : IEntityTypeConfiguration<PushMo
         builder.HasIndex(value => new { value.ProjectId, value.Key }).IsUnique().HasDatabaseName("push_monitor_project_key");
         builder.HasIndex(value => value.NextDeadlineAt).HasFilter("deleted_at is null and state <> 'Paused'")
             .HasDatabaseName("push_monitor_due");
+        builder.HasIndex(value => value.DeadlineLeaseUntil).HasFilter("deadline_lease_until is not null")
+            .HasDatabaseName("push_monitor_deadline_lease");
         builder.HasOne<Project>().WithMany().HasForeignKey(value => value.ProjectId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_push_monitor_project");
         builder.HasOne<PushReport>().WithMany().HasForeignKey(value => value.LatestReportId)
@@ -88,7 +95,9 @@ internal sealed class PushReportConfiguration : IEntityTypeConfiguration<PushRep
             table.HasCheckConstraint("ck_push_report_sequence", "sequence > 0");
             table.HasCheckConstraint(
                 "ck_push_report_time",
-                "observed_at <= received_at + interval '5 minutes' and observed_at >= received_at - interval '90 days'");
+                "(is_deadline_observation and observed_at <= received_at) or "
+                + "(not is_deadline_observation and observed_at <= received_at + interval '5 minutes' "
+                + "and observed_at >= received_at - interval '90 days')");
             table.HasCheckConstraint("ck_push_report_outcome", "outcome in ('Success', 'Failure')");
             table.HasCheckConstraint(
                 "ck_push_report_diagnostic",
@@ -115,6 +124,9 @@ internal sealed class PushReportConfiguration : IEntityTypeConfiguration<PushRep
             .HasDatabaseName("push_report_monitor_sequence");
         builder.HasIndex(value => new { value.MonitorId, value.ReceivedAt })
             .HasDatabaseName("push_report_monitor_received");
+        builder.HasIndex(value => new { value.MonitorId, value.EvaluationGeneration, value.ObservedAt }).IsUnique()
+            .HasFilter("is_deadline_observation")
+            .HasDatabaseName("push_report_one_deadline_observation");
         builder.HasOne<PushMonitor>().WithMany().HasForeignKey(value => value.MonitorId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_push_report_monitor");
     }
