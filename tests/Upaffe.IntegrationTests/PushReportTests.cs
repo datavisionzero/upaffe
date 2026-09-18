@@ -110,6 +110,97 @@ public sealed class PushReportTests(PostgresFixture postgres)
         Assert.Equal(4, incident.ResolutionSequence);
     }
 
+    [Theory]
+    [InlineData("job_completion")]
+    [InlineData("state_report")]
+    public async Task Pause_and_resume_preserve_facts_reject_reports_and_require_fresh_recovery(string mode)
+    {
+        var clock = new MutableTimeProvider(Noon);
+        var setup = await EstablishedAsync(clock);
+        await using var instance = setup.Instance;
+        using var client = setup.Client;
+        using var creation = await JsonAsync(client, HttpMethod.Post, "/api/projects/backups/push-monitors",
+            new CreatePushMonitorRequest("lifecycle", "Lifecycle", mode, 60, 30, null, null), setup.ManagementToken);
+        Assert.Equal(HttpStatusCode.Created, creation.StatusCode);
+        var created = (await creation.Content.ReadFromJsonAsync<PushMonitorResponse>(Json, TestContext.Current.CancellationToken))!;
+        Assert.Equal("untested", created.State);
+        Assert.Equal(Noon.AddSeconds(90), created.NextDeadlineAt);
+        Assert.Null(created.OpenIncidentId);
+
+        using var issued = await Send(client, HttpMethod.Post,
+            "/api/projects/backups/push-monitors/lifecycle/reporting-credential", setup.ManagementToken);
+        var reportingToken = JsonDocument.Parse(await issued.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))
+            .RootElement.GetProperty("token").GetString()!;
+        await Submit(client, reportingToken, Guid.NewGuid(), Noon.AddSeconds(-2), "success");
+        var failureId = Guid.NewGuid();
+        await Submit(client, reportingToken, failureId, Noon, "failure", "reported unhealthy");
+        using var failingResponse = await Send(client, HttpMethod.Get,
+            "/api/projects/backups/push-monitors/lifecycle", setup.ManagementToken);
+        var failing = (await failingResponse.Content.ReadFromJsonAsync<PushMonitorResponse>(Json, TestContext.Current.CancellationToken))!;
+        Assert.Equal("failing", failing.State);
+        Assert.NotNull(failing.OpenIncidentId);
+        Assert.NotNull(failing.LatestSuccessId);
+
+        clock.Advance(TimeSpan.FromSeconds(10));
+        using var pauseResponse = await JsonAsync(client, HttpMethod.Post,
+            "/api/projects/backups/push-monitors/lifecycle/pause",
+            new PushMonitorVersionRequest(failing.Version), setup.ManagementToken);
+        var paused = (await pauseResponse.Content.ReadFromJsonAsync<PushMonitorResponse>(Json, TestContext.Current.CancellationToken))!;
+        Assert.Equal("paused", paused.State);
+        Assert.Null(paused.NextDeadlineAt);
+        Assert.Equal(failing.OpenIncidentId, paused.OpenIncidentId);
+        Assert.Equal(failing.LatestReportId, paused.LatestReportId);
+        Assert.Equal(failing.LatestSuccessId, paused.LatestSuccessId);
+        using (var retryWhilePaused = await JsonAsync(client, HttpMethod.Post, "/api/reports",
+            new SubmitPushReportRequest(failureId, Noon, "failure", "reported unhealthy"), reportingToken))
+        {
+            Assert.Equal(HttpStatusCode.Conflict, retryWhilePaused.StatusCode);
+        }
+        using (var successWhilePaused = await JsonAsync(client, HttpMethod.Post, "/api/reports",
+            new SubmitPushReportRequest(Guid.NewGuid(), Noon.AddSeconds(1), "success", null), reportingToken))
+        {
+            Assert.Equal(HttpStatusCode.Conflict, successWhilePaused.StatusCode);
+        }
+        using var simpleWhilePaused = await client.GetAsync(
+            $"/api/report/{reportingToken}", TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.Conflict, simpleWhilePaused.StatusCode);
+
+        clock.Advance(TimeSpan.FromSeconds(10));
+        using var resumeResponse = await JsonAsync(client, HttpMethod.Post,
+            "/api/projects/backups/push-monitors/lifecycle/resume",
+            new PushMonitorVersionRequest(paused.Version), setup.ManagementToken);
+        var resumed = (await resumeResponse.Content.ReadFromJsonAsync<PushMonitorResponse>(Json, TestContext.Current.CancellationToken))!;
+        Assert.Equal("untested", resumed.State);
+        Assert.Equal(Noon.AddSeconds(110), resumed.NextDeadlineAt);
+        Assert.Equal(paused.OpenIncidentId, resumed.OpenIncidentId);
+        Assert.Equal(paused.LatestSuccessId, resumed.LatestSuccessId);
+
+        var oldRetry = await Submit(client, reportingToken, failureId, Noon, "failure", "reported unhealthy");
+        Assert.True(oldRetry.Duplicate);
+        using var afterRetryResponse = await Send(client, HttpMethod.Get,
+            "/api/projects/backups/push-monitors/lifecycle", setup.ManagementToken);
+        var afterRetry = (await afterRetryResponse.Content.ReadFromJsonAsync<PushMonitorResponse>(Json, TestContext.Current.CancellationToken))!;
+        Assert.Equal("untested", afterRetry.State);
+        Assert.Equal(resumed.OpenIncidentId, afterRetry.OpenIncidentId);
+
+        var recovery = await Submit(client, reportingToken, Guid.NewGuid(), Noon.AddSeconds(21), "success");
+        Assert.True(recovery.Applied);
+        using var recoveredResponse = await Send(client, HttpMethod.Get,
+            "/api/projects/backups/push-monitors/lifecycle", setup.ManagementToken);
+        var recovered = (await recoveredResponse.Content.ReadFromJsonAsync<PushMonitorResponse>(Json, TestContext.Current.CancellationToken))!;
+        Assert.Equal("healthy", recovered.State);
+        Assert.Null(recovered.OpenIncidentId);
+        Assert.Equal(recovery.ReceivedAt, recovered.LastReceivedAt);
+
+        await using var context = AnInstance.ContextFor(setup.ConnectionString);
+        var monitor = await context.PushMonitors.SingleAsync(value => value.Id == created.Id, TestContext.Current.CancellationToken);
+        Assert.Equal(2, monitor.EvaluationGeneration);
+        Assert.Equal(3, await context.PushReports.CountAsync(value => value.MonitorId == created.Id, TestContext.Current.CancellationToken));
+        var incident = await context.PushIncidents.SingleAsync(value => value.MonitorId == created.Id, TestContext.Current.CancellationToken);
+        Assert.False(incident.IsOpen);
+        Assert.Equal(recovery.Sequence, incident.ResolutionSequence);
+    }
+
     [Fact]
     public async Task Invalid_rotated_and_revoked_credentials_share_the_rejection_boundary()
     {

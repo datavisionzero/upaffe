@@ -237,9 +237,14 @@ Create is idempotent only when every supplied fact matches. Update changes the
 mutable configuration with an optimistic version; mode and key remain fixed.
 Pause clears the deadline. Resume starts a fresh evaluation generation in
 `untested` with a new interval-plus-tolerance window, retaining history and any
-open incident. Removal hides ordinary reads and lists and revokes an existing
-reporting credential. Invalid values return `400`, missing associations `404`,
-and stale versions, deleted resources, or conflicting creates `409`.
+open incident, last receipt, and last success. While paused, JSON and simple
+reports return `409` before retry or outcome handling and cannot change those
+facts. A replay from an earlier generation after resume returns its original
+receipt but does not evaluate the new generation; only a newly accepted fresh
+success resolves a retained incident. Removal hides ordinary reads and lists
+and revokes an existing reporting credential. Invalid values return `400`,
+missing associations `404`, and stale versions, deleted resources, or
+conflicting creates `409`.
 
 Reporting credential issue and rotation are the only responses containing the
 `uar_` token and its `/api/report/{secret}` URL; callers must store them before
@@ -270,8 +275,8 @@ Missing, malformed, unknown, expired, revoked, or wrong-monitor secrets all
 return the same `401 reporting_rejected` without revealing stored identity.
 Payload shape errors return `400 validation`; observation times more than five
 minutes ahead or 90 days behind receipt return `422 unprocessable`. A paused
-monitor refuses new reports with `409`, while an identical replay still returns
-its original receipt.
+monitor refuses every report with `409`, including an otherwise identical
+replay.
 
 The simple secret route accepts `GET` and `POST` and returns `204`. Each request
 is a distinct success observed and received at the server instant; it has no

@@ -137,6 +137,7 @@ public sealed partial class PushMonitor
         State = MonitorState.Untested;
         PausedAt = null;
         EvaluationGeneration++;
+        LastAppliedSequence = 0;
         LastAppliedObservedAt = null;
         NextDeadlineAt = now.AddSeconds(IntervalSeconds + ToleranceSeconds);
         Changed(now);

@@ -207,4 +207,5 @@ scheduler claims, expired-lease recovery, and incident uniqueness and
 resolution against PostgreSQL constraints rather than an in-memory substitute.
 Push persistence tests additionally prove restart-safe deadlines and reports,
 digest-only credential rotation and revocation, duplicate and concurrent
-report rejection, value constraints, and one-open-push-incident uniqueness.
+report rejection, value constraints, one-open-push-incident uniqueness, and
+pause/resume generation isolation with retained incident and success facts.

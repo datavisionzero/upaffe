@@ -179,6 +179,13 @@ index prevents two observations for one generation and deadline. Processed
 deadlines remain unchanged and are excluded by that durable observation, so a
 late worker records the real gap once instead of replaying artificial windows.
 
+Pause is checked under the same monitor lock before deduplication, so neither a
+new report nor an old retry can alter or appear to refresh a paused monitor.
+Resume clears only the current-generation application cursor, creates a new
+initial deadline, and leaves retained report, success, and incident references
+intact. A duplicate from an older generation keeps its original receipt but
+does not evaluate again; a new applicable success is required for recovery.
+
 Unit tests protect these directions by reading the project references. A term
 introduced in code is documented with the domain model when that model lands.
 

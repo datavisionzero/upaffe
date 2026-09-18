@@ -57,6 +57,12 @@ public sealed class PushReportStore(UpaffeDbContext context) : IPushReportStore
         var monitor = await context.PushMonitors
             .FromSqlInterpolated($"select * from push_monitor where id = {monitorId.Value} for update")
             .SingleAsync(cancellationToken);
+        if (monitor.State == MonitorState.Paused)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return new(PushReportMutation.Paused);
+        }
+
         var existing = await context.PushReports.SingleOrDefaultAsync(
             value => value.MonitorId == monitor.Id && value.ReportId == submission.ReportId,
             cancellationToken);
@@ -66,12 +72,6 @@ public sealed class PushReportStore(UpaffeDbContext context) : IPushReportStore
             return Same(existing, submission)
                 ? new(PushReportMutation.Accepted, Receipt(existing, duplicate: true))
                 : new(PushReportMutation.Conflict);
-        }
-
-        if (monitor.State == MonitorState.Paused)
-        {
-            await transaction.CommitAsync(cancellationToken);
-            return new(PushReportMutation.Paused);
         }
 
         var report = monitor.Receive(
