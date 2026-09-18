@@ -32,9 +32,10 @@ The initial migration creates no product tables. The second migration adds the
 access and project model decided in ADR 0002. The third adds the HTTP monitor,
 check, and incident model decided in ADRs 0003 and 0004. The fourth adds the
 durable HTTP execution lease decided in ADR 0005. The fifth adds the persistent
-start of the current failure streak used for threshold evaluation. Later
-changes add new forward migrations; an existing migration is never rewritten
-after release.
+start of the current failure streak used for threshold evaluation. The sixth
+adds push monitors, reports, incidents, and reporting credentials decided in
+ADR 0006. Later changes add new forward migrations; an existing migration is
+never rewritten after release.
 
 Add a migration from the repository root after changing the context model:
 
@@ -127,6 +128,47 @@ are excluded. Open incidents and every check they reference therefore survive
 regardless of age; cleanup never rewrites monitor state or creates synthetic
 successes. The retained window is evidence, not a claim of health before it.
 
+## Push monitoring schema
+
+`push_monitor` belongs restrictively to one project and reserves its key for
+its lifetime. It stores the immutable reporting mode, interval, tolerance,
+state, optimistic version, lifecycle timestamps, evaluation generation,
+monitor-local sequence allocation, last applied observation order, last
+receipt, and the next persisted deadline. Independent latest-report and
+latest-success foreign keys preserve the distinction between recent evidence
+and recent success. New and resumed monitors have a deadline; paused and
+removed monitors cannot have one. Database checks enforce the 30-second to
+365-day interval, bounded tolerance, state, sequence, deadline, and lifecycle
+invariants from ADR 0006.
+
+`push_report` is one immutable external or deadline-generated observation. Its
+internal ID is separate from the sender's report ID. Unique monitor/report-ID
+and monitor/sequence indexes make retries and competing allocation visible.
+The row records both sender observation time and authoritative server receipt
+time, outcome, bounded diagnostic reason, generation, and whether upaffe
+created it for a crossed deadline. Checks enforce the accepted clock window
+and prevent a success or ordinary external report from masquerading as a
+missing-report observation.
+
+`reporting_credential` is one-to-one with a push monitor and carries only
+issue, rotation, and revocation metadata. Each `reporting_credential_secret`
+stores a unique 32-byte digest, never plaintext. A filtered unique index permits
+one unexpired current-secret row; rotation gives the prior digest a five-minute
+expiry before inserting its replacement. Revocation remains a credential fact
+so every associated digest becomes unusable immediately.
+
+`push_incident` has the same single-open-episode guarantee as an HTTP incident,
+but its opening, latest failure, and optional resolution references target push
+reports. A partial unique index prevents concurrent writers from opening two
+incidents for one push monitor. Stable reasons distinguish explicit
+`reported_failure` from `report_missing`; sender diagnostics remain separate.
+
+Push history uses the same 90-day exclusive cutoff and reference protection as
+HTTP history. Current receipt, success, deadline, state, and incident facts are
+stored on durable rows and are never reconstructed from whatever detail remains
+after retention. Report-ID uniqueness is retained for the full 90-day retry
+boundary.
+
 ## Tests
 
 Integration tests use the same PostgreSQL 18 major intended for deployment.
@@ -140,3 +182,6 @@ results, failure thresholds, repeated and competing evaluation, cursor
 pagination, retention boundaries and open-incident protection, concurrent
 scheduler claims, expired-lease recovery, and incident uniqueness and
 resolution against PostgreSQL constraints rather than an in-memory substitute.
+Push persistence tests additionally prove restart-safe deadlines and reports,
+digest-only credential rotation and revocation, duplicate and concurrent
+report rejection, value constraints, and one-open-push-incident uniqueness.

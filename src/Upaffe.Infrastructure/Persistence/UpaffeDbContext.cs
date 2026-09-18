@@ -20,6 +20,11 @@ public sealed class UpaffeDbContext(DbContextOptions<UpaffeDbContext> options) :
     public DbSet<HttpMonitorHeaderSecret> HttpMonitorHeaderSecrets => Set<HttpMonitorHeaderSecret>();
     public DbSet<HttpCheck> HttpChecks => Set<HttpCheck>();
     public DbSet<Incident> Incidents => Set<Incident>();
+    public DbSet<PushMonitor> PushMonitors => Set<PushMonitor>();
+    public DbSet<PushReport> PushReports => Set<PushReport>();
+    public DbSet<ReportingCredential> ReportingCredentials => Set<ReportingCredential>();
+    public DbSet<ReportingCredentialSecret> ReportingCredentialSecrets => Set<ReportingCredentialSecret>();
+    public DbSet<PushIncident> PushIncidents => Set<PushIncident>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder) =>
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(UpaffeDbContext).Assembly);

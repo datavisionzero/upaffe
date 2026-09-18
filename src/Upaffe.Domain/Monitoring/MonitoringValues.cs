@@ -26,3 +26,15 @@ public enum CheckOutcome
     Success,
     Failure,
 }
+
+public enum PushMonitorMode
+{
+    JobCompletion,
+    StateReport,
+}
+
+public enum ReportOutcome
+{
+    Success,
+    Failure,
+}
