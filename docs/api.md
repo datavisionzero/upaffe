@@ -42,6 +42,13 @@ secret supplied in the request body.
 | `PUT /api/projects/{projectKey}/http-monitors/{monitorKey}/headers/{name}` | Set or replace one write-only request header. |
 | `DELETE /api/projects/{projectKey}/http-monitors/{monitorKey}/headers/{name}?version={version}` | Remove one write-only request header. |
 | `POST /api/projects/{projectKey}/http-monitors/{monitorKey}/test` | Execute and record one immediate bounded check. |
+| `POST /api/projects/{projectKey}/push-monitors` | Create a job-completion or state-report monitor idempotently. |
+| `GET /api/projects/{projectKey}/push-monitors` | List live push monitors in a project. |
+| `GET /api/projects/{projectKey}/push-monitors/{monitorKey}` | Read push configuration and current facts without a reporting secret. |
+| `PUT /api/projects/{projectKey}/push-monitors/{monitorKey}` | Update push configuration at the version last read. |
+| `DELETE /api/projects/{projectKey}/push-monitors/{monitorKey}?version={version}` | Remove a push monitor while retaining its identity and history. |
+| `POST /api/projects/{projectKey}/push-monitors/{monitorKey}/pause` | Pause a push monitor. |
+| `POST /api/projects/{projectKey}/push-monitors/{monitorKey}/resume` | Resume with a fresh initial reporting window. |
 | `GET /api/openapi/v1.json` | The generated OpenAPI document. It does not list itself. |
 
 Every routed endpoint declares exactly one access boundary. Version, health,
@@ -209,6 +216,24 @@ binding. Invalid combinations return `400 validation`; unknown project/monitor
 associations return `404 not_found`; deleted projects, removed monitors, stale
 versions, and conflicting idempotent creates return `409 conflict`. All routes
 use the management boundary.
+
+## Push monitors
+
+A push monitor is created with immutable `job_completion` or `state_report`
+mode, a project-scoped key, name, interval and tolerance seconds, and optional
+instruction and runbook. Responses include state, last receipt, latest report
+and success IDs, next persisted deadline, open incident ID, lifecycle times,
+and whether a reporting credential exists. They never contain a reporting
+secret. Intervals are 30 seconds through 365 days; tolerance is zero through 30
+days and no greater than the interval.
+
+Create is idempotent only when every supplied fact matches. Update changes the
+mutable configuration with an optimistic version; mode and key remain fixed.
+Pause clears the deadline. Resume starts a fresh evaluation generation in
+`untested` with a new interval-plus-tolerance window, retaining history and any
+open incident. Removal hides ordinary reads and lists and revokes an existing
+reporting credential. Invalid values return `400`, missing associations `404`,
+and stale versions, deleted resources, or conflicting creates `409`.
 
 ## Contract rule
 
