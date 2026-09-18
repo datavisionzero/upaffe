@@ -21,6 +21,21 @@ public static class PushReportEndpoints
 {
     public static IEndpointRouteBuilder MapPushReports(this IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapGet("/report/{secret}", Simple)
+            .PublicAccess()
+            .WithName("SubmitSimplePushReportGet")
+            .WithSummary("Submit a success through a secret monitor URL using GET.")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces<ProblemResponse>(StatusCodes.Status401Unauthorized, "application/problem+json")
+            .Produces<ProblemResponse>(StatusCodes.Status409Conflict, "application/problem+json");
+        endpoints.MapPost("/report/{secret}", Simple)
+            .PublicAccess()
+            .WithName("SubmitSimplePushReportPost")
+            .WithSummary("Submit a success through a secret monitor URL using POST.")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces<ProblemResponse>(StatusCodes.Status401Unauthorized, "application/problem+json")
+            .Produces<ProblemResponse>(StatusCodes.Status409Conflict, "application/problem+json");
+
         endpoints.MapPost("/reports", async (
                 SubmitPushReportRequest request,
                 HttpContext http,
@@ -50,6 +65,19 @@ public static class PushReportEndpoints
             .Produces<ProblemResponse>(StatusCodes.Status409Conflict, "application/problem+json")
             .Produces<ProblemResponse>(StatusCodes.Status422UnprocessableEntity, "application/problem+json");
         return endpoints;
+    }
+
+    private static async Task<IResult> Simple(
+        string secret,
+        HttpContext http,
+        SubmitSimplePushReport submit,
+        CancellationToken cancellationToken)
+    {
+        _ = secret;
+        await submit.ExecuteAsync(
+            http.Items[SecretPathRedactionMiddleware.SecretItem] as string,
+            cancellationToken);
+        return Results.NoContent();
     }
 
     private static string? Bearer(string? value) =>

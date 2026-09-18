@@ -34,4 +34,9 @@ public interface IPushReportStore
         PushReportSubmission submission,
         DateTimeOffset receivedAt,
         CancellationToken cancellationToken);
+
+    Task<PushReportMutationResult> SubmitSimpleSuccessAsync(
+        string token,
+        DateTimeOffset receivedAt,
+        CancellationToken cancellationToken);
 }

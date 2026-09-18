@@ -8,6 +8,16 @@ namespace Upaffe.Infrastructure.Persistence;
 
 public sealed class PushReportStore(UpaffeDbContext context) : IPushReportStore
 {
+    public Task<PushReportMutationResult> SubmitSimpleSuccessAsync(
+        string token,
+        DateTimeOffset receivedAt,
+        CancellationToken cancellationToken) =>
+        SubmitAsync(
+            token,
+            new PushReportSubmission(Guid.NewGuid(), receivedAt, ReportOutcome.Success, null),
+            receivedAt,
+            cancellationToken);
+
     public async Task<PushReportMutationResult> SubmitAsync(
         string token,
         PushReportSubmission submission,

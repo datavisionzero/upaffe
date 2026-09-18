@@ -253,6 +253,92 @@
         }
       }
     },
+    "/api/report/{secret}": {
+      "get": {
+        "tags": [
+          "PushReportEndpoints"
+        ],
+        "summary": "Submit a success through a secret monitor URL using GET.",
+        "operationId": "SubmitSimplePushReportGet",
+        "parameters": [
+          {
+            "name": "secret",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "PushReportEndpoints"
+        ],
+        "summary": "Submit a success through a secret monitor URL using POST.",
+        "operationId": "SubmitSimplePushReportPost",
+        "parameters": [
+          {
+            "name": "secret",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/reports": {
       "post": {
         "tags": [
@@ -4155,6 +4241,9 @@
   "tags": [
     {
       "name": "upaffe"
+    },
+    {
+      "name": "PushReportEndpoints"
     }
   ]
 }

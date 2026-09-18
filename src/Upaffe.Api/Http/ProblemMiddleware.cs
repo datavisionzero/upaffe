@@ -40,7 +40,7 @@ public sealed class ProblemMiddleware(RequestDelegate next, ILogger<ProblemMiddl
             logger.LogInformation(
                 "{Method} {Path} was refused with {Code}.",
                 context.Request.Method,
-                context.Request.Path,
+                RedactedPath(context.Request.Path),
                 refusal.Code);
             context.Response.StatusCode = status;
             context.Response.ContentType = "application/problem+json";
@@ -49,4 +49,9 @@ public sealed class ProblemMiddleware(RequestDelegate next, ILogger<ProblemMiddl
                 context.RequestAborted);
         }
     }
+
+    private static string RedactedPath(PathString path) =>
+        path.StartsWithSegments("/api/report")
+            ? SecretPathRedactionMiddleware.RedactedPath
+            : path.Value ?? string.Empty;
 }

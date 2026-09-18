@@ -10,6 +10,9 @@ using Upaffe.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Secret reporting URLs must not be emitted by the framework's request-start log.
+builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
+
 var database = DatabaseSettings.FromConnectionString(
     builder.Configuration.GetConnectionString(DatabaseSettings.ConnectionStringName));
 builder.Services.AddUpaffeInfrastructure(database);
@@ -55,6 +58,7 @@ builder.Services.AddScoped<IssueReportingCredential>();
 builder.Services.AddScoped<RotateReportingCredential>();
 builder.Services.AddScoped<RevokeReportingCredential>();
 builder.Services.AddScoped<SubmitPushReport>();
+builder.Services.AddScoped<SubmitSimplePushReport>();
 builder.Services.AddHostedService<SchemaMigrationService>();
 builder.Services.AddHostedService<BootstrapService>();
 builder.Services.AddHostedService<HttpMonitoringService>();
@@ -72,6 +76,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 var app = builder.Build();
 
 app.UseUpaffeVersion();
+app.UseMiddleware<SecretPathRedactionMiddleware>();
 app.UseMiddleware<ProblemMiddleware>();
 app.UseDefaultFiles();
 app.UseStaticFiles();

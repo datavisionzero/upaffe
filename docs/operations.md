@@ -98,6 +98,30 @@ state, immediate tests, pause/resume, retained removal, secret-header writes,
 and check/incident history. These views report persisted monitoring facts but
 do not widen the API and `ua` contracts or replace the technical health paths.
 
+## Simple push reporting
+
+Credential issuance for a push monitor explicitly returns a secret reporting
+URL once. Store that URL as a deployment secret and call it only after the job
+has completed successfully. A caller that can make a simple request needs no
+JSON client:
+
+```sh
+curl --fail-with-body --request POST "$UPAFFE_REPORT_URL"
+```
+
+`GET` has the same semantics for constrained callers. Every accepted request is
+a separate success; use the JSON reporting route when a sender needs explicit
+failure, retry identity, or sender observation time. Never put the secret URL
+in source control, command history, ordinary status output, or monitoring
+exports.
+
+upaffe redacts the secret segment before its own routing and application logs
+and suppresses the framework request-start log that would run before that
+redaction. A reverse proxy sits outside this boundary: configure it not to log
+`/api/report/*` paths verbatim, replacing the final segment with a fixed marker.
+Rotation keeps the prior URL valid for five minutes; after that window or an
+explicit revocation, it returns the same `401` as an unknown secret.
+
 ## Change cycle
 
 For quick API work, leave only PostgreSQL running and start .NET on the host:

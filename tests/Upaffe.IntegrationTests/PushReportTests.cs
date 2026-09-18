@@ -105,10 +105,56 @@ public sealed class PushReportTests(PostgresFixture postgres)
         Assert.Equal(1, await context.PushReports.CountAsync(TestContext.Current.CancellationToken));
     }
 
-    private async Task<Setup> EstablishedAsync(MutableTimeProvider clock)
+    [Fact]
+    public async Task Simple_secret_route_accepts_get_and_post_and_never_logs_the_secret()
+    {
+        var clock = new MutableTimeProvider(Noon);
+        var logs = new CollectingLoggerProvider();
+        var setup = await EstablishedAsync(clock, logs);
+        await using var instance = setup.Instance;
+        using var client = setup.Client;
+
+        Assert.Equal(HttpStatusCode.NoContent, (await client.GetAsync(
+            $"/api/report/{setup.ReportingToken}", TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Send(client, HttpMethod.Post,
+            $"/api/report/{setup.ReportingToken}")).StatusCode);
+
+        using var rotation = await Send(client, HttpMethod.Post,
+            "/api/projects/backups/push-monitors/nightly-backup/reporting-credential/rotate", setup.ManagementToken);
+        var replacement = JsonDocument.Parse(await rotation.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))
+            .RootElement.GetProperty("token").GetString()!;
+        Assert.Equal(HttpStatusCode.NoContent, (await client.GetAsync(
+            $"/api/report/{setup.ReportingToken}", TestContext.Current.CancellationToken)).StatusCode);
+        clock.Advance(TimeSpan.FromMinutes(6));
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync(
+            $"/api/report/{setup.ReportingToken}", TestContext.Current.CancellationToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.GetAsync(
+            $"/api/report/{replacement}", TestContext.Current.CancellationToken)).StatusCode);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await Send(client, HttpMethod.Delete,
+            "/api/projects/backups/push-monitors/nightly-backup/reporting-credential", setup.ManagementToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync(
+            $"/api/report/{replacement}", TestContext.Current.CancellationToken)).StatusCode);
+
+        Assert.DoesNotContain(logs.Messages, message =>
+            message.Contains(setup.ReportingToken, StringComparison.Ordinal)
+            || message.Contains(replacement, StringComparison.Ordinal));
+        Assert.Contains(logs.Messages, message =>
+            message.Contains("/api/report/{redacted}", StringComparison.Ordinal));
+
+        await using var context = AnInstance.ContextFor(setup.ConnectionString);
+        Assert.Equal(4, await context.PushReports.CountAsync(TestContext.Current.CancellationToken));
+        Assert.All(await context.PushReports.ToListAsync(TestContext.Current.CancellationToken), report =>
+        {
+            Assert.Equal(Domain.Monitoring.ReportOutcome.Success, report.Outcome);
+            Assert.False(report.IsDeadlineObservation);
+        });
+    }
+
+    private async Task<Setup> EstablishedAsync(MutableTimeProvider clock, CollectingLoggerProvider? logs = null)
     {
         var connection = await postgres.CreateDatabaseAsync();
-        var instance = AnInstance.Against(connection, new Dictionary<string, string?> { [BootstrapSettings.Variable] = Proof }, clock);
+        var instance = AnInstance.Against(connection, new Dictionary<string, string?> { [BootstrapSettings.Variable] = Proof }, clock, logs);
         var setupClient = instance.CreateClient();
         Assert.Equal(HttpStatusCode.NoContent, (await setupClient.PostAsJsonAsync("/api/bootstrap",
             new BootstrapRequest(Proof, "operator@example.test", "a long operator password"), TestContext.Current.CancellationToken)).StatusCode);

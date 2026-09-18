@@ -54,6 +54,7 @@ secret supplied in the request body.
 | `POST /api/projects/{projectKey}/push-monitors/{monitorKey}/reporting-credential/rotate` | Reveal a replacement with five-minute overlap. |
 | `DELETE /api/projects/{projectKey}/push-monitors/{monitorKey}/reporting-credential` | Revoke all reporting secrets immediately. |
 | `POST /api/reports` | Submit an idempotent JSON success or failure with a reporting bearer token. |
+| `GET` or `POST /api/report/{secret}` | Submit a success with the secret URL and no request body. |
 | `GET /api/openapi/v1.json` | The generated OpenAPI document. It does not list itself. |
 
 Every routed endpoint declares exactly one access boundary. Version, health,
@@ -271,6 +272,14 @@ Payload shape errors return `400 validation`; observation times more than five
 minutes ahead or 90 days behind receipt return `422 unprocessable`. A paused
 monitor refuses new reports with `409`, while an identical replay still returns
 its original receipt.
+
+The simple secret route accepts `GET` and `POST` and returns `204`. Each request
+is a distinct success observed and received at the server instant; it has no
+failure payload or caller idempotency key. `HEAD` and other methods do not
+report success. Unknown, expired, and revoked URL secrets use the same
+`401 reporting_rejected` boundary. The application replaces the credential
+path segment before routing and application logs; standard request-start logs
+are disabled because they run before application middleware.
 
 ## Contract rule
 

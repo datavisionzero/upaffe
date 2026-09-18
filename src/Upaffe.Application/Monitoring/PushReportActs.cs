@@ -76,3 +76,30 @@ public sealed class SubmitPushReport(IPushReportStore reports, TimeProvider cloc
         return new DateTimeOffset(utc.Ticks - (utc.Ticks % 10), TimeSpan.Zero);
     }
 }
+
+public sealed class SubmitSimplePushReport(IPushReportStore reports, TimeProvider clock)
+{
+    public async Task ExecuteAsync(string? token, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            throw Refusal.ReportingRejected();
+        }
+
+        var now = Microseconds(clock.GetUtcNow());
+        var result = await reports.SubmitSimpleSuccessAsync(token, now, cancellationToken);
+        _ = result.Outcome switch
+        {
+            PushReportMutation.Accepted => true,
+            PushReportMutation.Rejected => throw Refusal.ReportingRejected(),
+            PushReportMutation.Paused => throw Refusal.Conflict("Reporting is suspended for this monitor."),
+            _ => throw new InvalidOperationException("The report store returned an invalid simple submission result."),
+        };
+    }
+
+    private static DateTimeOffset Microseconds(DateTimeOffset value)
+    {
+        var utc = value.ToUniversalTime();
+        return new DateTimeOffset(utc.Ticks - (utc.Ticks % 10), TimeSpan.Zero);
+    }
+}
