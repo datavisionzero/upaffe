@@ -32,6 +32,9 @@ public sealed class ProblemMiddleware(RequestDelegate next, ILogger<ProblemMiddl
                 "forbidden" => StatusCodes.Status403Forbidden,
                 "conflict" => StatusCodes.Status409Conflict,
                 "not_found" => StatusCodes.Status404NotFound,
+                "reporting_rejected" => StatusCodes.Status401Unauthorized,
+                "report_id_conflict" => StatusCodes.Status409Conflict,
+                "unprocessable" => StatusCodes.Status422UnprocessableEntity,
                 _ => StatusCodes.Status400BadRequest,
             };
             logger.LogInformation(

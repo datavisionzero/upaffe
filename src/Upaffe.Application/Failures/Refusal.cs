@@ -33,4 +33,13 @@ public sealed class Refusal(
     public static Refusal Conflict(string message) => new("conflict", message);
 
     public static Refusal NotFound(string message) => new("not_found", message);
+
+    public static Refusal ReportingRejected() =>
+        new("reporting_rejected", "The reporting credential was rejected.");
+
+    public static Refusal ReportIdConflict() =>
+        new("report_id_conflict", "The report ID was already used with different content.");
+
+    public static Refusal Unprocessable(IReadOnlyDictionary<string, string[]> errors) =>
+        new("unprocessable", "The report is outside the accepted reporting boundary.", errors);
 }

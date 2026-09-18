@@ -53,6 +53,7 @@ secret supplied in the request body.
 | `GET /api/projects/{projectKey}/push-monitors/{monitorKey}/reporting-credential` | Read non-secret reporting credential metadata. |
 | `POST /api/projects/{projectKey}/push-monitors/{monitorKey}/reporting-credential/rotate` | Reveal a replacement with five-minute overlap. |
 | `DELETE /api/projects/{projectKey}/push-monitors/{monitorKey}/reporting-credential` | Revoke all reporting secrets immediately. |
+| `POST /api/reports` | Submit an idempotent JSON success or failure with a reporting bearer token. |
 | `GET /api/openapi/v1.json` | The generated OpenAPI document. It does not list itself. |
 
 Every routed endpoint declares exactly one access boundary. Version, health,
@@ -247,6 +248,29 @@ expiry; revocation is idempotent and rejects all current and overlapping
 secrets immediately. The credential is bound to one monitor and grants neither
 read nor management access. Application request logging must redact the secret
 segment, and reverse proxies must apply an equivalent path-redaction rule.
+
+`POST /api/reports` is public at the management-authentication layer and accepts
+only `Authorization: Bearer uar_<secret>`. Its body contains a non-empty UUID
+`report_id`, RFC 3339 `observed_at`, `success` or `failure` outcome, and an
+optional failure-only diagnostic reason of at most 1,024 Unicode scalar values.
+The reporting credential selects exactly one monitor; neither project nor
+monitor identity is accepted from the caller.
+
+The server assigns `received_at` and a monitor-local sequence under a row lock.
+The first submission returns `202` with those facts and whether the observation
+was applicable. An identical `(monitor, report_id)` replay returns the original
+receipt with `duplicate: true`; different content under the same ID returns
+`409 report_id_conflict`. A report older than the latest applicable sender
+observation is retained with `applied: false`, so a delayed success cannot erase
+newer failure evidence. Receipt and observation timestamps are normalized to
+PostgreSQL microsecond precision for stable retries.
+
+Missing, malformed, unknown, expired, revoked, or wrong-monitor secrets all
+return the same `401 reporting_rejected` without revealing stored identity.
+Payload shape errors return `400 validation`; observation times more than five
+minutes ahead or 90 days behind receipt return `422 unprocessable`. A paused
+monitor refuses new reports with `409`, while an identical replay still returns
+its original receipt.
 
 ## Contract rule
 

@@ -18,7 +18,8 @@ public sealed class PushReport
         DateTimeOffset receivedAt,
         ReportOutcome outcome,
         string? diagnosticReason,
-        bool isDeadlineObservation)
+        bool isDeadlineObservation,
+        bool applicable)
     {
         if (monitorId == Guid.Empty || reportId == Guid.Empty)
         {
@@ -55,6 +56,7 @@ public sealed class PushReport
         Outcome = outcome;
         DiagnosticReason = reason;
         IsDeadlineObservation = isDeadlineObservation;
+        Applicable = applicable;
     }
 
     public Guid Id { get; private set; }
@@ -67,6 +69,7 @@ public sealed class PushReport
     public ReportOutcome Outcome { get; private set; }
     public string? DiagnosticReason { get; private set; }
     public bool IsDeadlineObservation { get; private set; }
+    public bool Applicable { get; private set; }
 
     public static PushReport Receive(
         Guid monitorId,
@@ -76,7 +79,8 @@ public sealed class PushReport
         DateTimeOffset observedAt,
         DateTimeOffset receivedAt,
         ReportOutcome outcome,
-        string? diagnosticReason) => new(
+        string? diagnosticReason,
+        bool applicable = true) => new(
             monitorId,
             reportId,
             evaluationGeneration,
@@ -85,7 +89,8 @@ public sealed class PushReport
             receivedAt,
             outcome,
             diagnosticReason,
-            false);
+            false,
+            applicable);
 
     public static PushReport Missing(
         Guid monitorId,
@@ -101,5 +106,6 @@ public sealed class PushReport
             processedAt,
             ReportOutcome.Failure,
             "report_missing",
+            true,
             true);
 }

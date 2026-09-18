@@ -108,6 +108,7 @@ internal sealed class PushReportConfiguration : IEntityTypeConfiguration<PushRep
         builder.Property(value => value.Outcome).HasColumnName("outcome").HasConversion<string>().HasMaxLength(16);
         builder.Property(value => value.DiagnosticReason).HasColumnName("diagnostic_reason").HasMaxLength(PushReport.MaximumDiagnosticReasonLength);
         builder.Property(value => value.IsDeadlineObservation).HasColumnName("is_deadline_observation");
+        builder.Property(value => value.Applicable).HasColumnName("applicable");
         builder.HasIndex(value => new { value.MonitorId, value.ReportId }).IsUnique()
             .HasDatabaseName("push_report_monitor_report_id");
         builder.HasIndex(value => new { value.MonitorId, value.Sequence }).IsUnique()

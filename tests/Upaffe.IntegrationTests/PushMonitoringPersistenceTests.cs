@@ -27,13 +27,15 @@ public sealed class PushMonitoringPersistenceTests(PostgresFixture postgres)
             var monitor = NewMonitor(project.Id);
             var credential = ReportingCredential.Create(monitor.Id, Noon);
             var issued = ReportingCredentialSecret.Issue(credential.Id, Noon);
+            first.AddRange(project, monitor, credential, issued.Secret);
+            await first.SaveChangesAsync(TestContext.Current.CancellationToken);
             var report = monitor.Receive(
                 Guid.NewGuid(),
                 Noon.AddMinutes(1),
                 Noon.AddMinutes(1).AddSeconds(2),
                 ReportOutcome.Success,
                 null);
-            first.AddRange(project, monitor, credential, issued.Secret, report);
+            first.Add(report);
             await first.SaveChangesAsync(TestContext.Current.CancellationToken);
             monitorId = monitor.Id;
             reportId = report.ReportId;

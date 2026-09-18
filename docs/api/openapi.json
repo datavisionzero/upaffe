@@ -253,6 +253,77 @@
         }
       }
     },
+    "/api/reports": {
+      "post": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Submit an idempotent success or failure to one push monitor.",
+        "operationId": "SubmitPushReport",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitPushReportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushReportReceiptResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/management-credentials": {
       "post": {
         "tags": [
@@ -3783,6 +3854,36 @@
           }
         }
       },
+      "PushReportReceiptResponse": {
+        "required": [
+          "report_id",
+          "received_at",
+          "sequence",
+          "applied",
+          "duplicate"
+        ],
+        "type": "object",
+        "properties": {
+          "report_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "received_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sequence": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "applied": {
+            "type": "boolean"
+          },
+          "duplicate": {
+            "type": "boolean"
+          }
+        }
+      },
       "RenameProjectRequest": {
         "required": [
           "name",
@@ -3868,6 +3969,43 @@
             ]
           },
           "password": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "SubmitPushReportRequest": {
+        "required": [
+          "report_id",
+          "observed_at",
+          "outcome",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "report_id": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "observed_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "outcome": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reason": {
             "type": [
               "null",
               "string"

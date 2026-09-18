@@ -49,6 +49,7 @@ public sealed class ContractTests(PostgresFixture postgres)
                 "/api/projects/{projectKey}/push-monitors/{monitorKey}/reporting-credential",
                 "/api/projects/{projectKey}/push-monitors/{monitorKey}/reporting-credential/rotate",
                 "/api/projects/{projectKey}/push-monitors/{monitorKey}/resume",
+                "/api/reports",
                 "/api/session",
                 "/api/version",
             ],

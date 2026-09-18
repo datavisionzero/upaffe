@@ -54,6 +54,7 @@ builder.Services.AddScoped<ReadReportingCredential>();
 builder.Services.AddScoped<IssueReportingCredential>();
 builder.Services.AddScoped<RotateReportingCredential>();
 builder.Services.AddScoped<RevokeReportingCredential>();
+builder.Services.AddScoped<SubmitPushReport>();
 builder.Services.AddHostedService<SchemaMigrationService>();
 builder.Services.AddHostedService<BootstrapService>();
 builder.Services.AddHostedService<HttpMonitoringService>();
@@ -89,6 +90,7 @@ api.MapManagementCredentials();
 api.MapProjects();
 api.MapHttpMonitors();
 api.MapPushMonitors();
+api.MapPushReports();
 api.MapFallback(() => Results.NotFound()).PublicAccess();
 
 app.MapFallbackToFile("index.html").PublicAccess();

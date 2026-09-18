@@ -164,6 +164,7 @@ public sealed partial class PushMonitor
             throw new InvalidOperationException("A paused monitor cannot receive a report.");
         }
 
+        var applicable = LastAppliedObservedAt is null || observedAt > LastAppliedObservedAt;
         var report = PushReport.Receive(
             Id,
             reportId,
@@ -172,8 +173,18 @@ public sealed partial class PushMonitor
             observedAt,
             receivedAt,
             outcome,
-            diagnosticReason);
+            diagnosticReason,
+            applicable);
         NextSequence++;
+        LastReceivedAt = receivedAt;
+        LatestReportId = report.Id;
+        if (applicable)
+        {
+            LastAppliedSequence = report.Sequence;
+            LastAppliedObservedAt = observedAt;
+        }
+
+        UpdatedAt = receivedAt;
         return report;
     }
 
@@ -192,6 +203,10 @@ public sealed partial class PushMonitor
             NextDeadlineAt.Value,
             processedAt);
         NextSequence++;
+        LatestReportId = report.Id;
+        LastAppliedSequence = report.Sequence;
+        LastAppliedObservedAt = report.ObservedAt;
+        UpdatedAt = processedAt;
         return report;
     }
 
