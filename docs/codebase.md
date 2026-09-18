@@ -325,7 +325,7 @@ database, and a named volume preserves local state across ordinary restarts.
 Production images, reverse proxying, upgrades, backup, restore, and
 failed-upgrade recovery belong to the later operations epic. GitHub Actions
 reproduces the documented local build, test, generation, Compose validation,
-and disposable access/project system test without requiring private secrets
+and disposable access/project/monitoring system test without requiring private secrets
 from contributors. Only the setup actions' package-manager caches persist
 between jobs; generated clients and distributable build outputs are rebuilt and
 are not uploaded.
@@ -340,19 +340,20 @@ Run these from the repository root:
   checked-in OpenAPI document, regenerates both clients, and compiles their
   consumers.
 - `scripts/smoke.sh` builds an isolated Compose project from an empty database;
-  establishes the operator and browser session; manages one project and HTTP
-  monitor through browser, CLI, and direct API paths; proves scheduling,
-  restart, threshold, incident, pause/resume, recovery, credential lifecycle,
-  and singular persisted identities; checks ordinary artifacts and app logs for
-  generated secrets; then removes the disposable database volume.
+  establishes the operator and browser session; manages one project, an HTTP
+  monitor, and both push modes through browser, CLI, and direct API paths;
+  proves scheduling, push deadlines and ordering, restart, threshold,
+  incidents, pause/resume, recovery, credential lifecycles, and singular
+  persisted identities; checks ordinary artifacts and app logs for generated
+  secrets; then removes the disposable database volume.
 - `docker compose -f deploy/docker-compose.dev.yml up --build --wait` starts the
   persistent local development environment described in
   [`operations.md`](./operations.md).
 
 Generated TypeScript and Go clients are prerequisites produced by their normal
 build commands, not files a contributor edits. The component suite exercises
-the monitor interface; the disposable system test still proves only access and
-project behavior and does not assert that monitoring works.
+both monitor interfaces; the disposable system test proves their implemented
+runtime behavior against a real PostgreSQL-backed Compose application.
 
 ## Documentation ownership
 
@@ -360,6 +361,8 @@ project behavior and does not assert that monitoring works.
 - `docs/cli.md` changes with commands, configuration, output, and exit codes.
 - `docs/http-monitoring.md` connects the implemented HTTP lifecycle across the
   operator surfaces, runtime, storage, and security boundary.
+- `docs/push-monitoring.md` connects both push modes, reporting credentials,
+  deadlines, ordering, incidents, retention, and operator surfaces.
 - `docs/storage.md` changes with schema, migrations, retention, and backup
   boundaries.
 - `docs/install.md` exists when there is a supported installation procedure.

@@ -225,6 +225,10 @@ use the management boundary.
 
 ## Push monitors
 
+The complete workflow tying both modes to CLI, web, storage, deadlines,
+incidents, and the reporting-secret boundary is in
+[the push monitoring guide](./push-monitoring.md).
+
 A push monitor is created with immutable `job_completion` or `state_report`
 mode, a project-scoped key, name, interval and tolerance seconds, and optional
 instruction and runbook. Responses include state, last receipt, latest report

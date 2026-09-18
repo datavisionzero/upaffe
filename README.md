@@ -5,16 +5,16 @@ infrastructure with AI agents. It is under active development and has not been
 released.
 
 The repository currently contains the technical foundation, secure access and
-project administration, and the first HTTP-monitoring pieces: persistent HTTP
-monitor configuration, bounded public-internet checks, durable recurring
-execution, atomic failure-threshold evaluation, and authenticated API
-management including immediate tests. Incident opening, continued failure, and
-fresh-success recovery are persisted, with paginated 90-day check and incident
-history. CLI and web monitor administration cover the complete HTTP slice;
-notifications are still under active implementation;
+project administration, and complete HTTP- and push-monitoring paths. HTTP
+monitors perform bounded public-internet checks with threshold incidents. Push
+monitors accept ordered job-completion or state reports, detect persisted
+deadlines, and use monitor-scoped rotatable reporting credentials. Both paths
+survive restarts, retain 90-day history, and have API, CLI, web, and composed
+system-test coverage. Notifications are still under active implementation;
 [`VISION.md`](./VISION.md) defines the committed MVP and
-[`docs/http-monitoring.md`](./docs/http-monitoring.md) documents the complete
-implemented HTTP workflow.
+[`docs/http-monitoring.md`](./docs/http-monitoring.md) and
+[`docs/push-monitoring.md`](./docs/push-monitoring.md) document the implemented
+monitoring workflows.
 
 ## Backend development
 
@@ -120,10 +120,11 @@ UPAFFE_CREDENTIAL='<management credential>' \
 Create and rotate print new secret material once. Lists and diagnostics never
 repeat it. Project commands address immutable keys and use explicit versions for
 concurrent changes; see [`docs/cli.md`](./docs/cli.md) for commands and exit
-codes. The same CLI completely administers HTTP monitors, runs immediate checks,
-and reads check and incident history. Secret-bearing monitor configuration is
-accepted only from an explicit JSON file or stdin and is never returned by
-ordinary text or JSON output.
+codes. The same CLI completely administers HTTP and push monitors, runs
+immediate HTTP checks, reads both history models, and explicitly issues,
+rotates, and revokes monitor-scoped reporting credentials. Secret-bearing
+monitor configuration is accepted only from an explicit JSON file or stdin and
+is never returned by ordinary text or JSON output.
 
 ## Local Compose environment
 
@@ -139,17 +140,19 @@ UPAFFE_URL=http://localhost:8080 go -C src/cli run ./cmd/ua status --json
 The web application is then available at `http://localhost:8080`.
 
 For a disposable end-to-end check of the compiled web host, one-operator
-bootstrap, browser session, management credential rotation/revocation, and the
-same project and HTTP monitor through browser, CLI, and direct API paths, run:
+bootstrap, browser session, credential rotation/revocation, and the same
+project, HTTP monitor, and both push-monitor modes through browser, CLI, and
+direct API paths, run:
 
 ```sh
 scripts/smoke.sh
 ```
 
 The system test uses ports 18080 and 15432 by default, creates a unique Compose
-project from an empty database, verifies that ordinary output and logs contain
-none of its generated secrets, and removes its containers and volume when it
-finishes. HTTP execution defaults to `https://example.com/`; restricted test
+project from an empty database, verifies deadlines, ordering, incidents,
+restart durability, and that ordinary output and logs contain none of its
+generated secrets, then removes its containers and volume. HTTP execution
+defaults to `https://example.com/`; restricted test
 environments can provide another public status-200 URL through
 `UPAFFE_SMOKE_HTTP_TARGET`.
 

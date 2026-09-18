@@ -99,16 +99,18 @@ overwritten. A live project opens its HTTP monitors for configuration, current
 state, immediate tests, pause/resume, retained removal, secret-header writes,
 and check/incident history. These views report persisted monitoring facts but
 do not widen the API and `ua` contracts or replace the technical health paths.
+The same workspace switches to push monitors for both reporting modes,
+deadlines, reports, incidents, pause/resume, and one-time credential handoff.
 
 ## Simple push reporting
 
-Credential issuance for a push monitor explicitly returns a secret reporting
-URL once. Store that URL as a deployment secret and call it only after the job
-has completed successfully. A caller that can make a simple request needs no
-JSON client:
+Credential issuance for a push monitor explicitly returns an instance-relative
+secret reporting path once. Store that path as a deployment secret, combine it
+only with the trusted upaffe origin, and call it after the job has completed
+successfully. A caller that can make a simple request needs no JSON client:
 
 ```sh
-curl --fail-with-body --request POST "$UPAFFE_REPORT_URL"
+curl --fail-with-body --request POST "$UPAFFE_ORIGIN$UPAFFE_REPORT_PATH"
 ```
 
 `GET` has the same semantics for constrained callers. Every accepted request is
@@ -147,7 +149,7 @@ Rebuild the composed application after source changes:
 docker compose -f deploy/docker-compose.dev.yml up --build --wait
 ```
 
-## Disposable HTTP-monitoring system test
+## Disposable monitoring system test
 
 Run the complete implemented vertical slice from the repository root:
 
@@ -160,7 +162,7 @@ default, starts with an empty database, and then performs the supported setup
 and administration flow. It establishes the sole operator, signs in through the
 browser-session path, creates and rotates a management credential, and manages
 one stable project and HTTP monitor through browser-authenticated requests, the
-real generated `ua` CLI, and a direct bearer API request. The monitor observes a
+real generated `ua` CLI, and a direct bearer API request. The HTTP monitor observes a
 scheduled and requested success, crosses a two-failure threshold into exactly
 one incident, survives restarts while planned and while failing, exercises
 pause/resume through both access paths, and records a fresh recovery. It proves
@@ -170,8 +172,16 @@ HTTP/CLI artifacts and application logs. Explicit secret input and credential
 issuance files are excluded because those are their documented secret-bearing
 purposes.
 
+The same run creates job-completion and state-report push monitors, issues
+monitor-scoped credentials, and reports through JSON and simple secret paths.
+It proves immediate and repeated failure, duplicate retry, old-success
+ordering, fresh recovery, silence after interval plus tolerance, restart
+durability, pause/resume generations, browser/CLI agreement, reporting-token
+isolation, rotation overlap, revocation, and absence of every generated
+reporting secret from ordinary artifacts and logs.
+
 The React component tests separately exercise the same generated browser
-operations for access, projects, and HTTP monitors. They verify secret-state
+operations for access, projects, HTTP monitors, and push monitors. They verify secret-state
 clearing, keyboard operation, explicit lifecycle labels, optimistic-concurrency
 refresh, and bounded rendering of API problems.
 
@@ -183,8 +193,9 @@ observations, not the health of any unrelated target.
 
 Override `UPAFFE_SMOKE_APP_PORT` or `UPAFFE_SMOKE_DB_PORT` when those ports are
 occupied. The script always removes its containers and disposable volume. See
-[the HTTP monitoring guide](./http-monitoring.md) for the complete fictional
-operator workflow and the deterministic security-test boundary.
+[the HTTP monitoring guide](./http-monitoring.md) and
+[push monitoring guide](./push-monitoring.md) for complete fictional operator
+workflows and the deterministic security-test boundary.
 
 ## Stop, restart, and reset
 

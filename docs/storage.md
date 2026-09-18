@@ -131,6 +131,9 @@ successes. The retained window is evidence, not a claim of health before it.
 
 ## Push monitoring schema
 
+The complete reporting lifecycle using these rows is in
+[the push monitoring guide](./push-monitoring.md).
+
 `push_monitor` belongs restrictively to one project and reserves its key for
 its lifetime. It stores the immutable reporting mode, interval, tolerance,
 state, optimistic version, lifecycle timestamps, evaluation generation,

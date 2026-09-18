@@ -92,7 +92,7 @@ jobs:
       - run: docker compose -f deploy/docker-compose.dev.yml config --quiet
 
   system:
-    name: Access and projects system test
+    name: Monitoring system test
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

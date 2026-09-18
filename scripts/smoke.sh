@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2086
 set -eu
 
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
@@ -405,6 +406,374 @@ node -e '
   if (page.items.length !== 1 || page.items[0].resolved_at === null) process.exit(1);
 ' "$system_dir/monitor-resolved-incident.json"
 
+# The generated CLI creates both push modes and explicitly issues their
+# monitor-scoped reporting credentials. These two files are secret handoff
+# artifacts and are deliberately excluded from the ordinary-output scan below.
+echo "testing composed push monitoring"
+node -e '
+  process.stdout.write(JSON.stringify({
+    key: "nightly-push",
+    name: "Nightly push",
+    mode: "job_completion",
+    interval_seconds: 30,
+    tolerance_seconds: 0,
+    instruction: "Inspect the fictional backup log.",
+    runbook_url: "https://docs.example.test/runbooks/nightly-push",
+  }));
+' >"$system_dir/push-job-create-input.json"
+node -e '
+  process.stdout.write(JSON.stringify({
+    key: "state-push",
+    name: "State push",
+    mode: "state_report",
+    interval_seconds: 30,
+    tolerance_seconds: 0,
+    instruction: "Inspect the fictional service state.",
+    runbook_url: "https://docs.example.test/runbooks/state-push",
+  }));
+' >"$system_dir/push-state-create-input.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push create system-project --file "$system_dir/push-job-create-input.json" --json \
+  >"$system_dir/push-job-create.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push create system-project --file "$system_dir/push-state-create-input.json" --json \
+  >"$system_dir/push-state-create.json"
+[ "$(json_value mode <"$system_dir/push-job-create.json")" = "job_completion" ]
+[ "$(json_value mode <"$system_dir/push-state-create.json")" = "state_report" ]
+
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push credential issue system-project nightly-push --json \
+  >"$system_dir/push-job-credential-issued.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push credential issue system-project state-push --json \
+  >"$system_dir/push-state-credential-issued.json"
+push_job_token=$(json_value token <"$system_dir/push-job-credential-issued.json")
+push_job_url=$(json_value report_url <"$system_dir/push-job-credential-issued.json")
+push_job_url_secret=${push_job_url##*/}
+push_state_token=$(json_value token <"$system_dir/push-state-credential-issued.json")
+push_state_url=$(json_value report_url <"$system_dir/push-state-credential-issued.json")
+push_state_url_secret=${push_state_url##*/}
+
+# A reporting credential grants no management read access.
+set +e
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$push_job_token" \
+  "$ua" push get system-project nightly-push \
+  >"$system_dir/push-reporting-token-read.txt" 2>"$system_dir/push-reporting-token-read-diagnostic.txt"
+push_read_exit=$?
+set -e
+[ "$push_read_exit" = "7" ]
+grep 'authentication_rejected' "$system_dir/push-reporting-token-read-diagnostic.txt" >/dev/null
+
+# State-report success uses the simple secret URL. Job-completion success uses
+# the idempotent JSON route. A job token changes only its bound monitor; the
+# state monitor keeps the simple report as its latest observation.
+curl --fail --silent --show-error --request POST "${base_url}${push_state_url}" \
+  >"$system_dir/push-state-simple-success.txt"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push get system-project state-push --json >"$system_dir/push-state-after-simple.json"
+[ "$(json_value state <"$system_dir/push-state-after-simple.json")" = "healthy" ]
+push_state_simple_report=$(json_value latest_report_id <"$system_dir/push-state-after-simple.json")
+
+push_job_success_id=$(node -e 'process.stdout.write(require("node:crypto").randomUUID())')
+push_job_success_at=$(node -e 'process.stdout.write(new Date(Date.now() - 4000).toISOString())')
+node -e '
+  process.stdout.write(JSON.stringify({ report_id: process.argv[1], observed_at: process.argv[2], outcome: "success", reason: null }));
+' "$push_job_success_id" "$push_job_success_at" >"$system_dir/push-job-success-input.json"
+curl --fail --silent --show-error \
+  --request POST \
+  --header "Authorization: Bearer $push_job_token" \
+  --header 'Content-Type: application/json' \
+  --data-binary @"$system_dir/push-job-success-input.json" \
+  "$base_url/api/reports" >"$system_dir/push-job-success-receipt.json"
+[ "$(json_value applied <"$system_dir/push-job-success-receipt.json")" = "true" ]
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push get system-project state-push --json >"$system_dir/push-state-after-job-report.json"
+[ "$(json_value latest_report_id <"$system_dir/push-state-after-job-report.json")" = "$push_state_simple_report" ]
+
+# Explicit failures open immediately. An identical retry is a duplicate, a
+# second fresh failure updates the same incident, and an older success is kept
+# without being allowed to reverse that newer failure.
+push_job_failure_id=$(node -e 'process.stdout.write(require("node:crypto").randomUUID())')
+push_job_failure_at=$(node -e 'process.stdout.write(new Date(Date.now() - 2000).toISOString())')
+node -e '
+  process.stdout.write(JSON.stringify({ report_id: process.argv[1], observed_at: process.argv[2], outcome: "failure", reason: "fictional backup failed" }));
+' "$push_job_failure_id" "$push_job_failure_at" >"$system_dir/push-job-failure-input.json"
+curl --fail --silent --show-error \
+  --request POST --header "Authorization: Bearer $push_job_token" \
+  --header 'Content-Type: application/json' --data-binary @"$system_dir/push-job-failure-input.json" \
+  "$base_url/api/reports" >"$system_dir/push-job-failure-receipt.json"
+curl --fail --silent --show-error \
+  --request POST --header "Authorization: Bearer $push_job_token" \
+  --header 'Content-Type: application/json' --data-binary @"$system_dir/push-job-failure-input.json" \
+  "$base_url/api/reports" >"$system_dir/push-job-duplicate-receipt.json"
+[ "$(json_value duplicate <"$system_dir/push-job-duplicate-receipt.json")" = "true" ]
+
+push_job_repeat_id=$(node -e 'process.stdout.write(require("node:crypto").randomUUID())')
+push_job_repeat_at=$(node -e 'process.stdout.write(new Date(Date.now() - 1000).toISOString())')
+node -e '
+  process.stdout.write(JSON.stringify({ report_id: process.argv[1], observed_at: process.argv[2], outcome: "failure", reason: "fictional backup still failed" }));
+' "$push_job_repeat_id" "$push_job_repeat_at" >"$system_dir/push-job-repeat-input.json"
+curl --fail --silent --show-error \
+  --request POST --header "Authorization: Bearer $push_job_token" \
+  --header 'Content-Type: application/json' --data-binary @"$system_dir/push-job-repeat-input.json" \
+  "$base_url/api/reports" >"$system_dir/push-job-repeat-receipt.json"
+
+push_job_old_id=$(node -e 'process.stdout.write(require("node:crypto").randomUUID())')
+push_job_old_at=$(node -e 'process.stdout.write(new Date(Date.now() - 3000).toISOString())')
+node -e '
+  process.stdout.write(JSON.stringify({ report_id: process.argv[1], observed_at: process.argv[2], outcome: "success", reason: null }));
+' "$push_job_old_id" "$push_job_old_at" >"$system_dir/push-job-old-success-input.json"
+curl --fail --silent --show-error \
+  --request POST --header "Authorization: Bearer $push_job_token" \
+  --header 'Content-Type: application/json' --data-binary @"$system_dir/push-job-old-success-input.json" \
+  "$base_url/api/reports" >"$system_dir/push-job-old-success-receipt.json"
+[ "$(json_value applied <"$system_dir/push-job-old-success-receipt.json")" = "false" ]
+
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push get system-project nightly-push --json >"$system_dir/push-job-open.json"
+[ "$(json_value state <"$system_dir/push-job-open.json")" = "failing" ]
+push_job_incident=$(json_value open_incident_id <"$system_dir/push-job-open.json")
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push incidents system-project nightly-push --json >"$system_dir/push-job-one-incident.json"
+node -e '
+  const page = require(process.argv[1]);
+  if (page.items.length !== 1 || page.items[0].id !== process.argv[2] || page.items[0].resolved_at !== null) process.exit(1);
+' "$system_dir/push-job-one-incident.json" "$push_job_incident"
+
+# The state-report mode follows the same immediate incident rule and retains one
+# incident across repeated failure.
+push_state_failure_id=$(node -e 'process.stdout.write(require("node:crypto").randomUUID())')
+push_state_failure_at=$(node -e 'process.stdout.write(new Date(Date.now() - 1000).toISOString())')
+node -e '
+  process.stdout.write(JSON.stringify({ report_id: process.argv[1], observed_at: process.argv[2], outcome: "failure", reason: "fictional state failed" }));
+' "$push_state_failure_id" "$push_state_failure_at" >"$system_dir/push-state-failure-input.json"
+curl --fail --silent --show-error \
+  --request POST --header "Authorization: Bearer $push_state_token" \
+  --header 'Content-Type: application/json' --data-binary @"$system_dir/push-state-failure-input.json" \
+  "$base_url/api/reports" >"$system_dir/push-state-failure-receipt.json"
+push_state_repeat_id=$(node -e 'process.stdout.write(require("node:crypto").randomUUID())')
+push_state_repeat_at=$(node -e 'process.stdout.write(new Date().toISOString())')
+node -e '
+  process.stdout.write(JSON.stringify({ report_id: process.argv[1], observed_at: process.argv[2], outcome: "failure", reason: "fictional state still failed" }));
+' "$push_state_repeat_id" "$push_state_repeat_at" >"$system_dir/push-state-repeat-input.json"
+curl --fail --silent --show-error \
+  --request POST --header "Authorization: Bearer $push_state_token" \
+  --header 'Content-Type: application/json' --data-binary @"$system_dir/push-state-repeat-input.json" \
+  "$base_url/api/reports" >"$system_dir/push-state-repeat-receipt.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push get system-project state-push --json >"$system_dir/push-state-open.json"
+push_state_incident=$(json_value open_incident_id <"$system_dir/push-state-open.json")
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push incidents system-project state-push --json >"$system_dir/push-state-one-incident.json"
+node -e '
+  const page = require(process.argv[1]);
+  if (page.items.length !== 1 || page.items[0].id !== process.argv[2] || page.items[0].resolved_at !== null) process.exit(1);
+' "$system_dir/push-state-one-incident.json" "$push_state_incident"
+echo "push reports opened one incident per monitor"
+
+# Restart with both incidents open. PostgreSQL preserves the current state,
+# incident identity, and each persisted deadline.
+push_job_open_deadline=$(json_value next_deadline_at <"$system_dir/push-job-open.json")
+push_state_open_deadline=$(json_value next_deadline_at <"$system_dir/push-state-open.json")
+UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
+  docker compose -p "$smoke_project" -f "$compose_file" restart app >/dev/null
+UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
+  docker compose -p "$smoke_project" -f "$compose_file" up --wait >/dev/null
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push get system-project nightly-push --json >"$system_dir/push-job-after-open-restart.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push get system-project state-push --json >"$system_dir/push-state-after-open-restart.json"
+[ "$(json_value open_incident_id <"$system_dir/push-job-after-open-restart.json")" = "$push_job_incident" ]
+[ "$(json_value next_deadline_at <"$system_dir/push-job-after-open-restart.json")" = "$push_job_open_deadline" ]
+[ "$(json_value open_incident_id <"$system_dir/push-state-after-open-restart.json")" = "$push_state_incident" ]
+[ "$(json_value next_deadline_at <"$system_dir/push-state-after-open-restart.json")" = "$push_state_open_deadline" ]
+echo "push incidents and deadlines survived restart"
+
+# Fresh successes resolve the retained incidents. The browser-session path then
+# reads exactly the same monitor facts that the CLI observes.
+push_job_recovery_id=$(node -e 'process.stdout.write(require("node:crypto").randomUUID())')
+push_state_recovery_id=$(node -e 'process.stdout.write(require("node:crypto").randomUUID())')
+push_recovery_at=$(node -e 'process.stdout.write(new Date().toISOString())')
+node -e '
+  process.stdout.write(JSON.stringify({ report_id: process.argv[1], observed_at: process.argv[2], outcome: "success", reason: null }));
+' "$push_job_recovery_id" "$push_recovery_at" >"$system_dir/push-job-recovery-input.json"
+node -e '
+  process.stdout.write(JSON.stringify({ report_id: process.argv[1], observed_at: process.argv[2], outcome: "success", reason: null }));
+' "$push_state_recovery_id" "$push_recovery_at" >"$system_dir/push-state-recovery-input.json"
+curl --fail --silent --show-error \
+  --request POST --header "Authorization: Bearer $push_job_token" \
+  --header 'Content-Type: application/json' --data-binary @"$system_dir/push-job-recovery-input.json" \
+  "$base_url/api/reports" >"$system_dir/push-job-recovery-receipt.json"
+curl --fail --silent --show-error \
+  --request POST --header "Authorization: Bearer $push_state_token" \
+  --header 'Content-Type: application/json' --data-binary @"$system_dir/push-state-recovery-input.json" \
+  "$base_url/api/reports" >"$system_dir/push-state-recovery-receipt.json"
+curl --fail --silent --show-error --cookie "$cookie_jar" \
+  "$base_url/api/projects/system-project/push-monitors/nightly-push" \
+  >"$system_dir/push-job-browser-recovery.json"
+curl --fail --silent --show-error --cookie "$cookie_jar" \
+  "$base_url/api/projects/system-project/push-monitors/state-push" \
+  >"$system_dir/push-state-browser-recovery.json"
+[ "$(json_value state <"$system_dir/push-job-browser-recovery.json")" = "healthy" ]
+[ "$(json_value state <"$system_dir/push-state-browser-recovery.json")" = "healthy" ]
+echo "fresh push reports recovered both monitors"
+
+# A second restart before the fresh deadlines proves the plans survive. Then
+# wait for both interval-plus-tolerance boundaries and observe one synthetic
+# missing-report failure for each mode.
+push_job_recovery_deadline=$(json_value next_deadline_at <"$system_dir/push-job-browser-recovery.json")
+push_state_recovery_deadline=$(json_value next_deadline_at <"$system_dir/push-state-browser-recovery.json")
+UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
+  docker compose -p "$smoke_project" -f "$compose_file" restart app >/dev/null
+UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
+  docker compose -p "$smoke_project" -f "$compose_file" up --wait >/dev/null
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push get system-project nightly-push --json >"$system_dir/push-job-before-missing.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push get system-project state-push --json >"$system_dir/push-state-before-missing.json"
+push_job_restarted_deadline=$(json_value next_deadline_at <"$system_dir/push-job-before-missing.json")
+push_state_restarted_deadline=$(json_value next_deadline_at <"$system_dir/push-state-before-missing.json")
+node -e '
+  if (Date.parse(process.argv[1]) !== Date.parse(process.argv[2])) {
+    console.error("job push deadline changed across restart: " + process.argv[1] + " -> " + process.argv[2]);
+    process.exit(1);
+  }
+' "$push_job_recovery_deadline" "$push_job_restarted_deadline"
+node -e '
+  if (Date.parse(process.argv[1]) !== Date.parse(process.argv[2])) {
+    console.error("state push deadline changed across restart: " + process.argv[1] + " -> " + process.argv[2]);
+    process.exit(1);
+  }
+' "$push_state_recovery_deadline" "$push_state_restarted_deadline"
+
+push_missing_ready=false
+attempt=0
+while [ "$attempt" -lt 60 ]; do
+  UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+    "$ua" push reports system-project nightly-push --json >"$system_dir/push-job-reports.json"
+  UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+    "$ua" push reports system-project state-push --json >"$system_dir/push-state-reports.json"
+  if node -e '
+    const job = require(process.argv[1]);
+    const state = require(process.argv[2]);
+    if (!job.items.some(item => item.reason === "report_missing")) process.exit(1);
+    if (!state.items.some(item => item.reason === "report_missing")) process.exit(1);
+  ' "$system_dir/push-job-reports.json" "$system_dir/push-state-reports.json"; then
+    push_missing_ready=true
+    break
+  fi
+  attempt=$((attempt + 1))
+  sleep 1
+done
+[ "$push_missing_ready" = "true" ]
+echo "both push modes detected a missing report"
+
+# Pause and resume start a fresh untested generation while retaining the open
+# missing-report incident. Exercise one mode through the CLI and the other
+# through the browser-session operations used by the web application.
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push get system-project nightly-push --json >"$system_dir/push-job-missing.json"
+push_job_missing_incident=$(json_value open_incident_id <"$system_dir/push-job-missing.json")
+push_job_version=$(json_value version <"$system_dir/push-job-missing.json")
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push pause system-project nightly-push --version "$push_job_version" --json \
+  >"$system_dir/push-job-pause.json"
+push_job_version=$(json_value version <"$system_dir/push-job-pause.json")
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push resume system-project nightly-push --version "$push_job_version" --json \
+  >"$system_dir/push-job-resume.json"
+[ "$(json_value state <"$system_dir/push-job-resume.json")" = "untested" ]
+[ "$(json_value open_incident_id <"$system_dir/push-job-resume.json")" = "$push_job_missing_incident" ]
+
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push get system-project state-push --json >"$system_dir/push-state-missing.json"
+push_state_missing_incident=$(json_value open_incident_id <"$system_dir/push-state-missing.json")
+push_state_version=$(json_value version <"$system_dir/push-state-missing.json")
+curl --fail --silent --show-error \
+  --cookie "$cookie_jar" --request POST \
+  --header 'Content-Type: application/json' --header 'X-Upaffe-CSRF: 1' --header "Origin: $origin" \
+  --data-binary "{\"version\":$push_state_version}" \
+  "$base_url/api/projects/system-project/push-monitors/state-push/pause" \
+  >"$system_dir/push-state-browser-pause.json"
+push_state_version=$(json_value version <"$system_dir/push-state-browser-pause.json")
+curl --fail --silent --show-error \
+  --cookie "$cookie_jar" --request POST \
+  --header 'Content-Type: application/json' --header 'X-Upaffe-CSRF: 1' --header "Origin: $origin" \
+  --data-binary "{\"version\":$push_state_version}" \
+  "$base_url/api/projects/system-project/push-monitors/state-push/resume" \
+  >"$system_dir/push-state-browser-resume.json"
+[ "$(json_value state <"$system_dir/push-state-browser-resume.json")" = "untested" ]
+[ "$(json_value open_incident_id <"$system_dir/push-state-browser-resume.json")" = "$push_state_missing_incident" ]
+
+# Only new-generation reports resolve the retained incidents.
+push_job_fresh_id=$(node -e 'process.stdout.write(require("node:crypto").randomUUID())')
+push_state_fresh_id=$(node -e 'process.stdout.write(require("node:crypto").randomUUID())')
+push_fresh_at=$(node -e 'process.stdout.write(new Date().toISOString())')
+node -e '
+  process.stdout.write(JSON.stringify({ report_id: process.argv[1], observed_at: process.argv[2], outcome: "success", reason: null }));
+' "$push_job_fresh_id" "$push_fresh_at" >"$system_dir/push-job-fresh-input.json"
+node -e '
+  process.stdout.write(JSON.stringify({ report_id: process.argv[1], observed_at: process.argv[2], outcome: "success", reason: null }));
+' "$push_state_fresh_id" "$push_fresh_at" >"$system_dir/push-state-fresh-input.json"
+curl --fail --silent --show-error --request POST \
+  --header "Authorization: Bearer $push_job_token" --header 'Content-Type: application/json' \
+  --data-binary @"$system_dir/push-job-fresh-input.json" "$base_url/api/reports" \
+  >"$system_dir/push-job-fresh-receipt.json"
+curl --fail --silent --show-error --request POST \
+  --header "Authorization: Bearer $push_state_token" --header 'Content-Type: application/json' \
+  --data-binary @"$system_dir/push-state-fresh-input.json" "$base_url/api/reports" \
+  >"$system_dir/push-state-fresh-receipt.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push get system-project nightly-push --json >"$system_dir/push-job-fresh.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push get system-project state-push --json >"$system_dir/push-state-fresh.json"
+[ "$(json_value state <"$system_dir/push-job-fresh.json")" = "healthy" ]
+[ "$(json_value state <"$system_dir/push-state-fresh.json")" = "healthy" ]
+echo "push pause and resume started fresh windows"
+
+# Reporting rotation accepts both job secrets during overlap. Revocation then
+# rejects the old token and the rotated secret URL immediately. The state
+# credential is revoked independently and its secret URL is rejected too.
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push credential rotate system-project nightly-push --json \
+  >"$system_dir/push-job-credential-rotated.json"
+push_job_rotated_token=$(json_value token <"$system_dir/push-job-credential-rotated.json")
+push_job_rotated_url=$(json_value report_url <"$system_dir/push-job-credential-rotated.json")
+push_job_rotated_url_secret=${push_job_rotated_url##*/}
+push_job_overlap_id=$(node -e 'process.stdout.write(require("node:crypto").randomUUID())')
+push_job_overlap_at=$(node -e 'process.stdout.write(new Date().toISOString())')
+node -e '
+  process.stdout.write(JSON.stringify({ report_id: process.argv[1], observed_at: process.argv[2], outcome: "success", reason: null }));
+' "$push_job_overlap_id" "$push_job_overlap_at" >"$system_dir/push-job-overlap-input.json"
+curl --fail --silent --show-error --request POST \
+  --header "Authorization: Bearer $push_job_token" --header 'Content-Type: application/json' \
+  --data-binary @"$system_dir/push-job-overlap-input.json" "$base_url/api/reports" \
+  >"$system_dir/push-job-overlap-receipt.json"
+curl --fail --silent --show-error --request POST "${base_url}${push_job_rotated_url}" \
+  >"$system_dir/push-job-rotated-simple.txt"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push credential revoke system-project nightly-push --json \
+  >"$system_dir/push-job-credential-revoked.json"
+
+push_revoked_status=$(curl --silent --show-error --output "$system_dir/push-job-revoked.json" \
+  --write-out '%{http_code}' --request POST "${base_url}${push_job_rotated_url}")
+[ "$push_revoked_status" = "401" ]
+grep 'reporting_rejected' "$system_dir/push-job-revoked.json" >/dev/null
+push_revoked_old_status=$(curl --silent --show-error --output "$system_dir/push-job-old-revoked.json" \
+  --write-out '%{http_code}' --request POST \
+  --header "Authorization: Bearer $push_job_token" --header 'Content-Type: application/json' \
+  --data-binary @"$system_dir/push-job-overlap-input.json" "$base_url/api/reports")
+[ "$push_revoked_old_status" = "401" ]
+
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push credential revoke system-project state-push --json \
+  >"$system_dir/push-state-credential-revoked.json"
+push_state_revoked_status=$(curl --silent --show-error --output "$system_dir/push-state-revoked.json" \
+  --write-out '%{http_code}' --request POST "${base_url}${push_state_url}")
+[ "$push_state_revoked_status" = "401" ]
+grep 'reporting_rejected' "$system_dir/push-state-revoked.json" >/dev/null
+echo "push credential rotation and revocation passed"
+
 # Rotation admits both tokens during overlap. Revocation rejects both immediately.
 UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
   "$ua" credential rotate "$credential_id" --json >"$system_dir/credential-rotated.json"
@@ -490,6 +859,51 @@ $system_dir/monitor-recovery-update.json
 $system_dir/monitor-cli-resume.json
 $system_dir/monitor-browser-test-recovery.json
 $system_dir/monitor-resolved-incident.json
+$system_dir/push-job-create.json
+$system_dir/push-state-create.json
+$system_dir/push-reporting-token-read.txt
+$system_dir/push-reporting-token-read-diagnostic.txt
+$system_dir/push-state-simple-success.txt
+$system_dir/push-state-after-simple.json
+$system_dir/push-job-success-receipt.json
+$system_dir/push-state-after-job-report.json
+$system_dir/push-job-failure-receipt.json
+$system_dir/push-job-duplicate-receipt.json
+$system_dir/push-job-repeat-receipt.json
+$system_dir/push-job-old-success-receipt.json
+$system_dir/push-job-open.json
+$system_dir/push-job-one-incident.json
+$system_dir/push-state-failure-receipt.json
+$system_dir/push-state-repeat-receipt.json
+$system_dir/push-state-open.json
+$system_dir/push-state-one-incident.json
+$system_dir/push-job-after-open-restart.json
+$system_dir/push-state-after-open-restart.json
+$system_dir/push-job-recovery-receipt.json
+$system_dir/push-state-recovery-receipt.json
+$system_dir/push-job-browser-recovery.json
+$system_dir/push-state-browser-recovery.json
+$system_dir/push-job-before-missing.json
+$system_dir/push-state-before-missing.json
+$system_dir/push-job-reports.json
+$system_dir/push-state-reports.json
+$system_dir/push-job-missing.json
+$system_dir/push-job-pause.json
+$system_dir/push-job-resume.json
+$system_dir/push-state-missing.json
+$system_dir/push-state-browser-pause.json
+$system_dir/push-state-browser-resume.json
+$system_dir/push-job-fresh-receipt.json
+$system_dir/push-state-fresh-receipt.json
+$system_dir/push-job-fresh.json
+$system_dir/push-state-fresh.json
+$system_dir/push-job-overlap-receipt.json
+$system_dir/push-job-rotated-simple.txt
+$system_dir/push-job-credential-revoked.json
+$system_dir/push-job-revoked.json
+$system_dir/push-job-old-revoked.json
+$system_dir/push-state-credential-revoked.json
+$system_dir/push-state-revoked.json
 $system_dir/revoke-response.txt
 $system_dir/revoked-output.txt
 $system_dir/revoked-diagnostic.txt
@@ -497,11 +911,18 @@ $system_dir/revoked-old-output.txt
 $system_dir/revoked-old-diagnostic.txt
 $system_dir/app.log
 "
+# The newline-delimited variable is intentionally split into path arguments.
 assert_absent "$bootstrap_proof" $ordinary_files
 assert_absent "$operator_password" $ordinary_files
 assert_absent "$session_secret" $ordinary_files
 assert_absent "$credential_token" $ordinary_files
 assert_absent "$rotated_token" $ordinary_files
 assert_absent "$monitor_header_secret" $ordinary_files
+assert_absent "$push_job_token" $ordinary_files
+assert_absent "$push_job_url_secret" $ordinary_files
+assert_absent "$push_state_token" $ordinary_files
+assert_absent "$push_state_url_secret" $ordinary_files
+assert_absent "$push_job_rotated_token" $ordinary_files
+assert_absent "$push_job_rotated_url_secret" $ordinary_files
 
-echo "access, project, and HTTP monitoring system test passed"
+echo "access, project, HTTP monitoring, and push monitoring system test passed"

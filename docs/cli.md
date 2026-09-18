@@ -224,6 +224,10 @@ cursor. Text mode writes one tab-separated result per line.
 
 ### Push monitors
 
+For the complete reporting lifecycle across CLI, web, deadlines, incidents,
+storage, and security boundaries, see
+[the push monitoring guide](./push-monitoring.md).
+
 `push` manages both `job_completion` and `state_report` monitors through
 explicit project and monitor keys. Create and update read exactly one bounded
 JSON object from `--file PATH` or `--file -`; no prompt, editor, or pager is
@@ -273,5 +277,8 @@ A caller that only signals success may use the one-time secret URL returned by
 the issue or rotate command:
 
 ```sh
-curl --fail-with-body --request POST "$UPAFFE_REPORT_URL"
+curl --fail-with-body --request POST "$UPAFFE_ORIGIN$UPAFFE_REPORT_PATH"
 ```
+
+The issued `report_url` is an instance-relative path. Combine it only with the
+same trusted origin used for management requests.
