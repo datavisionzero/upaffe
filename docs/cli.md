@@ -89,6 +89,19 @@ ua monitor checks PROJECT_KEY MONITOR_KEY [--before-sequence N] [--limit N] [--u
 ua monitor incidents PROJECT_KEY MONITOR_KEY [--before-opening-sequence N] [--limit N] [--url ADDRESS] [--credential TOKEN] [--json]
 ua monitor header set PROJECT_KEY MONITOR_KEY NAME --file PATH|- [--url ADDRESS] [--credential TOKEN] [--json]
 ua monitor header remove PROJECT_KEY MONITOR_KEY NAME --version VERSION [--url ADDRESS] [--credential TOKEN] [--json]
+ua push create PROJECT_KEY --file PATH|- [--url ADDRESS] [--credential TOKEN] [--json]
+ua push list PROJECT_KEY [--url ADDRESS] [--credential TOKEN] [--json]
+ua push get PROJECT_KEY MONITOR_KEY [--url ADDRESS] [--credential TOKEN] [--json]
+ua push update PROJECT_KEY MONITOR_KEY --file PATH|- [--url ADDRESS] [--credential TOKEN] [--json]
+ua push delete PROJECT_KEY MONITOR_KEY --version VERSION [--url ADDRESS] [--credential TOKEN] [--json]
+ua push pause PROJECT_KEY MONITOR_KEY --version VERSION [--url ADDRESS] [--credential TOKEN] [--json]
+ua push resume PROJECT_KEY MONITOR_KEY --version VERSION [--url ADDRESS] [--credential TOKEN] [--json]
+ua push reports PROJECT_KEY MONITOR_KEY [--before-sequence N] [--limit N] [--url ADDRESS] [--credential TOKEN] [--json]
+ua push incidents PROJECT_KEY MONITOR_KEY [--before-opening-sequence N] [--limit N] [--url ADDRESS] [--credential TOKEN] [--json]
+ua push credential issue PROJECT_KEY MONITOR_KEY [--url ADDRESS] [--credential TOKEN] [--json]
+ua push credential get PROJECT_KEY MONITOR_KEY [--url ADDRESS] [--credential TOKEN] [--json]
+ua push credential rotate PROJECT_KEY MONITOR_KEY [--url ADDRESS] [--credential TOKEN] [--json]
+ua push credential revoke PROJECT_KEY MONITOR_KEY [--url ADDRESS] [--credential TOKEN] [--json]
 ```
 
 `version` prints the CLI build version and never accesses the network. `status`
@@ -208,3 +221,57 @@ transport, authentication, and API failures retain their ordinary categories.
 exclusive and `--limit` accepts 1 through 100; omitting the limit lets the API
 use its default of 50. JSON mode writes the page object including its next
 cursor. Text mode writes one tab-separated result per line.
+
+### Push monitors
+
+`push` manages both `job_completion` and `state_report` monitors through
+explicit project and monitor keys. Create and update read exactly one bounded
+JSON object from `--file PATH` or `--file -`; no prompt, editor, or pager is
+available. A job-completion create document is:
+
+```json
+{
+  "key": "nightly-backup",
+  "name": "Nightly backup",
+  "mode": "job_completion",
+  "interval_seconds": 86400,
+  "tolerance_seconds": 3600,
+  "instruction": "Inspect the backup log",
+  "runbook_url": "https://docs.example.test/runbooks/nightly-backup"
+}
+```
+
+Update omits the immutable key and mode and includes the positive `version`
+last read. Delete, pause, and resume likewise require that version. Ordinary
+text and JSON output contains mode, state, last receipt, latest report and
+success IDs, next deadline, open incident ID, and whether a reporting
+credential exists; it never contains the credential secret or secret URL.
+
+`push credential issue` and `push credential rotate` are explicit
+secret-producing commands and reveal the new token and secret reporting URL in
+their successful output. `get` returns only safe credential identity and
+lifecycle timestamps, while `revoke` returns only the monitor identity and
+revoked state. Store an issued value immediately; it is not recoverable later.
+
+`push reports` and `push incidents` use the same exclusive cursor and 1-100
+page-size rules as HTTP history. Report output includes stable reason codes and
+applicability but omits sender diagnostic text. Remote problem bodies are never
+copied into diagnostics, and conflicts and validation errors retain exit code
+4.
+
+JSON reporting uses the monitor-scoped token, a retry-stable report ID, and the
+sender observation time:
+
+```sh
+curl --fail-with-body https://monitor.example.test/api/reports \
+  --header "Authorization: Bearer $UPAFFE_REPORTING_TOKEN" \
+  --header 'Content-Type: application/json' \
+  --data '{"report_id":"018f47f0-9f5d-7c63-9dc2-0bdf2fc2566f","observed_at":"2026-09-18T12:00:00Z","outcome":"success","reason":null}'
+```
+
+A caller that only signals success may use the one-time secret URL returned by
+the issue or rotate command:
+
+```sh
+curl --fail-with-body --request POST "$UPAFFE_REPORT_URL"
+```

@@ -298,6 +298,13 @@ only its reference. An immediate check failure has its own process category
 after its structured result is written; HTTP/API failures retain the shared
 categories.
 
+The same generated-client boundary backs `ua push` create/list/detail/update,
+pause/resume/removal, credential lifecycle, and paginated report/incident
+history. Structured monitor definitions come only from the shared bounded
+file/stdin reader. Ordinary output is built from secret-free monitor, history,
+and credential-metadata responses; only explicit credential issue and rotate
+commands render the one-time token and secret reporting URL.
+
 HTTP monitor entities validate the durable limits from ADR 0004 and retain the
 state and observation ordering from ADR 0003 without taking a dependency on EF
 Core. Infrastructure maps them to PostgreSQL with a project-scoped immutable
