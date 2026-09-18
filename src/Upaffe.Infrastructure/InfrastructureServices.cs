@@ -27,6 +27,7 @@ public static class InfrastructureServices
         services.AddScoped<IProjectStore, ProjectStore>();
         services.AddScoped<IHttpMonitorStore, HttpMonitorStore>();
         services.AddScoped<IPushMonitorStore, PushMonitorStore>();
+        services.AddScoped<IReportingCredentialStore, ReportingCredentialStore>();
         services.AddScoped<IHttpMonitorHistoryStore, HttpMonitorHistoryStore>();
         services.AddScoped<IScheduledHttpCheckStore, ScheduledHttpCheckStore>();
         services.AddSingleton<IHostResolver, SystemHostResolver>();

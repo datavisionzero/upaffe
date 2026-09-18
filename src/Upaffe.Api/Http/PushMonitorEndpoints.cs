@@ -23,6 +23,10 @@ public sealed record PushMonitorResponse(Guid Id, string ProjectKey, string Key,
     Guid? OpenIncidentId, bool HasReportingCredential, long Version, DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt, DateTimeOffset? PausedAt, DateTimeOffset? DeletedAt);
 
+public sealed record ReportingCredentialResponse(Guid Id, DateTimeOffset CreatedAt, DateTimeOffset? RotatedAt, DateTimeOffset? RevokedAt);
+public sealed record IssuedReportingCredentialResponse(Guid Id, string Token, string ReportUrl, DateTimeOffset CreatedAt,
+    DateTimeOffset? RotatedAt, DateTimeOffset? PreviousValidUntil);
+
 public static class PushMonitorEndpoints
 {
     public static IEndpointRouteBuilder MapPushMonitors(this IEndpointRouteBuilder endpoints)
@@ -64,6 +68,30 @@ public static class PushMonitorEndpoints
             CancellationToken cancellationToken, string version = "") => Response(await remove.ExecuteAsync(http.ActingIdentity(), projectKey,
                 monitorKey, long.TryParse(version, out var parsed) ? parsed : null, cancellationToken)))
             .WithName("RemovePushMonitor").WithSummary("Remove a push monitor while retaining history and its key.").Produces<PushMonitorResponse>().Produces<ProblemResponse>(400).Produces<ProblemResponse>(401).Produces<ProblemResponse>(404).Produces<ProblemResponse>(409);
+
+        monitors.MapPost("/{monitorKey}/reporting-credential", async (string projectKey, string monitorKey, HttpContext http,
+            IssueReportingCredential issue, CancellationToken cancellationToken) => Results.Created(
+                $"/api/projects/{projectKey}/push-monitors/{monitorKey}/reporting-credential",
+                Issued(await issue.ExecuteAsync(http.ActingIdentity(), projectKey, monitorKey, cancellationToken))))
+            .WithName("IssueReportingCredential").WithSummary("Issue and reveal a monitor reporting secret once.")
+            .Produces<IssuedReportingCredentialResponse>(201).Produces<ProblemResponse>(401).Produces<ProblemResponse>(404).Produces<ProblemResponse>(409);
+        monitors.MapGet("/{monitorKey}/reporting-credential", async (string projectKey, string monitorKey, HttpContext http,
+            ReadReportingCredential read, CancellationToken cancellationToken) => Metadata(
+                await read.ExecuteAsync(http.ActingIdentity(), projectKey, monitorKey, cancellationToken)))
+            .WithName("ReadReportingCredential").WithSummary("Read reporting credential metadata without its secret.")
+            .Produces<ReportingCredentialResponse>().Produces<ProblemResponse>(401).Produces<ProblemResponse>(404);
+        monitors.MapPost("/{monitorKey}/reporting-credential/rotate", async (string projectKey, string monitorKey, HttpContext http,
+            RotateReportingCredential rotate, CancellationToken cancellationToken) => Issued(
+                await rotate.ExecuteAsync(http.ActingIdentity(), projectKey, monitorKey, cancellationToken)))
+            .WithName("RotateReportingCredential").WithSummary("Rotate and reveal a new reporting secret once.")
+            .Produces<IssuedReportingCredentialResponse>().Produces<ProblemResponse>(401).Produces<ProblemResponse>(404).Produces<ProblemResponse>(409);
+        monitors.MapDelete("/{monitorKey}/reporting-credential", async (string projectKey, string monitorKey, HttpContext http,
+            RevokeReportingCredential revoke, CancellationToken cancellationToken) =>
+        {
+            await revoke.ExecuteAsync(http.ActingIdentity(), projectKey, monitorKey, cancellationToken);
+            return Results.NoContent();
+        }).WithName("RevokeReportingCredential").WithSummary("Revoke the monitor reporting credential immediately.")
+            .Produces(204).Produces<ProblemResponse>(401).Produces<ProblemResponse>(404);
         return endpoints;
     }
 
@@ -72,4 +100,11 @@ public static class PushMonitorEndpoints
         value.ToleranceSeconds, value.Instruction, value.RunbookUrl, value.State.ToString().ToLowerInvariant(), value.LastReceivedAt,
         value.NextDeadlineAt, value.LatestReportId, value.LatestSuccessId, value.OpenIncidentId, value.HasReportingCredential,
         value.Version, value.CreatedAt, value.UpdatedAt, value.PausedAt, value.DeletedAt);
+
+    private static ReportingCredentialResponse Metadata(ReportingCredentialMetadata value) =>
+        new(value.Id, value.CreatedAt, value.RotatedAt, value.RevokedAt);
+
+    private static IssuedReportingCredentialResponse Issued(IssuedReportingCredential value) =>
+        new(value.Credential.Id, value.Token, $"/api/report/{value.Token}", value.Credential.CreatedAt,
+            value.Credential.RotatedAt, value.PreviousValidUntil);
 }

@@ -49,6 +49,10 @@ secret supplied in the request body.
 | `DELETE /api/projects/{projectKey}/push-monitors/{monitorKey}?version={version}` | Remove a push monitor while retaining its identity and history. |
 | `POST /api/projects/{projectKey}/push-monitors/{monitorKey}/pause` | Pause a push monitor. |
 | `POST /api/projects/{projectKey}/push-monitors/{monitorKey}/resume` | Resume with a fresh initial reporting window. |
+| `POST /api/projects/{projectKey}/push-monitors/{monitorKey}/reporting-credential` | Issue and reveal the monitor's reporting token and secret URL once. |
+| `GET /api/projects/{projectKey}/push-monitors/{monitorKey}/reporting-credential` | Read non-secret reporting credential metadata. |
+| `POST /api/projects/{projectKey}/push-monitors/{monitorKey}/reporting-credential/rotate` | Reveal a replacement with five-minute overlap. |
+| `DELETE /api/projects/{projectKey}/push-monitors/{monitorKey}/reporting-credential` | Revoke all reporting secrets immediately. |
 | `GET /api/openapi/v1.json` | The generated OpenAPI document. It does not list itself. |
 
 Every routed endpoint declares exactly one access boundary. Version, health,
@@ -234,6 +238,15 @@ Pause clears the deadline. Resume starts a fresh evaluation generation in
 open incident. Removal hides ordinary reads and lists and revokes an existing
 reporting credential. Invalid values return `400`, missing associations `404`,
 and stale versions, deleted resources, or conflicting creates `409`.
+
+Reporting credential issue and rotation are the only responses containing the
+`uar_` token and its `/api/report/{secret}` URL; callers must store them before
+discarding the response. Metadata and monitor responses never reveal either.
+Rotation keeps the preceding digest valid for five minutes and reports that
+expiry; revocation is idempotent and rejects all current and overlapping
+secrets immediately. The credential is bound to one monitor and grants neither
+read nor management access. Application request logging must redact the secret
+segment, and reverse proxies must apply an equivalent path-redaction rule.
 
 ## Contract rule
 

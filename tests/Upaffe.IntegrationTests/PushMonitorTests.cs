@@ -52,11 +52,35 @@ public sealed class PushMonitorTests(PostgresFixture postgres)
         var updated = await Read(await JsonAsync(client, HttpMethod.Put, "/api/projects/backups/push-monitors/nightly-backup",
             new UpdatePushMonitorRequest("Renamed backup", 43200, 1800, null, null, resumed.Version), token));
         Assert.Equal("Renamed backup", updated.Name);
+
+        using var issuedReporting = await Send(client, HttpMethod.Post,
+            "/api/projects/backups/push-monitors/nightly-backup/reporting-credential", token);
+        Assert.Equal(HttpStatusCode.Created, issuedReporting.StatusCode);
+        var issuedJson = await issuedReporting.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var reportingToken = JsonDocument.Parse(issuedJson).RootElement.GetProperty("token").GetString()!;
+        Assert.StartsWith("uar_", reportingToken, StringComparison.Ordinal);
+        using var metadata = await Send(client, HttpMethod.Get,
+            "/api/projects/backups/push-monitors/nightly-backup/reporting-credential", token);
+        var metadataJson = await metadata.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.DoesNotContain(reportingToken, metadataJson, StringComparison.Ordinal);
+        using var noManagement = await Send(client, HttpMethod.Get, "/api/projects/backups/push-monitors", reportingToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, noManagement.StatusCode);
+        using var rotated = await Send(client, HttpMethod.Post,
+            "/api/projects/backups/push-monitors/nightly-backup/reporting-credential/rotate", token);
+        var rotatedJson = await rotated.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.DoesNotContain(reportingToken, rotatedJson, StringComparison.Ordinal);
+        Assert.Contains("previous_valid_until", rotatedJson, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.NoContent, (await Send(client, HttpMethod.Delete,
+            "/api/projects/backups/push-monitors/nightly-backup/reporting-credential", token)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Send(client, HttpMethod.Delete,
+            "/api/projects/backups/push-monitors/nightly-backup/reporting-credential", token)).StatusCode);
+
         using var stale = await JsonAsync(client, HttpMethod.Put, "/api/projects/backups/push-monitors/nightly-backup",
             new UpdatePushMonitorRequest("Stale", 43200, 1800, null, null, resumed.Version), token);
         Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
 
-        using var removed = await Send(client, HttpMethod.Delete, $"/api/projects/backups/push-monitors/nightly-backup?version={updated.Version}", token);
+        var refreshed = await Read(await Send(client, HttpMethod.Get, "/api/projects/backups/push-monitors/nightly-backup", token));
+        using var removed = await Send(client, HttpMethod.Delete, $"/api/projects/backups/push-monitors/nightly-backup?version={refreshed.Version}", token);
         Assert.Equal(HttpStatusCode.OK, removed.StatusCode);
         using var missing = await Send(client, HttpMethod.Get, "/api/projects/backups/push-monitors/nightly-backup", token);
         Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
