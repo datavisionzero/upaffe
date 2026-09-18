@@ -5,6 +5,7 @@ import { api } from "@/api/client";
 import { csrfHeaders, problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
 import { MonitorsView } from "@/shell/MonitorsView";
+import { PushMonitorsView } from "@/shell/PushMonitorsView";
 
 type Project = components["schemas"]["ProjectResponse"];
 type Session = components["schemas"]["CurrentSessionResponse"];
@@ -23,6 +24,7 @@ export function ProjectsView({ session, onSignedOut }: Props) {
   const [key, setKey] = useState("");
   const [name, setName] = useState("");
   const [selectedProject, setSelectedProject] = useState<Project>();
+  const [monitorKind, setMonitorKind] = useState<"http" | "push">("http");
 
   const load = useCallback(async () => {
     try {
@@ -121,9 +123,20 @@ export function ProjectsView({ session, onSignedOut }: Props) {
   }
 
   if (selectedProject) {
+    if (monitorKind === "push") {
+      return (
+        <PushMonitorsView
+          onBack={() => setSelectedProject(undefined)}
+          onOpenHttp={() => setMonitorKind("http")}
+          onSignedOut={onSignedOut}
+          project={selectedProject}
+        />
+      );
+    }
     return (
       <MonitorsView
         onBack={() => setSelectedProject(undefined)}
+        onOpenPush={() => setMonitorKind("push")}
         onSignedOut={onSignedOut}
         project={selectedProject}
       />

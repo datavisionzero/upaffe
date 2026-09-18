@@ -118,7 +118,7 @@ describe("HTTP monitor administration", () => {
       if (path.endsWith("/http-monitors/untested")) return json(monitors[0]);
       return history(request) ?? json({ code: "not_found", title: "ignored", status: 404 }, 404);
     });
-    render(<MonitorsView onBack={vi.fn()} onSignedOut={vi.fn()} project={project} />);
+    render(<MonitorsView onBack={vi.fn()} onOpenPush={vi.fn()} onSignedOut={vi.fn()} project={project} />);
 
     expect(screen.getByRole("status")).toHaveTextContent("Loading monitors");
     list.resolve(json(monitors));
@@ -162,7 +162,7 @@ describe("HTTP monitor administration", () => {
       if (path.endsWith("/http-monitors/homepage")) return json(stored);
       return history(request) ?? json({ code: "not_found", title: "ignored", status: 404 }, 404);
     });
-    render(<MonitorsView onBack={vi.fn()} onSignedOut={vi.fn()} project={project} />);
+    render(<MonitorsView onBack={vi.fn()} onOpenPush={vi.fn()} onSignedOut={vi.fn()} project={project} />);
     const user = userEvent.setup();
     await screen.findByText("No HTTP monitors yet.");
 
@@ -275,7 +275,7 @@ describe("HTTP monitor administration", () => {
       }
       throw new Error(`Unexpected ${request.method} ${path}`);
     });
-    render(<MonitorsView onBack={vi.fn()} onSignedOut={vi.fn()} project={project} />);
+    render(<MonitorsView onBack={vi.fn()} onOpenPush={vi.fn()} onSignedOut={vi.fn()} project={project} />);
     const user = userEvent.setup();
     await screen.findByText("Failing below threshold · 1/3 failures");
     const open = screen.getByRole("button", { name: "Open details" });
@@ -331,7 +331,7 @@ describe("HTTP monitor administration", () => {
       if (path.endsWith("/pause")) return json({ code: "conflict", title: "must-not-render", status: 409 }, 409);
       return history(request) ?? json({ code: "not_found", title: "ignored", status: 404 }, 404);
     });
-    render(<MonitorsView onBack={vi.fn()} onSignedOut={vi.fn()} project={project} />);
+    render(<MonitorsView onBack={vi.fn()} onOpenPush={vi.fn()} onSignedOut={vi.fn()} project={project} />);
     const user = userEvent.setup();
     await screen.findByRole("button", { name: "Open details" });
     await user.click(screen.getByRole("button", { name: "Open details" }));

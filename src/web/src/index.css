@@ -377,6 +377,37 @@ h2 {
   white-space: pre-wrap;
 }
 
+.mode-explanation {
+  margin: 0;
+  border-left: 3px solid var(--color-accent);
+  padding: 0.75rem 0.85rem;
+  background: color-mix(in oklab, var(--color-accent), transparent 94%);
+}
+
+.secret-reveal {
+  margin: 1rem 0;
+  border: 2px solid var(--color-accent);
+  border-radius: 0.65rem;
+  padding: 1rem;
+}
+
+.secret-reveal dl {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.secret-reveal dd {
+  margin: 0.25rem 0 0;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+}
+
+.credential-actions {
+  justify-content: flex-start;
+  margin-top: 1rem;
+}
+
 .metadata-list,
 .history-list {
   margin: 1rem 0;

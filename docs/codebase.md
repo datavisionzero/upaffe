@@ -10,8 +10,8 @@ HTTP, CLI, and web copy use those terms rather than inventing parallel names.
 Current state: the four-layer .NET 10 solution, API host, technical health and
 version endpoints, PostgreSQL context, forward-only startup migration,
 checked-in OpenAPI contract, two generated client packages, React application,
-and Go CLI exist. Access, projects, and HTTP-monitor administration work through
-the shared API, web application, and CLI.
+and Go CLI exist. Access, projects, HTTP-monitor administration, and push
+monitor administration work through the shared API, web application, and CLI.
 The HTTP monitoring domain and PostgreSQL schema persist monitor configuration,
 scheduling and current-result facts, explicitly separated secrets, ordered
 checks, and incident lifecycles. A shared bounded executor performs one
@@ -231,9 +231,15 @@ creation/replacement/removal, explicit lifecycle state, immediate tests, pause,
 resume, retained removal, and paginated check and incident history. The edit
 form preserves a hidden target query unless the operator explicitly replaces
 the complete target. Secret header values and replacement targets leave
-component state as soon as they are submitted. Native forms, visible loading,
-empty, validation, success, and concurrency states, semantic status regions,
-and focus-visible controls keep the slice keyboard accessible. The production build lands in
+component state as soon as they are submitted. The same project workspace
+opens push-monitor creation and configuration for both reporting modes,
+explicit status and deadlines, pause and resume, paginated report and incident
+history, and retained removal. Reporting credentials can be issued, rotated,
+or revoked there; the token and secret URL exist in component state only for
+the explicit one-time handoff and are cleared on dismissal, refresh, navigation,
+or another operation. Native forms, visible loading, empty, validation,
+success, and concurrency states, semantic status regions, and focus-visible
+controls keep the slice keyboard accessible. The production build lands in
 `src/Upaffe.Api/wwwroot`, which the API process serves, so no second application
 server is required in an installation.
 

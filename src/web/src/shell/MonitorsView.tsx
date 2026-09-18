@@ -16,10 +16,11 @@ type TestResult = components["schemas"]["HttpMonitorTestResponse"];
 type Props = {
   project: Project;
   onBack: () => void;
+  onOpenPush: () => void;
   onSignedOut: () => void;
 };
 
-export function MonitorsView({ project, onBack, onSignedOut }: Props) {
+export function MonitorsView({ project, onBack, onOpenPush, onSignedOut }: Props) {
   const [monitors, setMonitors] = useState<Monitor[]>([]);
   const [selectedKey, setSelectedKey] = useState<string>();
   const [loading, setLoading] = useState(true);
@@ -95,7 +96,10 @@ export function MonitorsView({ project, onBack, onSignedOut }: Props) {
           <h1>{project.name}</h1>
           <p className="muted">HTTP monitors</p>
         </div>
-        <Button onClick={onBack} type="button">Back to projects</Button>
+        <div className="actions">
+          <Button onClick={onOpenPush} type="button">Push monitors</Button>
+          <Button onClick={onBack} type="button">Back to projects</Button>
+        </div>
       </header>
 
       <section aria-labelledby="monitor-create-title" className="panel">
