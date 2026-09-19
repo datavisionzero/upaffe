@@ -19,3 +19,13 @@ This matrix maps the six success criteria in [VISION.md, section 13](../VISION.m
 4. Run `scripts/check.sh` on a clean candidate revision. Keep the test counts and any failure as a release blocker. Check every matrix row against its expected evidence; file and resolve any unexplained deviation before sign-off.
 
 The rehearsal and CLI candidate use local fixtures and generated credentials. They do not prove public DNS, real inbox delivery, or operation of an external heartbeat receiver; operators still verify those site-specific integrations during installation.
+
+## Initial candidate record (2026-09-19)
+
+- Source revision `0623fd0d8cba41f267dcbff3761b09a18c95368d`: [main CI](https://github.com/datavisionzero/upaffe/actions/runs/35471088410) passed all jobs, including the composed system test, both image architectures, and revision image publication. The revision image index digest is `sha256:fd822c1b92581b2bab1748909d5b32f94d241f863299333978287480b098d7f0`; inspection found Linux amd64 and arm64 manifests.
+- [Nonpublishing CLI candidate](https://github.com/datavisionzero/upaffe/actions/runs/35471099815) passed four native builds and archive executions. The downloaded bundle had four matching checksums and `source-revision.txt` equaled the source revision above.
+- `scripts/check.sh` passed from clean acceptance-document revision `27b88a7`: 103 unit, 135 PostgreSQL integration, and 33 web tests, plus CLI tests and vet, builds, and Compose checks. This revision changed documentation only after the source revision above.
+- `scripts/check-production-workflow.sh` passed with previous published image `sha-b7eae47af4bd77451c631c6428db6af03402161a` (index digest `sha256:a6bdc71817eb5f290bccc8a25a4bed836d086e9e016020561401e2fc3c9a230f`) and current published image `sha-0623fd0d8cba41f267dcbff3761b09a18c95368d`. It observed empty bootstrap, persisted identity and work after recreation, a failed-pull rollback, successful update, rejection of an incompatible future schema by the older image, and isolated backup restore. Its HTTPS fixture observed sends while healthy, no sends while workers were stalled despite live and ready HTTP, and sends after progress resumed.
+- An earlier main CI smoke attempt on the previous image revision returned one unlocated HTTP 500 after an application restart. Its retry, the later PR smoke test, the current main CI smoke test, and local smoke runs passed. Treat any recurrence on the final candidate as a release blocker and capture the failing operation before sign-off.
+
+This record establishes the matrix before release automation and final documentation land. Repeat the gate against the final candidate commit; a passing earlier revision does not sign off a later one.
