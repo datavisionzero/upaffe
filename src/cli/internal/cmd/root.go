@@ -52,6 +52,8 @@ func newRoot(output io.Writer, getenv environment) *cobra.Command {
 	root.AddCommand(newProject(output, getenv))
 	root.AddCommand(newMonitor(output, getenv))
 	root.AddCommand(newPush(output, getenv))
+	root.AddCommand(newEmail(output, getenv))
+	root.AddCommand(newMaintenance(output, getenv))
 	return root
 }
 

@@ -102,6 +102,21 @@ ua push credential issue PROJECT_KEY MONITOR_KEY [--url ADDRESS] [--credential T
 ua push credential get PROJECT_KEY MONITOR_KEY [--url ADDRESS] [--credential TOKEN] [--json]
 ua push credential rotate PROJECT_KEY MONITOR_KEY [--url ADDRESS] [--credential TOKEN] [--json]
 ua push credential revoke PROJECT_KEY MONITOR_KEY [--url ADDRESS] [--credential TOKEN] [--json]
+ua email settings get [--url ADDRESS] [--credential TOKEN] [--json]
+ua email settings set --file PATH|- [--url ADDRESS] [--credential TOKEN] [--json]
+ua email password set --file PATH|- [--url ADDRESS] [--credential TOKEN] [--json]
+ua email password clear --version VERSION [--url ADDRESS] [--credential TOKEN] [--json]
+ua email defaults get [--url ADDRESS] [--credential TOKEN] [--json]
+ua email defaults set --file PATH|- [--url ADDRESS] [--credential TOKEN] [--json]
+ua email recipients get PROJECT_KEY [--url ADDRESS] [--credential TOKEN] [--json]
+ua email recipients set PROJECT_KEY --file PATH|- [--url ADDRESS] [--credential TOKEN] [--json]
+ua email test --recipient ADDRESS [--url ADDRESS] [--credential TOKEN] [--json]
+ua email deliveries [--project KEY] [--monitor-type http|push] [--monitor KEY] [--incident UUID] [--state STATE] [--limit N] [--offset N] [--url ADDRESS] [--credential TOKEN] [--json]
+ua email summary [--project KEY] [--url ADDRESS] [--credential TOKEN] [--json]
+ua email incident UUID --monitor-type http|push [--url ADDRESS] [--credential TOKEN] [--json]
+ua maintenance get PROJECT_KEY [MONITOR_KEY] --scope project|http|push [--url ADDRESS] [--credential TOKEN] [--json]
+ua maintenance start PROJECT_KEY [MONITOR_KEY] --scope project|http|push --version VERSION --duration-seconds SECONDS [--url ADDRESS] [--credential TOKEN] [--json]
+ua maintenance end PROJECT_KEY [MONITOR_KEY] --scope project|http|push --version VERSION [--url ADDRESS] [--credential TOKEN] [--json]
 ```
 
 `version` prints the CLI build version and never accesses the network. `status`
@@ -282,3 +297,41 @@ curl --fail-with-body --request POST "$UPAFFE_ORIGIN$UPAFFE_REPORT_PATH"
 
 The issued `report_url` is an instance-relative path. Combine it only with the
 same trusted origin used for management requests.
+
+### Email and timed maintenance
+
+`email settings get` returns the safe shared relay configuration, default
+recipients, version, and `has_password`. `settings set` reads one JSON object
+with `version`, relay host and port, security mode, sender address and name,
+public base URL, and optional username. `email password set` reads a separate
+`{"version":2,"password":"..."}` document. Only password presence appears in
+the response. `password clear` requires the last read version. Put credential
+documents in a protected file or pipe them with `--file -`; do not put a
+password on the command line.
+
+`email defaults set` and `email recipients set` read
+`{"version":2,"recipients":["ops@example.test"]}` from `--file PATH` or
+`--file -`. An empty list opts the project out of incident email. New projects
+copy defaults once; existing project lists change only through `recipients
+set`. Every write uses the version last read. Conflicts exit with code 4.
+`email test` submits one explicit message and reports relay acceptance or a
+sanitized refusal; it creates no incident and does not retry.
+
+`email deliveries` pages newest first. Text output shows incident and scope,
+recipient, kind, state, attempts, sanitized error and suppression reason, and
+relevant times. JSON retains the API page shape, including `total` and
+`has_more`. `--state` filters the stored state; a pending row can display
+`suppressed` while maintenance or pause applies. `email summary` shows pending,
+retrying, terminal failures, and SMTP acceptances for the instance or one
+project. `email incident` shows the announcement decision and all per-recipient
+deliveries for an explicit incident and monitor type. SMTP acceptance does not
+prove inbox arrival. History older than 90 days may be pruned.
+
+`maintenance get`, `start`, and `end` address a project, HTTP monitor, or push
+monitor with `--scope`. Project scope takes only `PROJECT_KEY`; monitor scopes
+also take `MONITOR_KEY`. `get` returns the direct window version and active
+state, plus effective active scopes and expiry. `start` uses a nonnegative
+version (`0` for a new scope) and a duration of 60–2,592,000 seconds. `end`
+uses a positive version. Project and monitor windows compose independently;
+ending one does not end the other. Maintenance suppresses email while checks,
+reports, and incident history continue.
