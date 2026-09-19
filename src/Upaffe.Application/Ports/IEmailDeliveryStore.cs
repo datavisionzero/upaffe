@@ -9,6 +9,7 @@ public enum EmailPreparation { Send, Deferred, Obsolete, LeaseLost }
 
 public interface IEmailDeliveryStore
 {
+    Task<bool> ReconcileAsync(DateTimeOffset now, CancellationToken cancellationToken);
     Task<EmailDeliveryLease?> ClaimAsync(DateTimeOffset now, TimeSpan leaseDuration,
         CancellationToken cancellationToken);
     Task<EmailPreparation> PrepareAsync(Guid deliveryId, Guid token,

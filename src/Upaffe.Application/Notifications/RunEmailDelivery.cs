@@ -9,6 +9,8 @@ public sealed class RunEmailDelivery(IEmailDeliveryStore deliveries,
 
     public async Task<bool> ExecuteOnceAsync(CancellationToken cancellationToken)
     {
+        if (await deliveries.ReconcileAsync(clock.GetUtcNow(), cancellationToken))
+            return true;
         var lease = await deliveries.ClaimAsync(clock.GetUtcNow(), LeaseDuration, cancellationToken);
         if (lease is null) return false;
 

@@ -208,6 +208,11 @@ window early. Stale versions or ending an inactive window return `409 conflict`;
 invalid durations return `400 validation`, and absent scopes return `404`.
 The server's current UTC time decides expiry, including after downtime: no
 background transition is needed. Checks, reports, and incident state continue.
+The delivery worker keeps queued mail suppressed while any effective window is
+active. When all relevant windows end, an incident still open and not yet
+announced becomes eligible once; an incident opened and resolved entirely in
+maintenance produces no delayed email. A recovery for a previously
+SMTP-accepted alert waits until suppression ends.
 
 ## HTTP monitors
 

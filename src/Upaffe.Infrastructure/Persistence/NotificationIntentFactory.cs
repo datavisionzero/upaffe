@@ -12,35 +12,44 @@ internal static class NotificationIntentFactory
         Incident incident, DateTimeOffset now, CancellationToken cancellationToken) =>
         OpenAsync(context, monitor.ProjectId, monitor.Id, "http", monitor.Key,
             monitor.Name, incident.Id, incident.OriginalReason, incident.OpenedAt,
-            now, cancellationToken);
+            now, () => incident.MarkNotificationDecision(now), cancellationToken);
 
     public static Task OpenPushAsync(UpaffeDbContext context, PushMonitor monitor,
         PushIncident incident, DateTimeOffset now, CancellationToken cancellationToken) =>
         OpenAsync(context, monitor.ProjectId, monitor.Id, "push", monitor.Key,
             monitor.Name, incident.Id, incident.OriginalReason, incident.OpenedAt,
-            now, cancellationToken);
+            now, () => incident.MarkNotificationDecision(now), cancellationToken);
 
     public static Task ResolveHttpAsync(UpaffeDbContext context, HttpMonitor monitor,
-        Incident incident, DateTimeOffset now, CancellationToken cancellationToken) =>
+        Incident incident, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        incident.MarkNotificationDecision(now);
+        return
         ResolveAsync(context, monitor.ProjectId, monitor.Key, monitor.Name,
             "http", incident.Id, incident.OriginalReason,
             incident.ResolvedAt ?? now, now, cancellationToken);
+    }
 
     public static Task ResolvePushAsync(UpaffeDbContext context, PushMonitor monitor,
-        PushIncident incident, DateTimeOffset now, CancellationToken cancellationToken) =>
+        PushIncident incident, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        incident.MarkNotificationDecision(now);
+        return
         ResolveAsync(context, monitor.ProjectId, monitor.Key, monitor.Name,
             "push", incident.Id, incident.OriginalReason,
             incident.ResolvedAt ?? now, now, cancellationToken);
+    }
 
     private static async Task OpenAsync(UpaffeDbContext context, Guid projectId,
         Guid monitorId, string monitorType, string monitorKey, string monitorName,
         Guid incidentId, string reason, DateTimeOffset occurredAt, DateTimeOffset now,
-        CancellationToken cancellationToken)
+        Action markDecision, CancellationToken cancellationToken)
     {
         var project = await context.Projects.SingleAsync(value => value.Id == projectId,
             cancellationToken);
         if (project.DeletedAt is not null || await SuppressedAsync(context,
             projectId, monitorId, monitorType, now, cancellationToken)) return;
+        markDecision();
         foreach (var recipient in project.Recipients)
             context.NotificationDeliveries.Add(NotificationDelivery.Queue(incidentId,
                 NotificationKind.Alert, recipient, project.Key, project.Name, monitorKey,
@@ -59,11 +68,15 @@ internal static class NotificationIntentFactory
             .ToListAsync(cancellationToken);
         foreach (var alert in alerts)
         {
-            if (alert.State == DeliveryState.Accepted && project.DeletedAt is null
-                && project.Recipients.Contains(alert.Recipient, StringComparer.OrdinalIgnoreCase))
-                context.NotificationDeliveries.Add(NotificationDelivery.Queue(incidentId,
-                    NotificationKind.Recovery, alert.Recipient, project.Key, project.Name,
-                    monitorKey, monitorName, monitorType, reason, occurredAt, now));
+            if (alert.State == DeliveryState.Accepted)
+            {
+                alert.MarkRecoveryDecision(now);
+                if (project.DeletedAt is null && project.Recipients.Contains(
+                    alert.Recipient, StringComparer.OrdinalIgnoreCase))
+                    context.NotificationDeliveries.Add(NotificationDelivery.Queue(incidentId,
+                        NotificationKind.Recovery, alert.Recipient, project.Key, project.Name,
+                        monitorKey, monitorName, monitorType, reason, occurredAt, now));
+            }
             else alert.Obsolete(now);
         }
     }

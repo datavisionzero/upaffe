@@ -47,6 +47,7 @@ public sealed class NotificationDelivery
     public DateTimeOffset NextAttemptAt { get; private set; }
     public DateTimeOffset? LastAttemptAt { get; private set; }
     public DateTimeOffset? AcceptedAt { get; private set; }
+    public DateTimeOffset? RecoveryDecisionAt { get; private set; }
     public DateTimeOffset? TerminalAt { get; private set; }
     public DateTimeOffset? LeaseUntil { get; private set; }
     public Guid? LeaseToken { get; private set; }
@@ -144,11 +145,20 @@ public sealed class NotificationDelivery
     {
         if (State is DeliveryState.Accepted or DeliveryState.TerminalFailure or DeliveryState.Obsolete)
             return;
+        if (State == DeliveryState.Claimed && ActiveAttemptToken is not null)
+            return; // SMTP may already be in flight; completion can record acceptance.
         State = DeliveryState.Obsolete;
         LeaseToken = null;
         LeaseUntil = null;
         ActiveAttemptToken = null;
         TerminalAt = now;
         UpdatedAt = now;
+    }
+
+    public void MarkRecoveryDecision(DateTimeOffset now)
+    {
+        if (Kind != NotificationKind.Alert || State != DeliveryState.Accepted)
+            throw new InvalidOperationException("Only an accepted alert can decide recovery.");
+        RecoveryDecisionAt ??= now;
     }
 }

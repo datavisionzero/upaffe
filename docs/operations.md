@@ -129,6 +129,16 @@ the retry can produce a duplicate even though no second logical notification
 is created. `EmailDelivery__Enabled=false` disables draining for controlled
 tests; leaving it disabled on a running instance accumulates pending work.
 
+Timed maintenance can cover a project or one HTTP or push monitor. During an
+active window, checks and reports still run, incidents still open and resolve,
+and the worker holds alert and recovery submissions. Project and monitor
+windows overlap; email resumes only after both have ended. Expiry uses the
+server clock even across restart. An incident still open after expiry gets one
+current-recipient alert, while an incident that opened and resolved entirely
+inside maintenance remains in history without delayed mail. A recovery for an
+alert accepted before maintenance waits until the window ends. Pause remains a
+separate control that suspends monitoring rather than just email.
+
 ## Simple push reporting
 
 Credential issuance for a push monitor explicitly returns an instance-relative

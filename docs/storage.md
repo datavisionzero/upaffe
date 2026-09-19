@@ -137,6 +137,16 @@ window active forever. Project and monitor windows compose by union, with the
 later active end as the effective expiry. Neither monitoring observations nor
 incident lifecycle rows are changed by maintenance mutations.
 
+HTTP and push incidents each persist `notification_decision_at`. An opening
+outside maintenance records that decision even when the project has no
+recipients, preventing later recipient additions from replaying the incident.
+An opening inside maintenance leaves it unset. The delivery worker scans open,
+unannounced incidents after all effective windows end, locks their monitor row,
+and atomically records the decision with the current recipients' alert intents.
+A resolution inside maintenance records the decision without an alert. Accepted
+alerts also have a recovery-decision marker: when SMTP acceptance races the
+incident's resolution, the worker can add one matching recovery later.
+
 ## HTTP monitoring schema
 
 The row model below is used by the complete fictional lifecycle in

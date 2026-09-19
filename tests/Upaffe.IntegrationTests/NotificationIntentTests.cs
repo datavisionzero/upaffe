@@ -139,6 +139,165 @@ public sealed class NotificationIntentTests(PostgresFixture postgres)
             value.State == DeliveryState.Obsolete, ct));
     }
 
+    [Fact]
+    public async Task Expired_overlapping_windows_reconcile_only_still_open_incidents_once()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var connection = await SetupAsync();
+        await using (var project = AnInstance.ContextFor(connection))
+            Assert.Equal(MaintenanceMutation.Changed, (await new MaintenanceStore(project)
+                .StartAsync("project", "systems", null, 0, TimeSpan.FromMinutes(10), Noon, ct)).Outcome);
+        await using (var monitor = AnInstance.ContextFor(connection))
+            Assert.Equal(MaintenanceMutation.Changed, (await new MaintenanceStore(monitor)
+                .StartAsync("push", "systems", "backup", 0, TimeSpan.FromMinutes(20), Noon, ct)).Outcome);
+
+        await RunHttpAsync(connection, false, Noon.AddMinutes(1));
+        string token;
+        await using (var credentials = AnInstance.ContextFor(connection))
+            token = Assert.IsType<IssuedReportingCredential>((await new ReportingCredentialStore(credentials)
+                .IssueAsync("systems", "backup", Noon, ct)).Issued).Token;
+        await SubmitPushAsync(connection, token, Guid.NewGuid(), ReportOutcome.Failure,
+            Noon.AddMinutes(2));
+        await RunHttpAsync(connection, true, Noon.AddMinutes(3));
+        await using (var within = AnInstance.ContextFor(connection))
+        {
+            Assert.Empty(await within.NotificationDeliveries.ToListAsync(ct));
+            Assert.False(await new EmailDeliveryStore(within).ReconcileAsync(Noon.AddMinutes(5), ct));
+        }
+        await using (var afterProject = AnInstance.ContextFor(connection))
+            Assert.False(await new EmailDeliveryStore(afterProject).ReconcileAsync(
+                Noon.AddMinutes(11), ct));
+        await using (var afterBoth = AnInstance.ContextFor(connection))
+            Assert.True(await new EmailDeliveryStore(afterBoth).ReconcileAsync(
+                Noon.AddMinutes(21), ct));
+        await using (var repeated = AnInstance.ContextFor(connection))
+            Assert.False(await new EmailDeliveryStore(repeated).ReconcileAsync(
+                Noon.AddMinutes(21), ct));
+        await using var restarted = AnInstance.ContextFor(connection);
+        Assert.False(await new EmailDeliveryStore(restarted).ReconcileAsync(
+            Noon.AddMinutes(22), ct));
+        var alerts = await restarted.NotificationDeliveries.ToListAsync(ct);
+        Assert.Equal(2, alerts.Count);
+        var openPush = await restarted.PushIncidents.SingleAsync(ct);
+        Assert.All(alerts, value => Assert.Equal(openPush.Id, value.IncidentId));
+        Assert.NotNull(openPush.NotificationDecisionAt);
+        var resolvedHttp = await restarted.Incidents.SingleAsync(ct);
+        Assert.NotNull(resolvedHttp.NotificationDecisionAt);
+    }
+
+    [Fact]
+    public async Task Starting_maintenance_defers_claimed_alert_and_announced_recovery_until_end()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var connection = await SetupAsync();
+        await RunHttpAsync(connection, false, Noon.AddSeconds(1));
+        EmailDeliveryLease lease;
+        await using (var claim = AnInstance.ContextFor(connection))
+            lease = Assert.IsType<EmailDeliveryLease>(await new EmailDeliveryStore(claim)
+                .ClaimAsync(Noon.AddSeconds(1), TimeSpan.FromMinutes(2), ct));
+        await using (var start = AnInstance.ContextFor(connection))
+            Assert.Equal(MaintenanceMutation.Changed, (await new MaintenanceStore(start)
+                .StartAsync("project", "systems", null, 0,
+                    TimeSpan.FromMinutes(10), Noon.AddSeconds(2), ct)).Outcome);
+        await using (var deferred = AnInstance.ContextFor(connection))
+        {
+            Assert.Equal(EmailPreparation.Deferred, await new EmailDeliveryStore(deferred)
+                .PrepareAsync(lease.DeliveryId, lease.Token, Noon.AddSeconds(2), ct));
+            Assert.Equal(0, (await deferred.NotificationDeliveries.SingleAsync(
+                value => value.Id == lease.DeliveryId, ct)).AttemptCount);
+        }
+        await using (var end = AnInstance.ContextFor(connection))
+            Assert.Equal(MaintenanceMutation.Changed, (await new MaintenanceStore(end)
+                .EndAsync("project", "systems", null, 1,
+                    Noon.AddMinutes(1), ct)).Outcome);
+        await AcceptOneAsync(connection, Noon.AddMinutes(2), "http");
+
+        await using (var restart = AnInstance.ContextFor(connection))
+            Assert.Equal(MaintenanceMutation.Changed, (await new MaintenanceStore(restart)
+                .StartAsync("http", "systems", "site", 0,
+                    TimeSpan.FromMinutes(10), Noon.AddMinutes(3), ct)).Outcome);
+        await RunHttpAsync(connection, true, Noon.AddMinutes(4));
+        Guid recoveryId;
+        await using (var recovery = AnInstance.ContextFor(connection))
+        {
+            var row = await recovery.NotificationDeliveries.SingleAsync(value =>
+                value.Kind == NotificationKind.Recovery, ct);
+            recoveryId = row.Id;
+            var token = Guid.NewGuid();
+            row.Claim(token, Noon.AddMinutes(4), TimeSpan.FromMinutes(2));
+            await recovery.SaveChangesAsync(ct);
+            Assert.Equal(EmailPreparation.Deferred, await new EmailDeliveryStore(recovery)
+                .PrepareAsync(recoveryId, token, Noon.AddMinutes(4), ct));
+        }
+        await using (var end = AnInstance.ContextFor(connection))
+            Assert.Equal(MaintenanceMutation.Changed, (await new MaintenanceStore(end)
+                .EndAsync("http", "systems", "site", 1,
+                    Noon.AddMinutes(5), ct)).Outcome);
+        await using var after = AnInstance.ContextFor(connection);
+        var queued = await after.NotificationDeliveries.SingleAsync(value => value.Id == recoveryId, ct);
+        var retryToken = Guid.NewGuid();
+        queued.Claim(retryToken, Noon.AddMinutes(6), TimeSpan.FromMinutes(2));
+        await after.SaveChangesAsync(ct);
+        Assert.Equal(EmailPreparation.Send, await new EmailDeliveryStore(after)
+            .PrepareAsync(recoveryId, retryToken, Noon.AddMinutes(6), ct));
+    }
+
+    [Fact]
+    public async Task Reconciliation_racing_fresh_resolution_leaves_no_sendable_alert()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var connection = await SetupAsync();
+        await using (var start = AnInstance.ContextFor(connection))
+            Assert.Equal(MaintenanceMutation.Changed, (await new MaintenanceStore(start)
+                .StartAsync("project", "systems", null, 0,
+                    TimeSpan.FromMinutes(1), Noon, ct)).Outcome);
+        await RunHttpAsync(connection, false, Noon.AddSeconds(1));
+        await using var reconcileContext = AnInstance.ContextFor(connection);
+        await Task.WhenAll(
+            new EmailDeliveryStore(reconcileContext).ReconcileAsync(Noon.AddMinutes(2), ct),
+            RunHttpAsync(connection, true, Noon.AddMinutes(2)));
+        await using var inspect = AnInstance.ContextFor(connection);
+        Assert.False((await inspect.Incidents.SingleAsync(ct)).IsOpen);
+        Assert.Empty(await inspect.NotificationDeliveries.Where(value =>
+            value.State == DeliveryState.Queued || value.State == DeliveryState.Retrying)
+            .ToListAsync(ct));
+    }
+
+    [Fact]
+    public async Task SMTP_acceptance_racing_resolution_still_queues_one_matching_recovery()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var connection = await SetupAsync();
+        await RunHttpAsync(connection, false, Noon.AddSeconds(1));
+        EmailDeliveryLease lease;
+        await using (var claim = AnInstance.ContextFor(connection))
+        {
+            var store = new EmailDeliveryStore(claim);
+            lease = Assert.IsType<EmailDeliveryLease>(await store.ClaimAsync(
+                Noon.AddSeconds(1), TimeSpan.FromMinutes(2), ct));
+            Assert.Equal(EmailPreparation.Send, await store.PrepareAsync(
+                lease.DeliveryId, lease.Token, Noon.AddSeconds(1), ct));
+        }
+        await RunHttpAsync(connection, true, Noon.AddSeconds(2));
+        await using (var complete = AnInstance.ContextFor(connection))
+            Assert.True(await new EmailDeliveryStore(complete).CompleteAsync(
+                lease.DeliveryId, lease.Token, EmailSendResult.Accepted(),
+                Noon.AddSeconds(2), ct));
+        await using (var reconcile = AnInstance.ContextFor(connection))
+            Assert.True(await new EmailDeliveryStore(reconcile).ReconcileAsync(
+                Noon.AddSeconds(3), ct));
+        await using var inspect = AnInstance.ContextFor(connection);
+        var alert = await inspect.NotificationDeliveries.SingleAsync(value =>
+            value.Id == lease.DeliveryId, ct);
+        Assert.Equal(DeliveryState.Accepted, alert.State);
+        Assert.NotNull(alert.RecoveryDecisionAt);
+        var recovery = await inspect.NotificationDeliveries.SingleAsync(value =>
+            value.Kind == NotificationKind.Recovery, ct);
+        Assert.Equal(alert.Recipient, recovery.Recipient);
+        Assert.False(await new EmailDeliveryStore(inspect).ReconcileAsync(
+            Noon.AddSeconds(4), ct));
+    }
+
     private static async Task PrepareRecipientAsync(string connection, string recipient,
         DateTimeOffset now, EmailPreparation expected)
     {

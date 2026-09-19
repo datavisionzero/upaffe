@@ -33,6 +33,7 @@ internal sealed class NotificationDeliveryMapping : IEntityTypeConfiguration<Not
         builder.Property(value => value.NextAttemptAt).HasColumnName("next_attempt_at");
         builder.Property(value => value.LastAttemptAt).HasColumnName("last_attempt_at");
         builder.Property(value => value.AcceptedAt).HasColumnName("accepted_at");
+        builder.Property(value => value.RecoveryDecisionAt).HasColumnName("recovery_decision_at");
         builder.Property(value => value.TerminalAt).HasColumnName("terminal_at");
         builder.Property(value => value.LeaseUntil).HasColumnName("lease_until");
         builder.Property(value => value.LeaseToken).HasColumnName("lease_token");
