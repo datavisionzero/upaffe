@@ -253,6 +253,37 @@
         }
       }
     },
+    "/api/projects/{key}/email-summary": {
+      "get": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Read one project's pending and failed email counts.",
+        "operationId": "ReadProjectEmailSummary",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailDeliverySummary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/report/{secret}": {
       "get": {
         "tags": [
@@ -1044,6 +1075,894 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/email/settings": {
+      "get": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Read safe instance SMTP settings and default recipients.",
+        "operationId": "ReadEmailSettings",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailConfigurationSnapshot"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Update SMTP settings at the read version; credentials are separate.",
+        "operationId": "UpdateEmailSettings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateEmailSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailConfigurationSnapshot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/email/password": {
+      "put": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Replace the write-only SMTP password.",
+        "operationId": "ReplaceSmtpPassword",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetSmtpPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailConfigurationSnapshot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Clear the SMTP password explicitly.",
+        "operationId": "ClearSmtpPassword",
+        "parameters": [
+          {
+            "name": "version",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailConfigurationSnapshot"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/email/default-recipients": {
+      "put": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Replace recipients copied into future projects.",
+        "operationId": "ReplaceDefaultRecipients",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceRecipientsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailConfigurationSnapshot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/email/test": {
+      "post": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Send one explicit SMTP test message without an incident or retry.",
+        "operationId": "SendTestEmail",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestEmailRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestEmailResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/email/deliveries": {
+      "get": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Page safe notification delivery states; accepted means accepted by SMTP.",
+        "operationId": "ListEmailDeliveries",
+        "parameters": [
+          {
+            "name": "project_key",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "monitor_type",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "monitor_key",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "incident_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailDeliveryPage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/email/deliveries/summary": {
+      "get": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Read instance pending and failed email counts.",
+        "operationId": "ReadEmailDeliverySummary",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailDeliverySummary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/email/incidents/{incidentId}": {
+      "get": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Read an HTTP or push incident's announcement and delivery status.",
+        "operationId": "ReadIncidentEmailStatus",
+        "parameters": [
+          {
+            "name": "incidentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "monitor_type",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentEmailStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{key}/recipients": {
+      "get": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Read a project's current recipients and version.",
+        "operationId": "ReadProjectRecipients",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectRecipientsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Replace live project recipients at its read version.",
+        "operationId": "ReplaceProjectRecipients",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceRecipientsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectRecipientsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{projectKey}/maintenance": {
+      "get": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Read direct project maintenance and effective expiry.",
+        "operationId": "ReadProjectMaintenance",
+        "parameters": [
+          {
+            "name": "projectKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceSnapshot"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Start or extend finite project maintenance at its read version.",
+        "operationId": "StartProjectMaintenance",
+        "parameters": [
+          {
+            "name": "projectKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartMaintenanceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceSnapshot"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "End only the project maintenance window early.",
+        "operationId": "EndProjectMaintenance",
+        "parameters": [
+          {
+            "name": "projectKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceSnapshot"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{projectKey}/http-monitors/{monitorKey}/maintenance": {
+      "get": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Read direct and inherited HTTP monitor maintenance.",
+        "operationId": "ReadHttpMonitorMaintenance",
+        "parameters": [
+          {
+            "name": "projectKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "monitorKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceSnapshot"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Start or extend HTTP monitor maintenance.",
+        "operationId": "StartHttpMonitorMaintenance",
+        "parameters": [
+          {
+            "name": "projectKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "monitorKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartMaintenanceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceSnapshot"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "End only the HTTP monitor window early.",
+        "operationId": "EndHttpMonitorMaintenance",
+        "parameters": [
+          {
+            "name": "projectKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "monitorKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceSnapshot"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{projectKey}/push-monitors/{monitorKey}/maintenance": {
+      "get": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Read direct and inherited push monitor maintenance.",
+        "operationId": "ReadPushMonitorMaintenance",
+        "parameters": [
+          {
+            "name": "projectKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "monitorKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceSnapshot"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Start or extend push monitor maintenance.",
+        "operationId": "StartPushMonitorMaintenance",
+        "parameters": [
+          {
+            "name": "projectKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "monitorKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartMaintenanceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceSnapshot"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "End only the push monitor window early.",
+        "operationId": "EndPushMonitorMaintenance",
+        "parameters": [
+          {
+            "name": "projectKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "monitorKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceSnapshot"
                 }
               }
             }
@@ -3311,6 +4230,256 @@
           }
         }
       },
+      "EmailConfigurationSnapshot": {
+        "required": [
+          "version",
+          "host",
+          "port",
+          "security",
+          "sender_address",
+          "sender_name",
+          "public_base_url",
+          "username",
+          "has_password",
+          "default_recipients",
+          "updated_at"
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "host": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "port": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "security": {
+            "type": "string"
+          },
+          "sender_address": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sender_name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "public_base_url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "username": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "has_password": {
+            "type": "boolean"
+          },
+          "default_recipients": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "updated_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "EmailDeliveryPage": {
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset",
+          "has_more"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EmailDeliveryStatus"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "limit": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "offset": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        }
+      },
+      "EmailDeliveryStatus": {
+        "required": [
+          "id",
+          "incident_id",
+          "kind",
+          "recipient",
+          "project_key",
+          "monitor_type",
+          "monitor_key",
+          "state",
+          "suppression_reason",
+          "attempt_count",
+          "last_attempt_at",
+          "next_attempt_at",
+          "accepted_at",
+          "terminal_at",
+          "last_error_code",
+          "created_at"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "incident_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "recipient": {
+            "type": "string"
+          },
+          "project_key": {
+            "type": "string"
+          },
+          "monitor_type": {
+            "type": "string"
+          },
+          "monitor_key": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "suppression_reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "attempt_count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "last_attempt_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "next_attempt_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "accepted_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "terminal_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "last_error_code": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EmailDeliverySummary": {
+        "required": [
+          "project_key",
+          "pending_count",
+          "retrying_count",
+          "terminal_failure_count",
+          "smtp_accepted_count",
+          "oldest_pending_at"
+        ],
+        "type": "object",
+        "properties": {
+          "project_key": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "pending_count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "retrying_count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "terminal_failure_count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "smtp_accepted_count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "oldest_pending_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
       "HttpCheckHistoryPageResponse": {
         "required": [
           "items",
@@ -3673,6 +4842,52 @@
           }
         }
       },
+      "IncidentEmailStatus": {
+        "required": [
+          "incident_id",
+          "project_key",
+          "monitor_type",
+          "monitor_key",
+          "open",
+          "announcement_state",
+          "suppression_reason",
+          "deliveries"
+        ],
+        "type": "object",
+        "properties": {
+          "incident_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "project_key": {
+            "type": "string"
+          },
+          "monitor_type": {
+            "type": "string"
+          },
+          "monitor_key": {
+            "type": "string"
+          },
+          "open": {
+            "type": "boolean"
+          },
+          "announcement_state": {
+            "type": "string"
+          },
+          "suppression_reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "deliveries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EmailDeliveryStatus"
+            }
+          }
+        }
+      },
       "IncidentHistoryPageResponse": {
         "required": [
           "items",
@@ -3877,6 +5092,80 @@
           }
         }
       },
+      "MaintenanceSnapshot": {
+        "required": [
+          "scope_type",
+          "project_key",
+          "monitor_key",
+          "version",
+          "started_at",
+          "ends_at",
+          "ended_at",
+          "direct_active",
+          "effective_active",
+          "effective_ends_at",
+          "active_scopes"
+        ],
+        "type": "object",
+        "properties": {
+          "scope_type": {
+            "type": "string"
+          },
+          "project_key": {
+            "type": "string"
+          },
+          "monitor_key": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "started_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "ends_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "ended_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "direct_active": {
+            "type": "boolean"
+          },
+          "effective_active": {
+            "type": "boolean"
+          },
+          "effective_ends_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "active_scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "ProblemResponse": {
         "required": [
           "code",
@@ -3905,6 +5194,29 @@
               "items": {
                 "type": "string"
               }
+            }
+          }
+        }
+      },
+      "ProjectRecipientsResponse": {
+        "required": [
+          "project_key",
+          "version",
+          "recipients"
+        ],
+        "type": "object",
+        "properties": {
+          "project_key": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "recipients": {
+            "type": "array",
+            "items": {
+              "type": "string"
             }
           }
         }
@@ -4334,6 +5646,28 @@
           }
         }
       },
+      "ReplaceRecipientsRequest": {
+        "required": [
+          "version",
+          "recipients"
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "recipients": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "ReportingCredentialResponse": {
         "required": [
           "id",
@@ -4386,6 +5720,25 @@
           }
         }
       },
+      "SetSmtpPasswordRequest": {
+        "required": [
+          "version",
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "password": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "SignInRequest": {
         "required": [
           "email",
@@ -4404,6 +5757,23 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "StartMaintenanceRequest": {
+        "required": [
+          "version",
+          "duration_seconds"
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "duration_seconds": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -4437,6 +5807,98 @@
             ]
           },
           "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "TestEmailRequest": {
+        "required": [
+          "recipient"
+        ],
+        "type": "object",
+        "properties": {
+          "recipient": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "TestEmailResult": {
+        "required": [
+          "status",
+          "accepted_at"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "accepted_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "UpdateEmailSettingsRequest": {
+        "required": [
+          "version",
+          "host",
+          "port",
+          "security",
+          "sender_address",
+          "sender_name",
+          "public_base_url",
+          "username"
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "host": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "port": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "security": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sender_address": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sender_name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "public_base_url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "username": {
             "type": [
               "null",
               "string"

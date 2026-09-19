@@ -6,8 +6,10 @@ root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 smoke_project="upaffe-smoke-$$"
 smoke_app_port=${UPAFFE_SMOKE_APP_PORT:-18080}
 smoke_db_port=${UPAFFE_SMOKE_DB_PORT:-15432}
+smoke_smtp_port=${UPAFFE_SMOKE_SMTP_PORT:-18025}
 smoke_http_target=${UPAFFE_SMOKE_HTTP_TARGET:-https://example.com/}
 compose_file="$root/deploy/docker-compose.dev.yml"
+smoke_compose_file="$root/deploy/docker-compose.smoke.yml"
 system_dir=$(mktemp -d "${TMPDIR:-/tmp}/upaffe-system.XXXXXX")
 bootstrap_proof=$(
   node -e 'process.stdout.write("test_" + require("node:crypto").randomBytes(32).toString("base64url"))'
@@ -21,7 +23,7 @@ ua="$system_dir/ua"
 
 cleanup() {
   UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
-    docker compose -p "$smoke_project" -f "$compose_file" down --volumes >/dev/null 2>&1 || true
+    docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" down --volumes >/dev/null 2>&1 || true
   rm -rf "$system_dir"
 }
 trap cleanup EXIT
@@ -54,10 +56,11 @@ assert_absent() {
 UPAFFE_BOOTSTRAP_SECRET="$bootstrap_proof" \
 UPAFFE_DEV_PORT="$smoke_app_port" \
 UPAFFE_DEV_DB_PORT="$smoke_db_port" \
-  docker compose -p "$smoke_project" -f "$compose_file" up --build --wait
+  docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" up --build --wait
 
 base_url="http://localhost:$smoke_app_port"
 origin="http://localhost:$smoke_app_port"
+smtp_fixture="http://localhost:$smoke_smtp_port"
 
 # The same host serves the compiled web application and its API.
 curl --fail --silent --show-error "$base_url/" >"$system_dir/web.html"
@@ -159,6 +162,40 @@ curl --fail --silent --show-error \
 [ "$(json_value id <"$system_dir/project-browser-restore.json")" = "$project_id" ]
 [ "$(json_value version <"$system_dir/project-browser-restore.json")" = "4" ]
 
+# Configure the isolated SMTP receiver through the generated CLI. The password
+# is a write-only storage check; this receiver does not advertise authentication.
+smtp_password=$(node -e 'process.stdout.write("smtp_" + require("node:crypto").randomBytes(24).toString("base64url"))')
+node -e '
+  process.stdout.write(JSON.stringify({ version: 0, host: "smtp-fixture", port: 2525,
+    security: "none", sender_address: "notify@example.test", sender_name: "upaffe",
+    public_base_url: process.argv[1], username: null }));
+' "$base_url" >"$system_dir/email-settings-input.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" email settings set --file "$system_dir/email-settings-input.json" --json \
+  >"$system_dir/email-settings.json"
+node -e 'process.stdout.write(JSON.stringify({ version: 1, password: process.argv[1] }))' \
+  "$smtp_password" >"$system_dir/email-password-input.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" email password set --file "$system_dir/email-password-input.json" --json \
+  >"$system_dir/email-password-result.json"
+assert_absent "$smtp_password" "$system_dir/email-password-result.json"
+echo '{"version":2,"recipients":["ops@example.test"]}' >"$system_dir/email-defaults-input.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" email defaults set --file "$system_dir/email-defaults-input.json" --json \
+  >"$system_dir/email-defaults.json"
+echo '{"version":4,"recipients":["ops@example.test"]}' >"$system_dir/email-project-recipients-input.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" email recipients set system-project --file "$system_dir/email-project-recipients-input.json" --json \
+  >"$system_dir/email-project-recipients.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" email test --recipient ops@example.test --json >"$system_dir/email-test-result.json"
+[ "$(json_value status <"$system_dir/email-test-result.json")" = "accepted_by_smtp" ]
+curl --fail --silent --show-error "$smtp_fixture/messages" >"$system_dir/smtp-after-test.json"
+node -e '
+  const result = require(process.argv[1]);
+  if (result.messages.length !== 1 || !result.messages[0].content.includes("upaffe SMTP test")) process.exit(1);
+' "$system_dir/smtp-after-test.json"
+
 # The real CLI creates an HTTP monitor against a public documentation host. A
 # fresh monitor is due immediately, so this observes a scheduled success without
 # waiting for its five-minute recurring interval.
@@ -215,9 +252,9 @@ UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
   >"$system_dir/monitor-before-planning-restart.json"
 planned_for=$(json_value next_check_at <"$system_dir/monitor-before-planning-restart.json")
 UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
-  docker compose -p "$smoke_project" -f "$compose_file" restart app >/dev/null
+  docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" restart app >/dev/null
 UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
-  docker compose -p "$smoke_project" -f "$compose_file" up --wait >/dev/null
+  docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" up --wait >/dev/null
 UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
   "$ua" monitor get system-project public-homepage --json \
   >"$system_dir/monitor-after-planning-restart.json"
@@ -282,12 +319,40 @@ node -e '
   if (page.items.length !== 1 || page.items[0].resolved_at !== null) process.exit(1);
 ' "$system_dir/monitor-one-incident.json"
 
+http_alert_accepted=false
+attempt=0
+while [ "$attempt" -lt 30 ]; do
+  UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+    "$ua" email incident "$open_incident_id" --monitor-type http --json \
+    >"$system_dir/email-http-open.json"
+  if node -e '
+    const status = require(process.argv[1]);
+    if (status.deliveries.filter(item => item.kind === "alert" && item.state === "accepted").length !== 1) process.exit(1);
+  ' "$system_dir/email-http-open.json"; then
+    http_alert_accepted=true
+    break
+  fi
+  attempt=$((attempt + 1))
+  sleep 1
+done
+[ "$http_alert_accepted" = "true" ]
+curl --fail --silent --show-error "$smtp_fixture/messages" >"$system_dir/smtp-after-http-alert.json"
+node -e '
+  const result = require(process.argv[1]);
+  const alert = result.messages.filter(item => item.content.includes("upaffe alert: system-project/public-homepage"));
+  if (alert.length !== 1) process.exit(1);
+  const content = alert[0].content;
+  for (const fact of ["System project renamed", "Public homepage", "unexpected_status", "Time:", "Details:", process.argv[2], process.argv[3]]) {
+    if (!content.includes(fact)) process.exit(1);
+  }
+' "$system_dir/smtp-after-http-alert.json" "$base_url" "$open_incident_id"
+
 # Restart with that incident open and prove both current state and incident
 # identity survive.
 UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
-  docker compose -p "$smoke_project" -f "$compose_file" restart app >/dev/null
+  docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" restart app >/dev/null
 UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
-  docker compose -p "$smoke_project" -f "$compose_file" up --wait >/dev/null
+  docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" up --wait >/dev/null
 UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
   "$ua" monitor get system-project public-homepage --json \
   >"$system_dir/monitor-after-incident-restart.json"
@@ -405,6 +470,32 @@ node -e '
   const page = require(process.argv[1]);
   if (page.items.length !== 1 || page.items[0].resolved_at === null) process.exit(1);
 ' "$system_dir/monitor-resolved-incident.json"
+
+http_recovery_accepted=false
+attempt=0
+while [ "$attempt" -lt 30 ]; do
+  UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+    "$ua" email incident "$open_incident_id" --monitor-type http --json \
+    >"$system_dir/email-http-resolved.json"
+  if node -e '
+    const status = require(process.argv[1]);
+    if (status.deliveries.filter(item => item.kind === "recovery" && item.state === "accepted").length !== 1) process.exit(1);
+  ' "$system_dir/email-http-resolved.json"; then
+    http_recovery_accepted=true
+    break
+  fi
+  attempt=$((attempt + 1))
+  sleep 1
+done
+[ "$http_recovery_accepted" = "true" ]
+curl --fail --silent --show-error "$smtp_fixture/messages" >"$system_dir/smtp-after-http-recovery.json"
+node -e '
+  const result = require(process.argv[1]);
+  for (const kind of ["alert", "recovery"]) {
+    const messages = result.messages.filter(item => item.content.includes(`upaffe ${kind}: system-project/public-homepage`));
+    if (messages.length !== 1 || !messages[0].content.includes(process.argv[2])) process.exit(1);
+  }
+' "$system_dir/smtp-after-http-recovery.json" "$open_incident_id"
 
 # The generated CLI creates both push modes and explicitly issues their
 # monitor-scoped reporting credentials. These two files are secret handoff
@@ -571,14 +662,35 @@ node -e '
 ' "$system_dir/push-state-one-incident.json" "$push_state_incident"
 echo "push reports opened one incident per monitor"
 
+push_alerts_accepted=false
+attempt=0
+while [ "$attempt" -lt 30 ]; do
+  UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+    "$ua" email incident "$push_job_incident" --monitor-type push --json >"$system_dir/email-push-job-open.json"
+  UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+    "$ua" email incident "$push_state_incident" --monitor-type push --json >"$system_dir/email-push-state-open.json"
+  if node -e '
+    for (const path of process.argv.slice(1)) {
+      const status = require(path);
+      if (status.deliveries.filter(item => item.kind === "alert" && item.state === "accepted").length !== 1) process.exit(1);
+    }
+  ' "$system_dir/email-push-job-open.json" "$system_dir/email-push-state-open.json"; then
+    push_alerts_accepted=true
+    break
+  fi
+  attempt=$((attempt + 1))
+  sleep 1
+done
+[ "$push_alerts_accepted" = "true" ]
+
 # Restart with both incidents open. PostgreSQL preserves the current state,
 # incident identity, and each persisted deadline.
 push_job_open_deadline=$(json_value next_deadline_at <"$system_dir/push-job-open.json")
 push_state_open_deadline=$(json_value next_deadline_at <"$system_dir/push-state-open.json")
 UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
-  docker compose -p "$smoke_project" -f "$compose_file" restart app >/dev/null
+  docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" restart app >/dev/null
 UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
-  docker compose -p "$smoke_project" -f "$compose_file" up --wait >/dev/null
+  docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" up --wait >/dev/null
 UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
   "$ua" push get system-project nightly-push --json >"$system_dir/push-job-after-open-restart.json"
 UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
@@ -618,15 +730,46 @@ curl --fail --silent --show-error --cookie "$cookie_jar" \
 [ "$(json_value state <"$system_dir/push-state-browser-recovery.json")" = "healthy" ]
 echo "fresh push reports recovered both monitors"
 
+push_recoveries_accepted=false
+attempt=0
+while [ "$attempt" -lt 30 ]; do
+  UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+    "$ua" email incident "$push_job_incident" --monitor-type push --json >"$system_dir/email-push-job-resolved.json"
+  UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+    "$ua" email incident "$push_state_incident" --monitor-type push --json >"$system_dir/email-push-state-resolved.json"
+  if node -e '
+    for (const path of process.argv.slice(1)) {
+      const status = require(path);
+      if (status.deliveries.filter(item => item.kind === "recovery" && item.state === "accepted").length !== 1) process.exit(1);
+    }
+  ' "$system_dir/email-push-job-resolved.json" "$system_dir/email-push-state-resolved.json"; then
+    push_recoveries_accepted=true
+    break
+  fi
+  attempt=$((attempt + 1))
+  sleep 1
+done
+[ "$push_recoveries_accepted" = "true" ]
+curl --fail --silent --show-error "$smtp_fixture/messages" >"$system_dir/smtp-after-push-recovery.json"
+node -e '
+  const fixture = require(process.argv[1]);
+  for (const [monitor, incident] of [["nightly-push", process.argv[2]], ["state-push", process.argv[3]]]) {
+    for (const kind of ["alert", "recovery"]) {
+      const messages = fixture.messages.filter(item => item.content.includes(`upaffe ${kind}: system-project/${monitor}`));
+      if (messages.length !== 1 || !messages[0].content.includes(incident) || !messages[0].content.includes("Time:")) process.exit(1);
+    }
+  }
+' "$system_dir/smtp-after-push-recovery.json" "$push_job_incident" "$push_state_incident"
+
 # A second restart before the fresh deadlines proves the plans survive. Then
 # wait for both interval-plus-tolerance boundaries and observe one synthetic
 # missing-report failure for each mode.
 push_job_recovery_deadline=$(json_value next_deadline_at <"$system_dir/push-job-browser-recovery.json")
 push_state_recovery_deadline=$(json_value next_deadline_at <"$system_dir/push-state-browser-recovery.json")
 UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
-  docker compose -p "$smoke_project" -f "$compose_file" restart app >/dev/null
+  docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" restart app >/dev/null
 UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
-  docker compose -p "$smoke_project" -f "$compose_file" up --wait >/dev/null
+  docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" up --wait >/dev/null
 UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
   "$ua" push get system-project nightly-push --json >"$system_dir/push-job-before-missing.json"
 UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
@@ -774,6 +917,221 @@ push_state_revoked_status=$(curl --silent --show-error --output "$system_dir/pus
 grep 'reporting_rejected' "$system_dir/push-state-revoked.json" >/dev/null
 echo "push credential rotation and revocation passed"
 
+# One push monitor exercises permanent relay refusal, a retry surviving restart,
+# and a queued alert made obsolete by a prompt recovery.
+echo '{"key":"mail-push","name":"Mail proof","mode":"job_completion","interval_seconds":3600,"tolerance_seconds":0,"instruction":"Inspect the fictional job","runbook_url":"https://docs.example.test/runbooks/mail-proof"}' >"$system_dir/mail-push-create-input.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push create system-project --file "$system_dir/mail-push-create-input.json" --json \
+  >"$system_dir/mail-push-create.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push credential issue system-project mail-push --json >"$system_dir/mail-push-credential.json"
+mail_push_token=$(json_value token <"$system_dir/mail-push-credential.json")
+
+send_mail_report() {
+  report_token=$1
+  report_outcome=$2
+  report_file=$3
+  report_id=$(node -e 'process.stdout.write(require("node:crypto").randomUUID())')
+  report_at=$(node -e 'process.stdout.write(new Date().toISOString())')
+  node -e '
+    process.stdout.write(JSON.stringify({ report_id: process.argv[1], observed_at: process.argv[2],
+      outcome: process.argv[3], reason: process.argv[3] === "failure" ? "fictional job failed" : null }));
+  ' "$report_id" "$report_at" "$report_outcome" >"$report_file.input"
+  curl --fail --silent --show-error --request POST \
+    --header "Authorization: Bearer $report_token" --header 'Content-Type: application/json' \
+    --data-binary @"$report_file.input" "$base_url/api/reports" >"$report_file"
+}
+
+wait_email_state() {
+  wanted_incident=$1
+  wanted_kind=$2
+  wanted_state=$3
+  wanted_file=$4
+  attempts=0
+  while [ "$attempts" -lt 100 ]; do
+    UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+      "$ua" email incident "$wanted_incident" --monitor-type push --json >"$wanted_file"
+    if node -e '
+      const status = require(process.argv[1]);
+      const matches = status.deliveries.filter(item => item.kind === process.argv[2] && item.state === process.argv[3]);
+      if (matches.length !== 1) process.exit(1);
+    ' "$wanted_file" "$wanted_kind" "$wanted_state"; then return 0; fi
+    attempts=$((attempts + 1))
+    sleep 1
+  done
+  return 1
+}
+
+curl --fail --silent --show-error --request POST "$smtp_fixture/mode/reject" >"$system_dir/smtp-reject-mode.json"
+send_mail_report "$mail_push_token" failure "$system_dir/mail-terminal-failure-receipt.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push get system-project mail-push --json >"$system_dir/mail-terminal-open.json"
+terminal_incident=$(json_value open_incident_id <"$system_dir/mail-terminal-open.json")
+wait_email_state "$terminal_incident" alert terminal_failure "$system_dir/mail-terminal-status.json"
+node -e '
+  const status = require(process.argv[1]);
+  const row = status.deliveries[0];
+  if (row.attempt_count !== 1 || row.last_error_code !== "smtp_rejected" || status.announcement_state !== "failed") process.exit(1);
+' "$system_dir/mail-terminal-status.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" email summary --project system-project --json >"$system_dir/mail-failure-summary.json"
+node -e 'if (require(process.argv[1]).terminal_failure_count < 1) process.exit(1)' "$system_dir/mail-failure-summary.json"
+sleep 1
+send_mail_report "$mail_push_token" success "$system_dir/mail-terminal-recovery-receipt.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" email incident "$terminal_incident" --monitor-type push --json >"$system_dir/mail-terminal-resolved.json"
+node -e '
+  const status = require(process.argv[1]);
+  if (status.deliveries.some(item => item.kind === "recovery")) process.exit(1);
+' "$system_dir/mail-terminal-resolved.json"
+
+curl --fail --silent --show-error --request POST "$smtp_fixture/mode/temporary" >"$system_dir/smtp-temporary-mode.json"
+sleep 1
+send_mail_report "$mail_push_token" failure "$system_dir/mail-retry-failure-receipt.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push get system-project mail-push --json >"$system_dir/mail-retry-open.json"
+retry_incident=$(json_value open_incident_id <"$system_dir/mail-retry-open.json")
+wait_email_state "$retry_incident" alert retrying "$system_dir/mail-retrying-status.json"
+node -e '
+  const row = require(process.argv[1]).deliveries[0];
+  if (row.attempt_count !== 1 || row.last_error_code !== "smtp_rejected" || !row.next_attempt_at) process.exit(1);
+' "$system_dir/mail-retrying-status.json"
+curl --fail --silent --show-error --cookie "$cookie_jar" \
+  "$base_url/api/email/incidents/$retry_incident?monitor_type=push" >"$system_dir/mail-retrying-browser.json"
+node -e '
+  const cli = require(process.argv[1]); const browser = require(process.argv[2]);
+  if (cli.announcement_state !== browser.announcement_state || cli.deliveries[0].state !== browser.deliveries[0].state) process.exit(1);
+' "$system_dir/mail-retrying-status.json" "$system_dir/mail-retrying-browser.json"
+UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
+  docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" restart app >/dev/null
+UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
+  docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" up --wait >/dev/null
+curl --fail --silent --show-error --request POST "$smtp_fixture/mode/accept" >"$system_dir/smtp-accept-mode.json"
+wait_email_state "$retry_incident" alert accepted "$system_dir/mail-retry-accepted.json"
+echo "transient SMTP alert accepted after restart"
+node -e '
+  const row = require(process.argv[1]).deliveries[0];
+  if (row.attempt_count !== 2 || !row.accepted_at) process.exit(1);
+' "$system_dir/mail-retry-accepted.json"
+sleep 1
+send_mail_report "$mail_push_token" success "$system_dir/mail-retry-recovery-receipt.json"
+wait_email_state "$retry_incident" recovery accepted "$system_dir/mail-retry-recovered.json"
+echo "transient SMTP incident recovered"
+
+curl --fail --silent --show-error --request POST "$smtp_fixture/mode/temporary" >"$system_dir/smtp-stale-mode.json"
+sleep 1
+send_mail_report "$mail_push_token" failure "$system_dir/mail-stale-failure-receipt.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push get system-project mail-push --json >"$system_dir/mail-stale-open.json"
+stale_incident=$(json_value open_incident_id <"$system_dir/mail-stale-open.json")
+wait_email_state "$stale_incident" alert retrying "$system_dir/mail-stale-retrying.json"
+sleep 1
+send_mail_report "$mail_push_token" success "$system_dir/mail-stale-recovery-receipt.json"
+wait_email_state "$stale_incident" alert obsolete "$system_dir/mail-stale-obsolete.json"
+echo "resolved queued alert became obsolete"
+curl --fail --silent --show-error --request POST "$smtp_fixture/mode/accept" >"$system_dir/smtp-after-stale-mode.json"
+
+# Project maintenance and direct monitor maintenance overlap. Reports and an
+# HTTP check continue during suppression; a closed episode stays silent while
+# a still-open episode becomes eligible once both scopes have ended.
+echo '{"key":"quiet-push","name":"Quiet maintenance","mode":"job_completion","interval_seconds":3600,"tolerance_seconds":0,"instruction":"Inspect the fictional job","runbook_url":"https://docs.example.test/runbooks/quiet-proof"}' >"$system_dir/quiet-push-create-input.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push create system-project --file "$system_dir/quiet-push-create-input.json" --json >"$system_dir/quiet-push-create.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push credential issue system-project quiet-push --json >"$system_dir/quiet-push-credential.json"
+quiet_push_token=$(json_value token <"$system_dir/quiet-push-credential.json")
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" maintenance start system-project --scope project --version 0 --duration-seconds 60 --json \
+  >"$system_dir/mail-project-maintenance-start.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" maintenance start system-project mail-push --scope push --version 0 --duration-seconds 120 --json \
+  >"$system_dir/mail-monitor-maintenance-start.json"
+curl --fail --silent --show-error --cookie "$cookie_jar" \
+  "$base_url/api/projects/system-project/push-monitors/mail-push/maintenance" \
+  >"$system_dir/mail-monitor-maintenance-browser.json"
+node -e '
+  const cli = require(process.argv[1]); const browser = require(process.argv[2]);
+  if (!cli.effective_active || !browser.effective_active || Date.parse(cli.effective_ends_at) !== Date.parse(browser.effective_ends_at) || browser.active_scopes.length !== 2) process.exit(1);
+' "$system_dir/mail-monitor-maintenance-start.json" "$system_dir/mail-monitor-maintenance-browser.json"
+echo "overlapping maintenance started"
+
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" monitor test system-project public-homepage --json >"$system_dir/mail-maintenance-http-check.json"
+[ "$(json_value succeeded <"$system_dir/mail-maintenance-http-check.json")" = "true" ]
+send_mail_report "$quiet_push_token" failure "$system_dir/mail-quiet-failure-receipt.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push get system-project quiet-push --json >"$system_dir/mail-quiet-open.json"
+quiet_incident=$(json_value open_incident_id <"$system_dir/mail-quiet-open.json")
+sleep 1
+send_mail_report "$quiet_push_token" success "$system_dir/mail-quiet-recovery-receipt.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" email incident "$quiet_incident" --monitor-type push --json >"$system_dir/mail-quiet-status.json"
+node -e '
+  const status = require(process.argv[1]);
+  if (status.open || status.deliveries.length !== 0 || status.announcement_state !== "silent") process.exit(1);
+' "$system_dir/mail-quiet-status.json"
+sleep 1
+send_mail_report "$mail_push_token" failure "$system_dir/mail-held-failure-receipt.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push get system-project mail-push --json >"$system_dir/mail-held-open.json"
+held_incident=$(json_value open_incident_id <"$system_dir/mail-held-open.json")
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" email incident "$held_incident" --monitor-type push --json >"$system_dir/mail-held-suppressed.json"
+node -e '
+  const status = require(process.argv[1]);
+  if (!status.open || status.announcement_state !== "suppressed" || status.deliveries.length !== 0) process.exit(1);
+' "$system_dir/mail-held-suppressed.json"
+UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
+  docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" restart app >/dev/null
+UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
+  docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" up --wait >/dev/null
+
+project_maintenance_expired=false
+attempt=0
+while [ "$attempt" -lt 90 ]; do
+  UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+    "$ua" maintenance get system-project --scope project --json >"$system_dir/mail-project-maintenance-expired.json"
+  if [ "$(json_value effective_active <"$system_dir/mail-project-maintenance-expired.json")" = "false" ]; then
+    project_maintenance_expired=true
+    break
+  fi
+  attempt=$((attempt + 1))
+  sleep 1
+done
+[ "$project_maintenance_expired" = "true" ]
+echo "project maintenance expired after restart"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" maintenance get system-project mail-push --scope push --json >"$system_dir/mail-monitor-still-active.json"
+[ "$(json_value effective_active <"$system_dir/mail-monitor-still-active.json")" = "true" ]
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" email incident "$held_incident" --monitor-type push --json >"$system_dir/mail-held-after-project-expiry.json"
+[ "$(json_value announcement_state <"$system_dir/mail-held-after-project-expiry.json")" = "suppressed" ]
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" maintenance end system-project mail-push --scope push --version 1 --json \
+  >"$system_dir/mail-monitor-maintenance-end.json"
+wait_email_state "$held_incident" alert accepted "$system_dir/mail-held-accepted.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" email incident "$quiet_incident" --monitor-type push --json >"$system_dir/mail-quiet-after-expiry.json"
+node -e '
+  const status = require(process.argv[1]);
+  if (status.deliveries.length !== 0 || status.announcement_state !== "silent") process.exit(1);
+' "$system_dir/mail-quiet-after-expiry.json"
+sleep 1
+send_mail_report "$mail_push_token" success "$system_dir/mail-held-recovery-receipt.json"
+wait_email_state "$held_incident" recovery accepted "$system_dir/mail-held-recovered.json"
+curl --fail --silent --show-error "$smtp_fixture/messages" >"$system_dir/smtp-final.json"
+node -e '
+  const fixture = require(process.argv[1]);
+  for (const id of [process.argv[2], process.argv[3], process.argv[4]]) {
+    if (fixture.messages.some(item => item.content.includes(id))) process.exit(1);
+  }
+  for (const id of [process.argv[5], process.argv[6]]) {
+    const messages = fixture.messages.filter(item => item.content.includes(id));
+    if (messages.length !== 2) process.exit(1);
+  }
+' "$system_dir/smtp-final.json" "$terminal_incident" "$stale_incident" "$quiet_incident" "$retry_incident" "$held_incident"
+echo "SMTP refusal, restart retry, obsolete alert, and overlapping maintenance passed"
+
 # Rotation admits both tokens during overlap. Revocation rejects both immediately.
 UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
   "$ua" credential rotate "$credential_id" --json >"$system_dir/credential-rotated.json"
@@ -807,16 +1165,18 @@ grep 'authentication_rejected' "$system_dir/revoked-old-diagnostic.txt" >/dev/nu
 
 # Database identity remains singular and the same project row survives every surface.
 operator_count=$(UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
-  docker compose -p "$smoke_project" -f "$compose_file" exec -T db \
+  docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" exec -T db \
   psql -U upaffe -d upaffe -Atc 'select count(*) from operator_identity')
 project_count=$(UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
-  docker compose -p "$smoke_project" -f "$compose_file" exec -T db \
+  docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" exec -T db \
   psql -U upaffe -d upaffe -Atc "select count(*) from project where key = 'system-project'")
 [ "$operator_count" = "1" ]
 [ "$project_count" = "1" ]
 
 UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
-  docker compose -p "$smoke_project" -f "$compose_file" logs --no-color app >"$system_dir/app.log"
+  docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" logs --no-color app >"$system_dir/app.log"
+UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
+  docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" logs --no-color smtp-fixture >"$system_dir/smtp.log"
 
 # Explicit create/rotate files are the only allowed token-revealing artifacts and are excluded here.
 ordinary_files="
@@ -910,7 +1270,11 @@ $system_dir/revoked-diagnostic.txt
 $system_dir/revoked-old-output.txt
 $system_dir/revoked-old-diagnostic.txt
 $system_dir/app.log
+$system_dir/smtp.log
 "
+email_ordinary_files=$(find "$system_dir" -maxdepth 1 -type f \( -name 'email-*.json' -o -name 'mail-*.json' -o -name 'smtp-*.json' \) ! -name '*input*' ! -name '*credential*')
+ordinary_files="$ordinary_files
+$email_ordinary_files"
 # The newline-delimited variable is intentionally split into path arguments.
 assert_absent "$bootstrap_proof" $ordinary_files
 assert_absent "$operator_password" $ordinary_files
@@ -924,5 +1288,8 @@ assert_absent "$push_state_token" $ordinary_files
 assert_absent "$push_state_url_secret" $ordinary_files
 assert_absent "$push_job_rotated_token" $ordinary_files
 assert_absent "$push_job_rotated_url_secret" $ordinary_files
+assert_absent "$smtp_password" $ordinary_files
+assert_absent "$mail_push_token" $ordinary_files
+assert_absent "$quiet_push_token" $ordinary_files
 
-echo "access, project, HTTP monitoring, and push monitoring system test passed"
+echo "access, project, HTTP, push, email, and maintenance system test passed"

@@ -682,6 +682,10 @@ namespace Upaffe.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("monitor_id");
 
+                    b.Property<DateTimeOffset?>("NotificationDecisionAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("notification_decision_at");
+
                     b.Property<DateTimeOffset>("OpenedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("opened_at");
@@ -776,6 +780,10 @@ namespace Upaffe.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("MonitorId")
                         .HasColumnType("uuid")
                         .HasColumnName("monitor_id");
+
+                    b.Property<DateTimeOffset?>("NotificationDecisionAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("notification_decision_at");
 
                     b.Property<DateTimeOffset>("OpenedAt")
                         .HasColumnType("timestamp with time zone")
@@ -1168,6 +1176,258 @@ namespace Upaffe.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Upaffe.Domain.Notifications.EmailConfiguration", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.PrimitiveCollection<string[]>("DefaultRecipients")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("default_recipients");
+
+                    b.Property<string>("Host")
+                        .HasColumnType("text")
+                        .HasColumnName("host");
+
+                    b.Property<string>("Password")
+                        .HasColumnType("text")
+                        .HasColumnName("password");
+
+                    b.Property<int?>("Port")
+                        .HasColumnType("integer")
+                        .HasColumnName("port");
+
+                    b.Property<string>("PublicBaseUrl")
+                        .HasColumnType("text")
+                        .HasColumnName("public_base_url");
+
+                    b.Property<string>("Security")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("security");
+
+                    b.Property<string>("SenderAddress")
+                        .HasColumnType("text")
+                        .HasColumnName("sender_address");
+
+                    b.Property<string>("SenderName")
+                        .HasColumnType("text")
+                        .HasColumnName("sender_name");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("Username")
+                        .HasColumnType("text")
+                        .HasColumnName("username");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_email_configuration");
+
+                    b.ToTable("email_configuration", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_email_configuration_port", "port is null or port between 1 and 65535");
+
+                            t.HasCheckConstraint("ck_email_configuration_security", "security in ('none', 'starttls', 'tls')");
+
+                            t.HasCheckConstraint("ck_email_configuration_version", "version > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Upaffe.Domain.Notifications.MaintenanceWindow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("EndedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ended_at");
+
+                    b.Property<DateTimeOffset>("EndsAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ends_at");
+
+                    b.Property<Guid>("ScopeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("scope_id");
+
+                    b.Property<string>("ScopeType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("scope_type");
+
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_maintenance_window");
+
+                    b.HasIndex("ScopeType", "ScopeId", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("maintenance_scope_version");
+
+                    b.ToTable("maintenance_window", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_maintenance_ended", "ended_at is null or (ended_at >= started_at and ended_at <= ends_at)");
+
+                            t.HasCheckConstraint("ck_maintenance_interval", "ends_at > started_at");
+
+                            t.HasCheckConstraint("ck_maintenance_scope", "scope_type in ('project', 'http', 'push')");
+
+                            t.HasCheckConstraint("ck_maintenance_version", "version > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Upaffe.Domain.Notifications.NotificationDelivery", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("AcceptedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("accepted_at");
+
+                    b.Property<Guid?>("ActiveAttemptToken")
+                        .HasColumnType("uuid")
+                        .HasColumnName("active_attempt_token");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempt_count");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("IncidentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("incident_id");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("kind");
+
+                    b.Property<DateTimeOffset?>("LastAttemptAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_attempt_at");
+
+                    b.Property<string>("LastErrorCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("last_error_code");
+
+                    b.Property<Guid?>("LeaseToken")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lease_token");
+
+                    b.Property<DateTimeOffset?>("LeaseUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lease_until");
+
+                    b.Property<string>("MonitorKey")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("monitor_key");
+
+                    b.Property<string>("MonitorName")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("monitor_name");
+
+                    b.Property<string>("MonitorType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("monitor_type");
+
+                    b.Property<DateTimeOffset>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_attempt_at");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<string>("ProjectKey")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("project_key");
+
+                    b.Property<string>("ProjectName")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("project_name");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("Recipient")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("recipient");
+
+                    b.Property<string>("RecipientKey")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("recipient_key");
+
+                    b.Property<DateTimeOffset?>("RecoveryDecisionAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recovery_decision_at");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("state");
+
+                    b.Property<DateTimeOffset?>("TerminalAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("terminal_at");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_notification_delivery");
+
+                    b.HasIndex("State", "NextAttemptAt")
+                        .HasDatabaseName("notification_delivery_due");
+
+                    b.HasIndex("IncidentId", "Kind", "RecipientKey")
+                        .IsUnique()
+                        .HasDatabaseName("notification_delivery_identity");
+
+                    b.ToTable("notification_delivery", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_notification_attempts", "attempt_count between 0 and 5");
+
+                            t.HasCheckConstraint("ck_notification_kind", "kind in ('Alert', 'Recovery')");
+
+                            t.HasCheckConstraint("ck_notification_monitor_type", "monitor_type in ('http', 'push')");
+
+                            t.HasCheckConstraint("ck_notification_state", "state in ('Queued', 'Claimed', 'Retrying', 'Accepted', 'TerminalFailure', 'Obsolete')");
+                        });
+                });
+
             modelBuilder.Entity("Upaffe.Domain.Projects.Project", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1193,6 +1453,11 @@ namespace Upaffe.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("name");
+
+                    b.PrimitiveCollection<string[]>("Recipients")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("recipients");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")

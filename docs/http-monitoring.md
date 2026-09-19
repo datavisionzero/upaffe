@@ -99,6 +99,12 @@ and the checked-in OpenAPI document.
 
 ## State and incident meaning
 
+An opening incident creates one alert intent per currently configured project
+recipient unless maintenance suppresses it. Later failed checks update the
+same incident without another alert. A fresh applicable success resolves it,
+obsoletes unsent alerts, and creates recovery intents only for recipients with
+an SMTP-accepted alert. The transition and intents commit together.
+
 | Visible state | Meaning |
 | --- | --- |
 | `untested` | No result has applied in the current generation. A resumed monitor may still retain an incident opened earlier. |

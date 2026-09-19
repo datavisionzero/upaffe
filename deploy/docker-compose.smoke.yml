@@ -1,0 +1,13 @@
+services:
+  smtp-fixture:
+    image: node:24-bookworm-slim
+    command: ["node", "/fixture/smtp-fixture.mjs"]
+    volumes:
+      - ../scripts/smtp-fixture.mjs:/fixture/smtp-fixture.mjs:ro
+    ports:
+      - "127.0.0.1:${UPAFFE_SMOKE_SMTP_PORT:-18025}:8025"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8025/messages').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 2s
+      timeout: 3s
+      retries: 20

@@ -30,6 +30,21 @@ secret supplied in the request body.
 | `PUT /api/projects/{key}` | Rename a live project at the version last read. |
 | `DELETE /api/projects/{key}?version={version}` | Soft-delete a project at the version last read. |
 | `POST /api/projects/{key}/restore` | Restore a project at the version last read. |
+| `GET /api/email/settings` | Read safe SMTP settings, credential presence, and default recipients. |
+| `PUT /api/email/settings` | Update SMTP sender, relay, security, authentication username, and public detail URL at the settings version last read. |
+| `PUT /api/email/password` | Replace the write-only SMTP password explicitly. |
+| `DELETE /api/email/password?version={version}` | Clear the SMTP password explicitly. |
+| `PUT /api/email/default-recipients` | Replace recipients copied to new projects. |
+| `POST /api/email/test` | Submit one explicit test message to SMTP without creating an incident. |
+| `GET /api/email/deliveries` | Page safe per-recipient alert and recovery delivery states. |
+| `GET /api/email/deliveries/summary` | Read instance pending, retrying, failed, and SMTP-accepted counts. |
+| `GET /api/email/incidents/{incidentId}?monitor_type=http\|push` | Read an incident's announcement state and per-recipient deliveries. |
+| `GET /api/projects/{key}/email-summary` | Read one project's delivery counts. |
+| `GET`, `POST`, `DELETE /api/projects/{projectKey}/maintenance` | Inspect, start or extend, and end a project maintenance window. |
+| `GET`, `POST`, `DELETE /api/projects/{projectKey}/http-monitors/{monitorKey}/maintenance` | Manage direct HTTP monitor maintenance and inspect inherited project maintenance. |
+| `GET`, `POST`, `DELETE /api/projects/{projectKey}/push-monitors/{monitorKey}/maintenance` | Manage direct push monitor maintenance and inspect inherited project maintenance. |
+| `GET /api/projects/{key}/recipients` | Read a project's recipients and version. |
+| `PUT /api/projects/{key}/recipients` | Replace recipients on a live project at the version last read. |
 | `POST /api/projects/{projectKey}/http-monitors` | Create an HTTP monitor idempotently within a project. |
 | `GET /api/projects/{projectKey}/http-monitors` | List live HTTP monitors in a project. |
 | `GET /api/projects/{projectKey}/http-monitors/{monitorKey}` | Read one HTTP monitor without secret values. |
@@ -147,6 +162,93 @@ existing key, or an attempted rename while deleted returns `409 conflict`.
 All project operations use the management boundary and therefore accept a
 browser session or management credential; anonymous requests return
 `401 authentication_required`.
+
+## Email configuration and recipients
+
+The cross-surface operator workflow and SMTP acceptance limits are in
+[the email and maintenance guide](./email-maintenance.md).
+
+The instance has one versioned SMTP configuration. `GET /api/email/settings`
+returns relay host and port, transport security (`none`, `starttls`, or `tls`),
+sender address and display name, optional authentication username, public
+detail URL, `has_password`, and the instance default recipient list. An
+unconfigured instance has version `0`. `PUT /api/email/settings` accepts those
+non-secret settings and a version. Password replacement requires a separate
+`PUT /api/email/password` with `version` and `password`; clearing uses
+`DELETE /api/email/password?version=…`. Reads and mutation responses never
+return the password. Stale versions return `409 conflict`.
+
+`PUT /api/email/default-recipients` accepts `version` and `recipients`. The
+default is copied once to each newly created project. Changing the default
+does not edit existing projects. `GET` and `PUT /api/projects/{key}/recipients`
+use the project's version; changing recipients increments it, and a deleted
+project cannot be changed. The ordered list has at most 50 plain addresses.
+Inputs are trimmed, domains are lowercased, and case-insensitive duplicates
+or malformed addresses return `400 validation`. An empty list opts a project
+out of incident email. All operations require browser or management-credential
+authentication; browser mutations also require CSRF protection.
+
+`POST /api/email/test` accepts a plain `recipient` address. It uses the same
+configured relay, sender, security, and optional authentication as incident
+email, with a 30-second total deadline. A successful response says
+`accepted_by_smtp` and records the acceptance time. That is evidence of relay
+acceptance, not inbox arrival. It creates no incident or retry intent. Missing
+sender settings return `409 email_not_configured`; a relay failure returns
+`502 smtp_rejected` with a short failure code. Raw SMTP diagnostics and
+credential values are not returned.
+
+## Email delivery status
+
+The four status operations require management authentication. The delivery
+list accepts `project_key`, `monitor_type` (`http` or `push`), `monitor_key`,
+`incident_id`, and a stored `state` (`queued`, `claimed`, `retrying`, `accepted`,
+`terminal_failure`, or `obsolete`). `monitor_key` requires the project and
+monitor type. Results are newest first, with `limit` 1–100 (default 20),
+`offset` 0–10,000, `total`, and `has_more`. Filtering by state uses the stored
+state; a pending row may instead display derived `suppressed` while maintenance
+or pause is active or its scope is removed.
+
+Each delivery contains the recipient, incident and scope identifiers, kind,
+state, attempt count, last and next attempt times, SMTP acceptance or terminal
+time, and a short sanitized failure code. It contains no SMTP response text,
+message body, password, or monitor secret. `accepted` means the relay accepted
+submission, not that an inbox received the message. The incident view
+distinguishes `pending`, `suppressed`, `announced`, `failed`,
+`awaiting_reconciliation`, `no_recipients`, and `silent`. Its suppression reason
+is separate from a monitor's health state. Summaries expose pending, retrying,
+terminal-failure, and SMTP-accepted counts with the oldest pending time.
+Unknown incidents or projects return `404`; invalid filters or pagination
+return `400`.
+
+Final delivery rows older than 90 days and superseded maintenance windows older
+than 90 days are removed daily. Open incidents and accepted alerts awaiting a
+recovery decision retain their delivery rows. The latest maintenance version
+for each scope remains available for optimistic writes. Older absence is not
+evidence that no mail was attempted.
+
+## Timed maintenance
+
+Each project, HTTP monitor, and push monitor has an independent maintenance
+scope. `GET` returns the latest direct window version and times, whether it is
+active, the effective active scopes, and the latest effective expiry. A monitor
+inherits project maintenance. If both direct and project windows are active,
+the effective expiry is the later end; ending one scope does not end the other.
+Maintenance is separate from monitor state and pause.
+
+`POST` accepts the last read maintenance `version` and `duration_seconds` from
+60 through 2,592,000. Version `0` starts a scope with no prior window. Starting
+again while active extends to the later of the current expiry and server time
+plus the requested duration. An expired or ended window is followed by a new
+record with the next version. `DELETE ?version=…` ends only the direct active
+window early. Stale versions or ending an inactive window return `409 conflict`;
+invalid durations return `400 validation`, and absent scopes return `404`.
+The server's current UTC time decides expiry, including after downtime: no
+background transition is needed. Checks, reports, and incident state continue.
+The delivery worker keeps queued mail suppressed while any effective window is
+active. When all relevant windows end, an incident still open and not yet
+announced becomes eligible once; an incident opened and resolved entirely in
+maintenance produces no delayed email. A recovery for a previously
+SMTP-accepted alert waits until suppression ends.
 
 ## HTTP monitors
 

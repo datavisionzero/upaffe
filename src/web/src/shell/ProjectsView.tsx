@@ -4,8 +4,10 @@ import type { components } from "@/api/schema";
 import { api } from "@/api/client";
 import { csrfHeaders, problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
+import { InstanceEmailView, ProjectEmailView } from "@/shell/EmailSettingsView";
 import { MonitorsView } from "@/shell/MonitorsView";
 import { PushMonitorsView } from "@/shell/PushMonitorsView";
+import { monitorLink } from "@/shell/deepLink";
 
 type Project = components["schemas"]["ProjectResponse"];
 type Session = components["schemas"]["CurrentSessionResponse"];
@@ -24,6 +26,8 @@ export function ProjectsView({ session, onSignedOut }: Props) {
   const [key, setKey] = useState("");
   const [name, setName] = useState("");
   const [selectedProject, setSelectedProject] = useState<Project>();
+  const [emailProject, setEmailProject] = useState<Project>();
+  const [instanceEmail, setInstanceEmail] = useState(false);
   const [monitorKind, setMonitorKind] = useState<"http" | "push">("http");
 
   const load = useCallback(async () => {
@@ -31,7 +35,12 @@ export function ProjectsView({ session, onSignedOut }: Props) {
       const { data, response, error: problem } = await api.GET("/api/projects", {
         params: { query: { deleted } },
       });
-      if (data) setProjects(data);
+      if (data) {
+        setProjects(data);
+        const link = monitorLink();
+        const linkedProject = link && data.find((item) => item.key === link.projectKey);
+        if (linkedProject) { setMonitorKind(link.monitorType); setSelectedProject(linkedProject); }
+      }
       else if (response.status === 401) onSignedOut();
       else setError(problemMessage(problem, response.status));
     } catch {
@@ -122,11 +131,13 @@ export function ProjectsView({ session, onSignedOut }: Props) {
     }
   }
 
+  if (instanceEmail) return <InstanceEmailView onBack={() => setInstanceEmail(false)} onSignedOut={onSignedOut} />;
+  if (emailProject) return <ProjectEmailView project={emailProject} onBack={() => setEmailProject(undefined)} onSignedOut={onSignedOut} />;
   if (selectedProject) {
     if (monitorKind === "push") {
       return (
         <PushMonitorsView
-          onBack={() => setSelectedProject(undefined)}
+          onBack={() => { setSelectedProject(undefined); if (monitorLink()) window.history.replaceState({}, "", "/"); }}
           onOpenHttp={() => setMonitorKind("http")}
           onSignedOut={onSignedOut}
           project={selectedProject}
@@ -135,7 +146,7 @@ export function ProjectsView({ session, onSignedOut }: Props) {
     }
     return (
       <MonitorsView
-        onBack={() => setSelectedProject(undefined)}
+        onBack={() => { setSelectedProject(undefined); if (monitorLink()) window.history.replaceState({}, "", "/"); }}
         onOpenPush={() => setMonitorKind("push")}
         onSignedOut={onSignedOut}
         project={selectedProject}
@@ -151,7 +162,7 @@ export function ProjectsView({ session, onSignedOut }: Props) {
           <h1>Projects</h1>
           <p className="muted">Signed in as {session.email}</p>
         </div>
-        <Button disabled={busy === "signout"} onClick={signOut} type="button">Sign out</Button>
+        <div className="actions"><Button onClick={() => setInstanceEmail(true)} type="button">Instance email</Button><Button disabled={busy === "signout"} onClick={signOut} type="button">Sign out</Button></div>
       </header>
 
       <section aria-labelledby="create-title" className="panel">
@@ -198,6 +209,7 @@ export function ProjectsView({ session, onSignedOut }: Props) {
                 key={project.id}
                 busy={busy}
                 onManage={() => setSelectedProject(project)}
+                onManageEmail={() => setEmailProject(project)}
                 onMutate={mutate}
                 project={project}
               />
@@ -213,10 +225,11 @@ type RowProps = {
   project: Project;
   busy?: string;
   onManage: () => void;
+  onManageEmail: () => void;
   onMutate: (project: Project, operation: "rename" | "delete" | "restore", nextName?: string) => Promise<void>;
 };
 
-function ProjectRow({ project, busy, onManage, onMutate }: RowProps) {
+function ProjectRow({ project, busy, onManage, onManageEmail, onMutate }: RowProps) {
   const [name, setName] = useState(project.name);
   const isDeleted = project.deleted_at !== null;
   const working = busy?.endsWith(`:${project.key}`) ?? false;
@@ -237,7 +250,7 @@ function ProjectRow({ project, busy, onManage, onMutate }: RowProps) {
         </div>
       ) : (
         <>
-          <Button className="manage-button" disabled={working} onClick={onManage} type="button">Manage monitors</Button>
+          <div className="actions"><Button className="manage-button" disabled={working} onClick={onManage} type="button">Manage monitors</Button><Button disabled={working} onClick={onManageEmail} type="button">Email and maintenance</Button></div>
           <form className="rename-row" onSubmit={(event) => {
             event.preventDefault();
             void onMutate(project, "rename", name);

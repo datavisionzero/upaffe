@@ -25,9 +25,10 @@ recovery, so a normal application restart does not require a separate queue.
 test hosts; leaving it disabled stops new checks and missing-report detection
 and must not be treated as a healthy monitoring deployment.
 
-HTTP check/incident detail and push report/incident detail are pruned at startup
+HTTP check/incident detail, push report/incident detail, final email deliveries,
+and superseded maintenance windows are pruned at startup
 and every 24 hours under the 90-day product limit.
-`HistoryRetention__Enabled=false` disables both workers for controlled
+`HistoryRetention__Enabled=false` disables the retention workers for controlled
 maintenance or tests. Leaving it disabled allows unbounded database growth and
 is not a supported steady-state configuration. Cleanup reports only deleted
 row counts and never logs retained result data or secrets.
@@ -101,6 +102,57 @@ and check/incident history. These views report persisted monitoring facts but
 do not widen the API and `ua` contracts or replace the technical health paths.
 The same workspace switches to push monitors for both reporting modes,
 deadlines, reports, incidents, pause/resume, and one-time credential handoff.
+
+## SMTP setup and test send
+
+The complete email and maintenance workflow is in
+[the email and maintenance guide](./email-maintenance.md).
+
+Configure one relay and sender through the authenticated email settings API.
+The security mode is `starttls` for a relay that upgrades a plain connection,
+`tls` for TLS from connection start, or `none` for an explicitly trusted local
+relay. Set its host, port, sender address, and a public base URL such as
+`https://status.example.test` for incident links. Configure an authentication
+username and replace the write-only password only if the relay requires it.
+Set instance default recipients before creating projects, then inspect or
+replace each project's own list. Existing projects do not follow later default
+changes.
+
+Use `POST /api/email/test` with an explicit `recipient` after configuration.
+The `accepted_by_smtp` result means the relay accepted the message for
+processing; it cannot establish inbox delivery. A configuration or relay
+failure returns a sanitized problem code. This test creates no incident and
+does not retry on its own. Keep SMTP credentials in the authenticated write
+request and out of shell history, logs, and ordinary status output.
+
+Incident email uses durable work. Transient failures retry up to five total
+attempts with one, two, four, and eight minute delays; permanent failures stop.
+The worker recovers an expired two-minute claim after a restart. SMTP may have
+accepted a message just before a crash without upaffe recording that fact, so
+the retry can produce a duplicate even though no second logical notification
+is created. `EmailDelivery__Enabled=false` disables draining for controlled
+tests; leaving it disabled on a running instance accumulates pending work.
+
+Timed maintenance can cover a project or one HTTP or push monitor. During an
+active window, checks and reports still run, incidents still open and resolve,
+and the worker holds alert and recovery submissions. Project and monitor
+windows overlap; email resumes only after both have ended. Expiry uses the
+server clock even across restart. An incident still open after expiry gets one
+current-recipient alert, while an incident that opened and resolved entirely
+inside maintenance remains in history without delayed mail. A recovery for an
+alert accepted before maintenance waits until the window ends. Pause remains a
+separate control that suspends monitoring rather than just email.
+
+Use `GET /api/email/deliveries/summary` for instance counts,
+`GET /api/projects/{key}/email-summary` for project counts, and
+`GET /api/email/deliveries` to inspect bounded per-recipient history. Filter by
+project, monitor, incident, or stored delivery state. The incident status
+operation adds the announcement decision and any active suppression reason.
+`accepted` is relay acceptance, while `terminal_failure` needs operator review
+of SMTP settings and a new test send. Raw relay diagnostics are deliberately
+absent; only stable failure codes appear. History older than 90 days may have
+been pruned, but delivery records for open incidents remain available for a
+future recovery decision.
 
 ## Simple push reporting
 

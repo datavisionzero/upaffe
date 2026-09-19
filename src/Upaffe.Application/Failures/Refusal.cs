@@ -42,4 +42,10 @@ public sealed class Refusal(
 
     public static Refusal Unprocessable(IReadOnlyDictionary<string, string[]> errors) =>
         new("unprocessable", "The report is outside the accepted reporting boundary.", errors);
+
+    public static Refusal EmailNotConfigured() =>
+        new("email_not_configured", "Complete the SMTP sender configuration before sending email.");
+
+    public static Refusal SmtpRejected(string code) =>
+        new("smtp_rejected", $"SMTP did not accept the message ({code}).");
 }

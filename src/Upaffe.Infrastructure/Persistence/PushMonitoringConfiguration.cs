@@ -207,6 +207,7 @@ internal sealed class PushIncidentConfiguration : IEntityTypeConfiguration<PushI
         builder.Property(value => value.ResolvedAt).HasColumnName("resolved_at");
         builder.Property(value => value.OriginalReason).HasColumnName("original_reason").HasMaxLength(32);
         builder.Property(value => value.LatestReason).HasColumnName("latest_reason").HasMaxLength(32);
+        builder.Property(value => value.NotificationDecisionAt).HasColumnName("notification_decision_at");
         builder.Ignore(value => value.IsOpen);
         builder.HasIndex(value => value.MonitorId).IsUnique().HasFilter("resolved_at is null")
             .HasDatabaseName("push_incident_one_open_per_monitor");

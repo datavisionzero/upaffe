@@ -224,6 +224,7 @@ internal sealed class IncidentConfiguration : IEntityTypeConfiguration<Incident>
         builder.Property(value => value.ResolvedAt).HasColumnName("resolved_at");
         builder.Property(value => value.OriginalReason).HasColumnName("original_reason").HasMaxLength(HttpCheck.MaximumReasonLength);
         builder.Property(value => value.LatestReason).HasColumnName("latest_reason").HasMaxLength(HttpCheck.MaximumReasonLength);
+        builder.Property(value => value.NotificationDecisionAt).HasColumnName("notification_decision_at");
         builder.Ignore(value => value.IsOpen);
         builder.HasIndex(value => value.MonitorId).IsUnique().HasFilter("resolved_at is null")
             .HasDatabaseName("incident_one_open_per_monitor");

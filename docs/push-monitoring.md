@@ -125,6 +125,12 @@ JSON route when retries must deduplicate or a failure must be explicit.
 
 ## Deadlines, incidents, and restarts
 
+An applicable explicit failure or missing-report deadline opens one incident
+and its eligible alert intents in the same transaction. Later failures and
+late reports create no duplicate alert. A fresh applicable success resolves
+the incident, obsoletes unsent alerts, and creates recovery intents only for
+SMTP-accepted announcements to still-configured recipients.
+
 The current deadline, sequence, state, latest report and success references,
 and open incident are PostgreSQL facts. The deadline worker claims overdue work
 with a bounded lease and writes one synthetic missing report in the same

@@ -12,11 +12,12 @@ public sealed partial class Project
     {
     }
 
-    private Project(string key, string name, DateTimeOffset now)
+    private Project(string key, string name, DateTimeOffset now, string[] recipients)
     {
         Id = Guid.NewGuid();
         Key = ValidateKey(key);
         Name = ValidateName(name);
+        Recipients = recipients;
         Version = 1;
         CreatedAt = now;
         UpdatedAt = now;
@@ -25,12 +26,21 @@ public sealed partial class Project
     public Guid Id { get; private set; }
     public string Key { get; private set; } = string.Empty;
     public string Name { get; private set; } = string.Empty;
+    public string[] Recipients { get; private set; } = [];
     public long Version { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
     public DateTimeOffset? DeletedAt { get; private set; }
 
-    public static Project Create(string key, string name, DateTimeOffset now) => new(key, name, now);
+    public static Project Create(string key, string name, DateTimeOffset now, string[]? recipients = null) =>
+        new(key, name, now, recipients ?? []);
+
+    public void ReplaceRecipients(string[] recipients, DateTimeOffset now)
+    {
+        EnsureLive();
+        Recipients = recipients;
+        Changed(now);
+    }
 
     public void Rename(string name, DateTimeOffset now)
     {

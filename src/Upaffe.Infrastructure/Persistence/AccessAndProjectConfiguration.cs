@@ -135,6 +135,7 @@ internal sealed class ProjectConfiguration : IEntityTypeConfiguration<Project>
         builder.Property(value => value.CreatedAt).HasColumnName("created_at");
         builder.Property(value => value.UpdatedAt).HasColumnName("updated_at");
         builder.Property(value => value.DeletedAt).HasColumnName("deleted_at");
+        builder.Property(value => value.Recipients).HasColumnName("recipients").HasColumnType("text[]");
         builder.HasIndex(value => value.Key).IsUnique().HasDatabaseName("project_key");
     }
 }

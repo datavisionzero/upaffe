@@ -47,9 +47,13 @@ public sealed class Incident
     public DateTimeOffset OpenedAt { get; private set; }
     public DateTimeOffset LastObservedAt { get; private set; }
     public DateTimeOffset? ResolvedAt { get; private set; }
+    public DateTimeOffset? NotificationDecisionAt { get; private set; }
     public string OriginalReason { get; private set; } = string.Empty;
     public string LatestReason { get; private set; } = string.Empty;
     public bool IsOpen => ResolvedAt is null;
+
+    public void MarkNotificationDecision(DateTimeOffset now) =>
+        NotificationDecisionAt ??= now;
 
     public static Incident Open(HttpCheck firstFailure, HttpCheck openingFailure, DateTimeOffset openedAt) =>
         new(firstFailure, openingFailure, openedAt);

@@ -38,6 +38,12 @@ ADR 0006. The seventh adds durable push-deadline leases and the unique
 synthetic-observation boundary. Later changes add new forward migrations; an
 existing migration is never rewritten after release.
 
+The next migration adds the singleton email configuration and project
+recipient snapshot decided in ADR 0007.
+The following migration adds durable notification deliveries and their due-work
+index and logical uniqueness boundary.
+The next migration adds timed maintenance windows for projects and monitors.
+
 Add a migration from the repository root after changing the context model:
 
 ```sh
@@ -70,6 +76,82 @@ replacement project. API writes compare the version last read before mutation,
 and EF's concurrency token rejects a second writer that races between that
 comparison and commit. Concurrent creation of the same accepted key and name is
 idempotent; a different name is a conflict.
+
+`email_configuration` is a single keyed row with a concurrency version,
+shared relay and sender settings, default recipients, and an optional SMTP
+password. The password must be readable by the sender and therefore cannot be
+hashed. It is excluded from ordinary API reads and logs, like HTTP monitor
+request secrets. The database and host administrator remain trusted. Project
+rows contain an independent `text[]` recipient list copied from the defaults
+at creation; replacement uses the project concurrency version. Existing
+projects never track later default changes.
+
+## Email delivery schema
+
+The operator-facing behavior of these rows is described in
+[the email and maintenance guide](./email-maintenance.md).
+
+`notification_delivery` represents one alert or recovery intent for one
+incident and normalized recipient. A unique `(incident_id, kind, recipient_key)`
+index prevents intentional duplicates even when two evaluators race. The row
+stores only the facts needed to render a message when attempted: project and
+monitor identity and display names, stable reason, event time, and recipient.
+It stores no rendered body or SMTP password. Its state, attempt count, next
+attempt, lease token and expiry, acceptance time, terminal time, and sanitized
+last failure code are durable. Message-ID derives from the logical identity.
+
+A worker claims due rows with `FOR UPDATE SKIP LOCKED` and a two-minute lease.
+An expired lease can be reclaimed after a crash; completion requires the latest
+lease token. After a final eligibility check, beginning SMTP submission counts
+as an attempt before network work starts; deferred claims do not consume an
+attempt. Repeated crashes therefore cannot bypass the five-attempt cap. If the
+fifth begun attempt expires without a recorded result, its outcome is marked
+unknown and terminal. The first transient failure retries after one minute,
+then after two, four, and eight minutes. Five attempts is the maximum. Permanent failure
+or the fifth transient failure is terminal. SMTP acceptance is recorded only
+after the relay returns success. A crash between that success and committing
+acceptance can cause a second SMTP submission; the row cannot prove inbox
+delivery or guarantee exactly-once email.
+
+The worker logs a fixed failure message without SMTP exception text. Status
+surfaces only a short failure code. Daily retention removes final deliveries
+older than 90 days, except records tied to open incidents and accepted alerts
+still awaiting a recovery decision. Pending work has no retention cutoff.
+
+HTTP threshold openings and push explicit or missing-report openings add alert
+intents in the incident transaction. Later failures and late observations do
+not add more. A fresh resolution obsoletes unsent alerts and adds recovery
+intents only for recipients whose alert was SMTP-accepted and who remain
+configured. Before submission the worker reloads incident, project, monitor,
+recipient, pause, and maintenance facts. A resolved alert or deleted/removed
+scope becomes obsolete; pause or maintenance defers without using a send
+attempt. A transition after that check can still race an SMTP submission, as
+ADR 0007 explains.
+
+## Timed maintenance schema
+
+`maintenance_window` records each finite project, HTTP monitor, or push monitor
+window with its scope identity, start, planned end, optional early end, and
+optimistic version. A unique scope/version index detects simultaneous new
+windows. Starting an active scope extends the same row; starting after expiry
+or early end appends another row and preserves history. Expiry is derived from
+`ends_at <= server now`, so restart or delayed processing cannot leave a
+window active forever. Project and monitor windows compose by union, with the
+later active end as the effective expiry. Neither monitoring observations nor
+incident lifecycle rows are changed by maintenance mutations.
+Daily retention removes windows whose effective end is older than 90 days only
+when a newer window exists for the scope; the latest version remains for
+optimistic concurrency.
+
+HTTP and push incidents each persist `notification_decision_at`. An opening
+outside maintenance records that decision even when the project has no
+recipients, preventing later recipient additions from replaying the incident.
+An opening inside maintenance leaves it unset. The delivery worker scans open,
+unannounced incidents after all effective windows end, locks their monitor row,
+and atomically records the decision with the current recipients' alert intents.
+A resolution inside maintenance records the decision without an alert. Accepted
+alerts also have a recovery-decision marker: when SMTP acceptance races the
+incident's resolution, the worker can add one matching recovery later.
 
 ## HTTP monitoring schema
 

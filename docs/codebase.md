@@ -12,6 +12,8 @@ version endpoints, PostgreSQL context, forward-only startup migration,
 checked-in OpenAPI contract, two generated client packages, React application,
 and Go CLI exist. Access, projects, HTTP-monitor administration, and push
 monitor administration work through the shared API, web application, and CLI.
+The same surfaces configure incident email, inspect durable delivery, and
+manage finite project and monitor maintenance.
 The HTTP monitoring domain and PostgreSQL schema persist monitor configuration,
 scheduling and current-result facts, explicitly separated secrets, ordered
 checks, and incident lifecycles. A shared bounded executor performs one
@@ -243,6 +245,16 @@ controls keep the slice keyboard accessible. The production build lands in
 `src/Upaffe.Api/wwwroot`, which the API process serves, so no second application
 server is required in an installation.
 
+The instance email screen reads safe SMTP settings and default recipients,
+updates them at the read version, replaces or clears the password explicitly,
+and sends a single test email with relay-acceptance feedback. Project email
+administration edits live recipients and shows timed project maintenance and
+delivery counts/history. HTTP and push detail screens reuse the maintenance
+and delivery panels for their own scope and offer per-incident announcement
+status. Effective maintenance and its expiry are shown apart from monitor
+health and pause. The browser reads only the generated safe status responses;
+it never renders SMTP diagnostics or a saved password.
+
 The CLI is an independent Go module whose executable is `ua`. It is designed for
 unattended use: machine-readable output, data on stdout, diagnostics on stderr,
 stable exit categories, and no implicit prompt, editor, or pager. `ua version`
@@ -311,6 +323,11 @@ file/stdin reader. Ordinary output is built from secret-free monitor, history,
 and credential-metadata responses; only explicit credential issue and rotate
 commands render the one-time token and secret reporting URL.
 
+`ua email` and `ua maintenance` use the same generated client for all email
+settings, recipients, explicit test submission, delivery states, and timed
+project/HTTP/push maintenance. SMTP password input comes only from bounded
+JSON file/stdin input; ordinary output shows presence without the value.
+
 HTTP monitor entities validate the durable limits from ADR 0004 and retain the
 state and observation ordering from ADR 0003 without taking a dependency on EF
 Core. Infrastructure maps them to PostgreSQL with a project-scoped immutable
@@ -363,6 +380,8 @@ runtime behavior against a real PostgreSQL-backed Compose application.
   operator surfaces, runtime, storage, and security boundary.
 - `docs/push-monitoring.md` connects both push modes, reporting credentials,
   deadlines, ordering, incidents, retention, and operator surfaces.
+- `docs/email-maintenance.md` connects SMTP delivery, safe status, and finite
+  suppression across the operator surfaces and runtime.
 - `docs/storage.md` changes with schema, migrations, retention, and backup
   boundaries.
 - `docs/install.md` exists when there is a supported installation procedure.

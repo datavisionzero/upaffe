@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Upaffe.Application.Ports;
 using Upaffe.Infrastructure.Monitoring;
+using Upaffe.Infrastructure.Notifications;
 using Upaffe.Infrastructure.Persistence;
 using Upaffe.Infrastructure.Security;
 
@@ -25,6 +26,11 @@ public static class InfrastructureServices
         services.AddScoped<IBrowserSessionStore, BrowserSessionStore>();
         services.AddScoped<IManagementCredentialStore, ManagementCredentialStore>();
         services.AddScoped<IProjectStore, ProjectStore>();
+        services.AddScoped<IEmailConfigurationStore, EmailConfigurationStore>();
+        services.AddScoped<IEmailDeliveryStore, EmailDeliveryStore>();
+        services.AddScoped<IMaintenanceStore, MaintenanceStore>();
+        services.AddScoped<IEmailStatusStore, EmailStatusStore>();
+        services.AddScoped<IEmailHistoryStore, EmailHistoryStore>();
         services.AddScoped<IHttpMonitorStore, HttpMonitorStore>();
         services.AddScoped<IPushMonitorStore, PushMonitorStore>();
         services.AddScoped<IReportingCredentialStore, ReportingCredentialStore>();
@@ -36,6 +42,7 @@ public static class InfrastructureServices
         services.AddSingleton<IHostResolver, SystemHostResolver>();
         services.AddSingleton<IPinnedConnectionFactory, SocketPinnedConnectionFactory>();
         services.AddSingleton<IHttpCheckExecutor, HttpCheckExecutor>();
+        services.AddSingleton<IEmailSender, SmtpEmailSender>();
         services.AddSingleton<IPasswordHasher, Argon2idPasswordHasher>();
         return services;
     }

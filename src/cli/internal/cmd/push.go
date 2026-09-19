@@ -34,7 +34,7 @@ func newPushCreate(output io.Writer, getenv environment, flags *managementFlags)
 	command := &cobra.Command{
 		Use: "create <project-key>", Short: "Create a push monitor from a JSON document", Args: cobra.ExactArgs(1),
 		RunE: func(command *cobra.Command, arguments []string) error {
-			request, err := readMonitorInput[api.CreatePushMonitorRequest](command, file)
+			request, err := readDocumentInput[api.CreatePushMonitorRequest](command, file)
 			if err != nil {
 				return err
 			}
@@ -119,7 +119,7 @@ func newPushUpdate(output io.Writer, getenv environment, flags *managementFlags)
 	command := &cobra.Command{
 		Use: "update <project-key> <monitor-key>", Short: "Replace push monitor configuration from a JSON document", Args: cobra.ExactArgs(2),
 		RunE: func(command *cobra.Command, arguments []string) error {
-			request, err := readMonitorInput[api.UpdatePushMonitorRequest](command, file)
+			request, err := readDocumentInput[api.UpdatePushMonitorRequest](command, file)
 			if err != nil {
 				return err
 			}

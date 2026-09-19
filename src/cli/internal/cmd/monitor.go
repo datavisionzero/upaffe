@@ -51,7 +51,7 @@ func newMonitorCreate(output io.Writer, getenv environment, flags *managementFla
 		Short: "Create an HTTP monitor from a JSON document",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(command *cobra.Command, arguments []string) error {
-			request, err := readMonitorInput[api.CreateHttpMonitorRequest](command, file)
+			request, err := readDocumentInput[api.CreateHttpMonitorRequest](command, file)
 			if err != nil {
 				return err
 			}
@@ -155,7 +155,7 @@ func newMonitorUpdate(output io.Writer, getenv environment, flags *managementFla
 		Short: "Replace non-secret monitor configuration from a JSON document",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(command *cobra.Command, arguments []string) error {
-			request, err := readMonitorInput[api.UpdateHttpMonitorRequest](command, file)
+			request, err := readDocumentInput[api.UpdateHttpMonitorRequest](command, file)
 			if err != nil {
 				return err
 			}
@@ -428,7 +428,7 @@ func newMonitorHeaderSet(output io.Writer, getenv environment, flags *management
 		Short: "Set a write-only header from a JSON document",
 		Args:  cobra.ExactArgs(3),
 		RunE: func(command *cobra.Command, arguments []string) error {
-			request, err := readMonitorInput[api.SetHttpMonitorHeaderRequest](command, file)
+			request, err := readDocumentInput[api.SetHttpMonitorHeaderRequest](command, file)
 			if err != nil {
 				return err
 			}
@@ -487,7 +487,7 @@ func newMonitorHeaderRemove(output io.Writer, getenv environment, flags *managem
 	return command
 }
 
-func readMonitorInput[T any](command *cobra.Command, file string) (T, error) {
+func readDocumentInput[T any](command *cobra.Command, file string) (T, error) {
 	var result T
 	if file == "" {
 		return result, process.New(process.Usage, "--file is required (use - for stdin)")
@@ -499,7 +499,7 @@ func readMonitorInput[T any](command *cobra.Command, file string) (T, error) {
 	} else {
 		handle, err := os.Open(file)
 		if err != nil {
-			return result, process.New(process.Usage, "cannot open monitor input file: %v", err)
+			return result, process.New(process.Usage, "cannot open document input file: %v", err)
 		}
 		reader = handle
 		closeFile = handle.Close
@@ -509,20 +509,20 @@ func readMonitorInput[T any](command *cobra.Command, file string) (T, error) {
 	}
 	content, err := io.ReadAll(io.LimitReader(reader, maximumMonitorInputBytes+1))
 	if err != nil {
-		return result, process.New(process.Usage, "cannot read monitor input")
+		return result, process.New(process.Usage, "cannot read document input")
 	}
 	if len(content) > maximumMonitorInputBytes {
-		return result, process.New(process.Usage, "monitor input exceeds 1 MiB")
+		return result, process.New(process.Usage, "document input exceeds 1 MiB")
 	}
 	decoder := json.NewDecoder(bytes.NewReader(content))
 	decoder.DisallowUnknownFields()
 	var decoded *T
 	if err := decoder.Decode(&decoded); err != nil || decoded == nil {
-		return result, process.New(process.Usage, "monitor input is not a valid JSON document")
+		return result, process.New(process.Usage, "document input is not a valid JSON document")
 	}
 	var trailing any
 	if err := decoder.Decode(&trailing); err != io.EOF {
-		return result, process.New(process.Usage, "monitor input must contain exactly one JSON document")
+		return result, process.New(process.Usage, "document input must contain exactly one JSON document")
 	}
 	return *decoded, nil
 }

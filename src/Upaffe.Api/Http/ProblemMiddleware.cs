@@ -35,6 +35,8 @@ public sealed class ProblemMiddleware(RequestDelegate next, ILogger<ProblemMiddl
                 "reporting_rejected" => StatusCodes.Status401Unauthorized,
                 "report_id_conflict" => StatusCodes.Status409Conflict,
                 "unprocessable" => StatusCodes.Status422UnprocessableEntity,
+                "email_not_configured" => StatusCodes.Status409Conflict,
+                "smtp_rejected" => StatusCodes.Status502BadGateway,
                 _ => StatusCodes.Status400BadRequest,
             };
             logger.LogInformation(

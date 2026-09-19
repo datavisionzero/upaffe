@@ -4,6 +4,8 @@ import type { components } from "@/api/schema";
 import { api } from "@/api/client";
 import { csrfHeaders, problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
+import { DeliveryHistoryPanel, IncidentEmailPanel, MaintenancePanel } from "@/shell/EmailPanels";
+import { monitorLink } from "@/shell/deepLink";
 
 type Project = components["schemas"]["ProjectResponse"];
 type Monitor = components["schemas"]["PushMonitorResponse"];
@@ -23,7 +25,10 @@ type Props = {
 
 export function PushMonitorsView({ project, onBack, onOpenHttp, onSignedOut }: Props) {
   const [monitors, setMonitors] = useState<Monitor[]>([]);
-  const [selectedKey, setSelectedKey] = useState<string>();
+  const [selectedKey, setSelectedKey] = useState<string | undefined>(() => {
+    const link = monitorLink();
+    return link?.projectKey === project.key && link.monitorType === "push" ? link.monitorKey : undefined;
+  });
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string>();
@@ -222,6 +227,10 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [emailIncidentId, setEmailIncidentId] = useState<string | undefined>(() => {
+    const link = monitorLink();
+    return link?.projectKey === project.key && link.monitorType === "push" && link.monitorKey === monitorKey ? link.incidentId : undefined;
+  });
   const paths = useMemo(() => ({ projectKey: project.key, monitorKey }), [monitorKey, project.key]);
 
   const load = useCallback(async () => {
@@ -376,6 +385,7 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
 
     {error && <div className="error" role="alert">{error}</div>}
     {notice && <div className="notice" role="status">{notice}</div>}
+    <MaintenancePanel projectKey={project.key} monitorType="push" monitorKey={monitorKey} onSignedOut={onSignedOut} />
 
     <section aria-labelledby="push-status-title" className="panel">
       <div className="section-heading">
@@ -450,10 +460,14 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
         {incidents.map((incident) => <li key={incident.id}>
           <strong>{incident.resolved_at ? "Resolved incident" : "Open incident"}</strong> · opened {formatDate(incident.opened_at)}
           <span>original reason {incident.original_reason} · latest reason {incident.latest_reason}{incident.resolved_at ? ` · resolved ${formatDate(incident.resolved_at)}` : ""}</span>
+          <Button onClick={() => setEmailIncidentId(incident.id)} type="button">Email status for incident</Button>
         </li>)}
       </ol>}
       {nextIncidentCursor !== null && <Button disabled={busy !== undefined} onClick={() => void moreIncidents()} type="button">Load older incidents</Button>}
     </section>
+
+    {emailIncidentId && <IncidentEmailPanel key={emailIncidentId} incidentId={emailIncidentId} monitorType="push" onSignedOut={onSignedOut} />}
+    <DeliveryHistoryPanel projectKey={project.key} monitorType="push" monitorKey={monitorKey} onSignedOut={onSignedOut} />
 
     <section aria-labelledby="push-remove-title" className="panel danger-zone">
       <h2 id="push-remove-title">Remove push monitor</h2>
