@@ -106,7 +106,7 @@ jobs:
   publish-image:
     name: Publish production image
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [backend, web, cli, contract, compose, image]
+    needs: [backend, web, cli, contract, compose, image, system]
     runs-on: ubuntu-latest
     permissions:
       contents: read
