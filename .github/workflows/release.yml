@@ -1,0 +1,157 @@
+name: Release candidate and publication
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version for a nonpublishing candidate run
+        required: true
+        default: 0.1.0-rc.1
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Validate release source
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      version: ${{ steps.source.outputs.version }}
+      source_revision: ${{ steps.source.outputs.source_revision }}
+      notes: ${{ steps.source.outputs.notes }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: source
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: scripts/check-release-source.sh "$REQUESTED_VERSION"
+
+  cli:
+    name: Validated CLI archives
+    needs: preflight
+    uses: ./.github/workflows/cli-artifacts.yml
+    with:
+      version: ${{ needs.preflight.outputs.version }}
+    permissions:
+      contents: read
+
+  image-candidate:
+    name: Validate two-architecture image layout
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    outputs:
+      layout_sha256: ${{ steps.layout.outputs.sha256 }}
+    env:
+      RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
+      SOURCE_REVISION: ${{ needs.preflight.outputs.source_revision }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - name: Build a nonpublishing OCI layout
+        run: |
+          docker buildx build --file deploy/Dockerfile \
+            --platform linux/amd64,linux/arm64 \
+            --build-arg "APP_VERSION=$RELEASE_VERSION" \
+            --build-arg "VCS_REF=$SOURCE_REVISION" \
+            --output "type=oci,dest=$RUNNER_TEMP/release-image.tar" .
+      - id: layout
+        run: |
+          python3 scripts/check-release-image-layout.py \
+            "$RUNNER_TEMP/release-image.tar" "$RELEASE_VERSION" "$SOURCE_REVISION"
+          printf 'sha256=%s\n' "$(sha256sum "$RUNNER_TEMP/release-image.tar" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+  package:
+    name: Complete candidate assets and notes
+    needs: [preflight, cli, image-candidate]
+    runs-on: ubuntu-24.04
+    env:
+      RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
+      SOURCE_REVISION: ${{ needs.preflight.outputs.source_revision }}
+      NOTES: ${{ needs.preflight.outputs.notes }}
+      LAYOUT_SHA256: ${{ needs.image-candidate.outputs.layout_sha256 }}
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 -m unittest discover -s tests -p release_automation_test.py
+      - uses: actions/download-artifact@v4
+        with:
+          name: cli-release-bundle
+          path: release-candidate
+      - run: |
+          python3 scripts/check-release-bundle.py "$RELEASE_VERSION" "$SOURCE_REVISION" release-candidate
+          cp "$NOTES" release-candidate/release-notes-preview.md
+          printf '%s  candidate OCI layout\n' "$LAYOUT_SHA256" > release-candidate/image-layout.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-candidate
+          path: release-candidate/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish versioned image and complete GitHub release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: [preflight, package]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      packages: write
+    env:
+      RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
+      SOURCE_REVISION: ${{ needs.preflight.outputs.source_revision }}
+      NOTES: ${{ needs.preflight.outputs.notes }}
+      IMAGE: ghcr.io/datavisionzero/upaffe:v${{ needs.preflight.outputs.version }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          name: cli-release-bundle
+          path: release-assets
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - id: existing
+        run: |
+          if docker buildx imagetools inspect "$IMAGE" >/dev/null 2>&1; then
+            echo 'present=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'present=false' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Publish the versioned image once
+        if: steps.existing.outputs.present != 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.IMAGE }}
+          build-args: |
+            APP_VERSION=${{ env.RELEASE_VERSION }}
+            VCS_REF=${{ env.SOURCE_REVISION }}
+      - name: Verify remote image and publish complete release
+        run: |
+          scripts/check-release-image.sh "$IMAGE" "$RELEASE_VERSION" "$SOURCE_REVISION" \
+            > "$RUNNER_TEMP/release-image-digest.txt"
+          python3 scripts/publish-release.py "$RELEASE_VERSION" "$SOURCE_REVISION" \
+            "$(cat "$RUNNER_TEMP/release-image-digest.txt")" release-assets "$NOTES"
