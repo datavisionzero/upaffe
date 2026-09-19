@@ -22,6 +22,14 @@ public sealed class PushMonitorHistoryTests
     {
         public DateTimeOffset? Cutoff { get; private set; }
 
+        public Task<PushReportHistoryItem?> ReadReportAsync(
+            string projectKey, string monitorKey, Guid reportId,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<PushIncidentHistoryItem?> ReadIncidentAsync(
+            string projectKey, string monitorKey, Guid incidentId,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public Task<PushHistoryPruneResult> PruneAsync(
             DateTimeOffset cutoff,
             CancellationToken cancellationToken)

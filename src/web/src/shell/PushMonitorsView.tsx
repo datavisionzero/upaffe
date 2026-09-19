@@ -224,7 +224,10 @@ type DetailProps = {
 function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: DetailProps) {
   const [monitor, setMonitor] = useState<Monitor>();
   const [reports, setReports] = useState<Report[]>([]);
+  const [pointerReports, setPointerReports] = useState<Report[]>([]);
   const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [pointerIncidents, setPointerIncidents] = useState<Incident[]>([]);
+  const [snapshotAt, setSnapshotAt] = useState<number>();
   const [credential, setCredential] = useState<Credential>();
   const [revealed, setRevealed] = useState<IssuedCredential>();
   const [nextReportCursor, setNextReportCursor] = useState<number | null>(null);
@@ -258,11 +261,36 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
       else if (!reportPage.data) setError(problemMessage(reportPage.error, reportPage.response.status));
       else if (!incidentPage.data) setError(problemMessage(incidentPage.error, incidentPage.response.status));
       else {
+        const missingReports = [...new Set([detail.data.latest_report_id, detail.data.latest_success_id]
+          .filter((id): id is string => !!id && !reportPage.data!.items.some((report) => report.id === id)))];
+        const linked = monitorLink();
+        const linkedId = linked?.projectKey === project.key && linked.monitorType === "push"
+          && linked.monitorKey === monitorKey ? linked.incidentId : undefined;
+        const missingIncidents = [...new Set([detail.data.open_incident_id, linkedId]
+          .filter((id): id is string => !!id && !incidentPage.data!.items.some((incident) => incident.id === id)))];
+        const [reportEvidence, incidentEvidence] = await Promise.all([
+          Promise.all(missingReports.map((reportId) => api.GET(
+            "/api/projects/{projectKey}/push-monitors/{monitorKey}/reports/{reportId}",
+            { params: { path: { ...paths, reportId } } }))),
+          Promise.all(missingIncidents.map((incidentId) => api.GET(
+            "/api/projects/{projectKey}/push-monitors/{monitorKey}/incidents/{incidentId}",
+            { params: { path: { ...paths, incidentId } } }))),
+        ]);
+        if ([...reportEvidence, ...incidentEvidence].some((result) => result.response.status === 401)) {
+          onSignedOut();
+          return;
+        }
         setMonitor(detail.data);
+        setSnapshotAt(Date.now());
         setReports(reportPage.data.items);
+        setPointerReports(reportEvidence.flatMap((result) => result.data ? [result.data] : []));
         setIncidents(incidentPage.data.items);
+        setPointerIncidents(incidentEvidence.flatMap((result) => result.data ? [result.data] : []));
         setNextReportCursor(reportPage.data.next_before_sequence);
         setNextIncidentCursor(incidentPage.data.next_before_opening_sequence);
+        const unavailable = [...reportEvidence, ...incidentEvidence].find((result) =>
+          !result.data && result.response.status !== 404);
+        if (unavailable) setError(problemMessage(unavailable.error, unavailable.response.status));
         if (detail.data.has_reporting_credential) {
           const metadata = await api.GET("/api/projects/{projectKey}/push-monitors/{monitorKey}/reporting-credential", { params: { path: paths } });
           if (metadata.data) setCredential(metadata.data);
@@ -275,7 +303,7 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
     } finally {
       setLoading(false);
     }
-  }, [onSignedOut, paths]);
+  }, [onSignedOut, paths, project.key, monitorKey]);
 
   useEffect(() => {
     const start = window.setTimeout(() => void load(), 0);
@@ -378,8 +406,15 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
     <div className="actions"><Button onClick={() => void load()} type="button">Try again</Button><Button onClick={onBack} type="button">Back to push monitors</Button></div>
   </div>;
 
-  const latest = reports.find((report) => report.id === monitor.latest_report_id);
-  const lastSuccess = reports.find((report) => report.id === monitor.latest_success_id);
+  const evidence = [...reports, ...pointerReports];
+  const latest = evidence.find((report) => report.id === monitor.latest_report_id);
+  const lastSuccess = evidence.find((report) => report.id === monitor.latest_success_id);
+  const openIncident = [...incidents, ...pointerIncidents].find((incident) =>
+    incident.id === monitor.open_incident_id);
+  const linkedIncident = [...incidents, ...pointerIncidents].find((incident) =>
+    incident.id === emailIncidentId);
+  const overdue = monitor.state !== "paused" && monitor.next_deadline_at !== null
+    && snapshotAt !== undefined && Date.parse(monitor.next_deadline_at) < snapshotAt;
 
   return <div className="workspace">
     <header className="workspace-header">
@@ -393,8 +428,6 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
 
     {error && <div className="error" role="alert">{error}</div>}
     {notice && <div className="notice" role="status">{notice}</div>}
-    <MaintenancePanel projectKey={project.key} monitorType="push" monitorKey={monitorKey} onSignedOut={onSignedOut} />
-
     <section aria-labelledby="push-status-title" className="panel">
       <div className="section-heading">
         <div><h2 id="push-status-title">Current status</h2><p className="muted">{modeLabel(monitor.mode)}</p></div>
@@ -407,17 +440,20 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
       </div>
       <dl className="fact-grid">
         <Fact label="Mode" value={modeLabel(monitor.mode)} />
-        <Fact label="Last report" value={latest ? `${latest.outcome} · ${formatDate(latest.received_at)}` : monitor.latest_report_id ?? "No report yet"} />
-        <Fact label="Last success" value={lastSuccess ? formatDate(lastSuccess.observed_at) : monitor.latest_success_id ?? "No success yet"} />
+        <Fact label="Latest report" value={latest ? `${latest.outcome} · observed ${formatDate(latest.observed_at)} · received ${formatDate(latest.received_at)} · ${latest.reason ?? "no failure reason"}` : monitor.latest_report_id ? "Evidence unavailable" : "No report yet"} />
+        <Fact label="Last success" value={lastSuccess ? `Observed ${formatDate(lastSuccess.observed_at)}; received ${formatDate(lastSuccess.received_at)}` : monitor.latest_success_id ? "Evidence unavailable" : "No success yet"} />
         <Fact label="Last received" value={monitor.last_received_at ? formatDate(monitor.last_received_at) : "Nothing received"} />
         <Fact label="Next deadline" value={monitor.next_deadline_at ? formatDate(monitor.next_deadline_at) : "No active deadline"} />
-        <Fact label="Open incident" value={monitor.open_incident_id ?? "None"} />
+        <Fact label="Reporting at refresh" value={overdue ? "Report deadline passed; missing-report evaluation may still be pending" : monitor.state === "paused" ? "Paused; no active deadline" : "Deadline had not passed"} />
+        <Fact label="Open incident" value={openIncident ? `Began ${formatDate(openIncident.began_at)}; opened ${formatDate(openIncident.opened_at)}; latest observation ${formatDate(openIncident.last_observed_at)}; reason ${openIncident.latest_reason}` : monitor.open_incident_id ? "Incident evidence unavailable" : "None"} />
         <Fact label="Interval + tolerance" value={`${monitor.interval_seconds}s + ${monitor.tolerance_seconds}s`} />
         <Fact label="Version" value={String(monitor.version)} />
       </dl>
       {monitor.instruction && <div className="operator-note"><strong>Operator instruction</strong><p>{monitor.instruction}</p></div>}
       {monitor.runbook_url && <p><a href={monitor.runbook_url} rel="noreferrer" target="_blank">Open runbook</a></p>}
     </section>
+
+    <MaintenancePanel projectKey={project.key} monitorType="push" monitorKey={monitorKey} onSignedOut={onSignedOut} />
 
     <section aria-labelledby="push-configuration-title" className="panel">
       <h2 id="push-configuration-title">Configuration</h2>
@@ -455,8 +491,10 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
       <h2 id="push-reports-title">Report history</h2>
       {reports.length === 0 ? <div className="empty">No reports received yet.</div> : <ol className="history-list">
         {reports.map((report) => <li key={report.id}>
-          <strong>{report.outcome === "success" ? "Successful report" : report.reason === "report_missing" ? "Missing report" : "Failed report"}</strong> · observed {formatDate(report.observed_at)}
-          <span>received {formatDate(report.received_at)} · sequence {report.sequence} · reason {report.reason ?? "none"} · {report.applicable ? "applied to current state" : "retained but not applied"}</span>
+          <strong>{report.outcome === "success"
+            ? incidents.some((incident) => incident.resolution_report_id === report.id) ? "Recovery" : "Successful report"
+            : report.reason === "report_missing" ? "Missing report" : "Failed report"}</strong> · observed {formatDate(report.observed_at)}
+          <span>received {formatDate(report.received_at)} · sequence {report.sequence} · reason {report.reason ?? "none"} · {report.applicable ? "applied to state" : "retained, not applied"}</span>
         </li>)}
       </ol>}
       {nextReportCursor !== null && <Button disabled={busy !== undefined} onClick={() => void moreReports()} type="button">Load older reports</Button>}
@@ -466,13 +504,20 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
       <h2 id="push-incidents-title">Incident history</h2>
       {incidents.length === 0 ? <div className="empty">No incidents.</div> : <ol className="history-list">
         {incidents.map((incident) => <li key={incident.id}>
-          <strong>{incident.resolved_at ? "Resolved incident" : "Open incident"}</strong> · opened {formatDate(incident.opened_at)}
-          <span>original reason {incident.original_reason} · latest reason {incident.latest_reason}{incident.resolved_at ? ` · resolved ${formatDate(incident.resolved_at)}` : ""}</span>
+          <strong>{incident.resolved_at ? "Resolved incident" : "Open incident"}</strong> · began {formatDate(incident.began_at)} · opened {formatDate(incident.opened_at)}
+          <span>original reason {incident.original_reason} · latest reason {incident.latest_reason} · last observed {formatDate(incident.last_observed_at)}{incident.resolved_at ? ` · recovered ${formatDate(incident.resolved_at)}` : ""}</span>
           <Button onClick={() => setEmailIncidentId(incident.id)} type="button">Email status for incident</Button>
         </li>)}
       </ol>}
       {nextIncidentCursor !== null && <Button disabled={busy !== undefined} onClick={() => void moreIncidents()} type="button">Load older incidents</Button>}
     </section>
+
+    {emailIncidentId && <section className="panel" aria-label="Selected incident">
+      <h2>Selected incident</h2>
+      <p>{linkedIncident
+        ? `${linkedIncident.resolved_at ? "Resolved" : "Open"} incident began ${formatDate(linkedIncident.began_at)}, opened ${formatDate(linkedIncident.opened_at)}; latest reason ${linkedIncident.latest_reason}.`
+        : "Incident history is unavailable for this link."}</p>
+    </section>}
 
     {emailIncidentId && <IncidentEmailPanel key={emailIncidentId} incidentId={emailIncidentId} monitorType="push" onSignedOut={onSignedOut} />}
     <DeliveryHistoryPanel projectKey={project.key} monitorType="push" monitorKey={monitorKey} onSignedOut={onSignedOut} />

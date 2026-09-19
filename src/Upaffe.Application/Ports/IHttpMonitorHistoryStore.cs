@@ -13,7 +13,8 @@ public sealed record HttpCheckHistoryItem(
     string? FailureReason,
     int? StatusCode,
     int? ResponseTimeMilliseconds,
-    string? EffectiveUrl);
+    string? EffectiveUrl,
+    bool? AppliedToCurrentState);
 
 public sealed record HttpCheckHistoryPage(
     IReadOnlyList<HttpCheckHistoryItem> Items,
@@ -44,11 +45,23 @@ public sealed record HttpHistoryPruneResult(int IncidentsDeleted, int ChecksDele
 
 public interface IHttpMonitorHistoryStore
 {
+    Task<HttpCheckHistoryItem?> ReadCheckAsync(
+        string projectKey,
+        string monitorKey,
+        Guid checkId,
+        CancellationToken cancellationToken);
+
     Task<HttpCheckHistoryPage?> ListChecksAsync(
         string projectKey,
         string monitorKey,
         long? beforeSequence,
         int limit,
+        CancellationToken cancellationToken);
+
+    Task<IncidentHistoryItem?> ReadIncidentAsync(
+        string projectKey,
+        string monitorKey,
+        Guid incidentId,
         CancellationToken cancellationToken);
 
     Task<IncidentHistoryPage?> ListIncidentsAsync(

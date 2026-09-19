@@ -302,7 +302,10 @@ type DetailProps = {
 function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: DetailProps) {
   const [monitor, setMonitor] = useState<Monitor>();
   const [checks, setChecks] = useState<Check[]>([]);
+  const [pointerChecks, setPointerChecks] = useState<Check[]>([]);
   const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [pointerIncidents, setPointerIncidents] = useState<Incident[]>([]);
+  const [snapshotAt, setSnapshotAt] = useState<number>();
   const [nextCheckCursor, setNextCheckCursor] = useState<number | null>(null);
   const [nextIncidentCursor, setNextIncidentCursor] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -336,18 +339,43 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
       else if (!checkPage.data) setError(problemMessage(checkPage.error, checkPage.response.status));
       else if (!incidentPage.data) setError(problemMessage(incidentPage.error, incidentPage.response.status));
       else {
+        const missingChecks = [...new Set([detail.data.latest_result_id, detail.data.latest_success_id]
+          .filter((id): id is string => !!id && !checkPage.data!.items.some((check) => check.id === id)))];
+        const linked = monitorLink();
+        const linkedId = linked?.projectKey === project.key && linked.monitorType === "http"
+          && linked.monitorKey === monitorKey ? linked.incidentId : undefined;
+        const missingIncidents = [...new Set([detail.data.open_incident_id, linkedId]
+          .filter((id): id is string => !!id && !incidentPage.data!.items.some((incident) => incident.id === id)))];
+        const [checkEvidence, incidentEvidence] = await Promise.all([
+          Promise.all(missingChecks.map((checkId) => api.GET(
+            "/api/projects/{projectKey}/http-monitors/{monitorKey}/checks/{checkId}",
+            { params: { path: { ...paths, checkId } } }))),
+          Promise.all(missingIncidents.map((incidentId) => api.GET(
+            "/api/projects/{projectKey}/http-monitors/{monitorKey}/incidents/{incidentId}",
+            { params: { path: { ...paths, incidentId } } }))),
+        ]);
+        if ([...checkEvidence, ...incidentEvidence].some((result) => result.response.status === 401)) {
+          onSignedOut();
+          return;
+        }
         setMonitor(detail.data);
+        setSnapshotAt(Date.now());
         setChecks(checkPage.data.items);
+        setPointerChecks(checkEvidence.flatMap((result) => result.data ? [result.data] : []));
         setIncidents(incidentPage.data.items);
+        setPointerIncidents(incidentEvidence.flatMap((result) => result.data ? [result.data] : []));
         setNextCheckCursor(checkPage.data.next_before_sequence);
         setNextIncidentCursor(incidentPage.data.next_before_opening_sequence);
+        const unavailable = [...checkEvidence, ...incidentEvidence].find((result) =>
+          !result.data && result.response.status !== 404);
+        if (unavailable) setError(problemMessage(unavailable.error, unavailable.response.status));
       }
     } catch {
       setError("The monitor detail could not be reached.");
     } finally {
       setLoading(false);
     }
-  }, [onSignedOut, paths]);
+  }, [onSignedOut, paths, project.key, monitorKey]);
 
   useEffect(() => {
     const start = window.setTimeout(() => void load(), 0);
@@ -519,8 +547,15 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
     );
   }
 
-  const latest = checks.find((check) => check.id === monitor.latest_result_id);
-  const lastSuccess = checks.find((check) => check.id === monitor.latest_success_id);
+  const evidence = [...checks, ...pointerChecks];
+  const latest = evidence.find((check) => check.id === monitor.latest_result_id);
+  const lastSuccess = evidence.find((check) => check.id === monitor.latest_success_id);
+  const openIncident = [...incidents, ...pointerIncidents].find((incident) =>
+    incident.id === monitor.open_incident_id);
+  const linkedIncident = [...incidents, ...pointerIncidents].find((incident) =>
+    incident.id === emailIncidentId);
+  const overdue = monitor.state !== "paused" && monitor.next_check_at !== null
+    && snapshotAt !== undefined && Date.parse(monitor.next_check_at) < snapshotAt;
 
   return (
     <div className="workspace">
@@ -535,7 +570,6 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
 
       {error && <div className="error" role="alert">{error}</div>}
       {notice && <div className="notice" role="status">{notice}</div>}
-      <MaintenancePanel projectKey={project.key} monitorType="http" monitorKey={monitorKey} onSignedOut={onSignedOut} />
       {testResult && (
         <div className="notice test-result" role="status">
           Immediate check: {testResult.succeeded ? "success" : "failure"}; status {testResult.status_code ?? "none"}; {testResult.response_time_milliseconds} ms; reason {testResult.reason_code ?? "none"}; {testResult.applied_to_current_state ? "applied" : "history only"}.
@@ -547,6 +581,7 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
           <h2 id="facts-title">Current facts</h2>
           <div className="actions">
             <Button disabled={busy !== undefined} onClick={() => void lifecycle("test")} type="button">Run test now</Button>
+            <Button disabled={busy !== undefined || loading} onClick={() => void load()} type="button">Refresh evidence</Button>
             {monitor.state === "paused"
               ? <Button disabled={busy !== undefined} onClick={() => void lifecycle("resume")} type="button">Resume</Button>
               : <Button disabled={busy !== undefined} onClick={() => void lifecycle("pause")} type="button">Pause</Button>}
@@ -554,17 +589,22 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
         </div>
         <dl className="fact-grid">
           <Fact label="Target" value={`${monitor.target_url}${monitor.has_target_query ? " (secret query configured)" : ""}`} />
-          <Fact label="Latest result" value={latest ? `${latest.outcome} · ${formatDate(latest.completed_at)}` : monitor.latest_result_id ?? "No result yet"} />
-          <Fact label="Last success" value={lastSuccess ? formatDate(lastSuccess.completed_at) : monitor.latest_success_id ?? "No success yet"} />
+          <Fact label="Latest result" value={latest ? `${latest.outcome} · ${formatDate(latest.completed_at)}` : monitor.latest_result_id ? "Evidence unavailable" : "No result yet"} />
+          <Fact label="Last success" value={lastSuccess ? formatDate(lastSuccess.completed_at) : monitor.latest_success_id ? "Evidence unavailable" : "No success yet"} />
           <Fact label="Next run" value={monitor.next_check_at ? formatDate(monitor.next_check_at) : "Not scheduled"} />
+          <Fact label="Schedule at refresh" value={overdue ? "Check execution overdue; no new result recorded" : monitor.state === "paused" ? "Paused; no check scheduled" : "Deadline had not passed"} />
           <Fact label="Response time" value={latest?.response_time_milliseconds === null || latest?.response_time_milliseconds === undefined ? "Not available" : `${latest.response_time_milliseconds} ms`} />
+          <Fact label="HTTP status" value={latest?.status_code === null || latest?.status_code === undefined ? "Not available" : String(latest.status_code)} />
           <Fact label="Failure reason" value={latest?.failure_reason ?? "None"} />
+          <Fact label="Open incident" value={openIncident ? `Began ${formatDate(openIncident.began_at)}; opened ${formatDate(openIncident.opened_at)}; latest observation ${formatDate(openIncident.last_observed_at)}; reason ${openIncident.latest_reason}` : monitor.open_incident_id ? "Incident evidence unavailable" : "None"} />
           <Fact label="Expected status" value={String(monitor.expected_status_code)} />
           <Fact label="Version" value={String(monitor.version)} />
         </dl>
         {monitor.instruction && <div className="operator-note"><strong>Operator instruction</strong><p>{monitor.instruction}</p></div>}
         {monitor.runbook_url && <p><a href={monitor.runbook_url} rel="noreferrer" target="_blank">Open runbook</a></p>}
       </section>
+
+      <MaintenancePanel projectKey={project.key} monitorType="http" monitorKey={monitorKey} onSignedOut={onSignedOut} />
 
       <section aria-labelledby="configuration-title" className="panel">
         <h2 id="configuration-title">Configuration</h2>
@@ -590,8 +630,10 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
           <ol className="history-list">
             {checks.map((check) => (
               <li key={check.id}>
-                <strong>{check.outcome}</strong> · {formatDate(check.completed_at)} · {check.response_time_milliseconds ?? "—"} ms
-                <span>{check.trigger} · status {check.status_code ?? "—"} · reason {check.failure_reason ?? "none"}</span>
+                <strong>{check.outcome === "success"
+                  ? incidents.some((incident) => incident.resolution_check_id === check.id) ? "Recovery" : "Successful check"
+                  : incidents.some((incident) => incident.opening_check_id === check.id) ? "Opened incident" : "Failed check"}</strong> · {formatDate(check.completed_at)}
+                <span>{check.trigger} · status {check.status_code ?? "not available"} · response time {check.response_time_milliseconds == null ? "not available" : `${check.response_time_milliseconds} ms`} · reason {check.failure_reason ?? "none"} · {check.applied_to_current_state == null ? "applicability unknown" : check.applied_to_current_state ? "applied to state" : "retained, not applied"}</span>
               </li>
             ))}
           </ol>
@@ -605,8 +647,8 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
           <ol className="history-list">
             {incidents.map((incident) => (
               <li key={incident.id}>
-                <strong>{incident.resolved_at ? "Resolved incident" : "Open incident"}</strong> · opened {formatDate(incident.opened_at)}
-                <span>Original reason {incident.original_reason}; latest reason {incident.latest_reason}{incident.resolved_at ? `; resolved ${formatDate(incident.resolved_at)}` : ""}</span>
+                <strong>{incident.resolved_at ? "Resolved incident" : "Open incident"}</strong> · began {formatDate(incident.began_at)} · opened {formatDate(incident.opened_at)}
+                <span>Original reason {incident.original_reason}; latest reason {incident.latest_reason}; last observed {formatDate(incident.last_observed_at)}{incident.resolved_at ? `; recovered ${formatDate(incident.resolved_at)}` : ""}</span>
                 <Button onClick={() => setEmailIncidentId(incident.id)} type="button">Email status for incident</Button>
               </li>
             ))}
@@ -614,6 +656,13 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
         )}
         {nextIncidentCursor !== null && <Button disabled={busy !== undefined} onClick={() => void moreIncidents()} type="button">Load older incidents</Button>}
       </section>
+
+      {emailIncidentId && <section className="panel" aria-label="Selected incident">
+        <h2>Selected incident</h2>
+        <p>{linkedIncident
+          ? `${linkedIncident.resolved_at ? "Resolved" : "Open"} incident began ${formatDate(linkedIncident.began_at)}, opened ${formatDate(linkedIncident.opened_at)}; latest reason ${linkedIncident.latest_reason}.`
+          : "Incident history is unavailable for this link."}</p>
+      </section>}
 
       {emailIncidentId && <IncidentEmailPanel key={emailIncidentId} incidentId={emailIncidentId} monitorType="http" onSignedOut={onSignedOut} />}
       <DeliveryHistoryPanel projectKey={project.key} monitorType="http" monitorKey={monitorKey} onSignedOut={onSignedOut} />

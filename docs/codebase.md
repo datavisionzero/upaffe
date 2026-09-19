@@ -132,7 +132,9 @@ Both requested and scheduled completion lock the check and then its monitor
 before applying the result. The shared evaluator updates latest-result,
 latest-success, visible state, failure count, and persistent failure-streak
 start in the same transaction as completion. Repeated or older sequences are
-ignored. Reaching the configured threshold creates the first incident from the
+ignored. Each new completed check stores whether evaluation applied it to
+current state; older checks without that stored fact remain unknown in history.
+Reaching the configured threshold creates the first incident from the
 persisted beginning of that streak; PostgreSQL's unique open-incident index and
 the monitor lock keep competing completions from opening two. A later accepted
 failure updates that incident's latest observation and reason without changing
@@ -149,7 +151,11 @@ pages with exclusive sequence cursors. It also owns the daily 90-day cleanup:
 resolved incidents are removed before unreferenced old checks in one
 transaction, while monitor pointers and every remaining incident reference are
 protected. A small application act derives the exclusive cutoff from the
-injected clock; the API host runs it at startup and once per day.
+injected clock; the API host runs it at startup and once per day. Scoped evidence
+lookups retrieve retained checks and incidents by ID when a current pointer or
+deep link falls outside the first page. The push history store offers matching
+report and incident lookups. Detail pages show times from these persisted facts
+instead of displaying pointer IDs as a substitute for evidence.
 
 Push reports enter through either the bearer-authenticated JSON operation or
 the secret-path compatibility operation. Both resolve the credential digest

@@ -50,7 +50,9 @@ secret supplied in the request body.
 | `GET /api/projects/{projectKey}/http-monitors` | List live HTTP monitors in a project. |
 | `GET /api/projects/{projectKey}/http-monitors/{monitorKey}` | Read one HTTP monitor without secret values. |
 | `GET /api/projects/{projectKey}/http-monitors/{monitorKey}/checks` | List completed checks newest first with cursor pagination. |
+| `GET /api/projects/{projectKey}/http-monitors/{monitorKey}/checks/{checkId}` | Read one retained completed check as current evidence. |
 | `GET /api/projects/{projectKey}/http-monitors/{monitorKey}/incidents` | List incidents newest first with cursor pagination. |
+| `GET /api/projects/{projectKey}/http-monitors/{monitorKey}/incidents/{incidentId}` | Read one retained incident, including one outside the first page. |
 | `PUT /api/projects/{projectKey}/http-monitors/{monitorKey}` | Update monitor configuration at the version last read. |
 | `DELETE /api/projects/{projectKey}/http-monitors/{monitorKey}?version={version}` | Remove a monitor while retaining its identity and history. |
 | `POST /api/projects/{projectKey}/http-monitors/{monitorKey}/pause` | Pause a monitor at the version last read. |
@@ -61,6 +63,8 @@ secret supplied in the request body.
 | `POST /api/projects/{projectKey}/push-monitors` | Create a job-completion or state-report monitor idempotently. |
 | `GET /api/projects/{projectKey}/push-monitors` | List live push monitors in a project. |
 | `GET /api/projects/{projectKey}/push-monitors/{monitorKey}` | Read push configuration and current facts without a reporting secret. |
+| `GET /api/projects/{projectKey}/push-monitors/{monitorKey}/reports/{reportId}` | Read one retained push report as current evidence. |
+| `GET /api/projects/{projectKey}/push-monitors/{monitorKey}/incidents/{incidentId}` | Read one retained push incident, including one outside the first page. |
 | `PUT /api/projects/{projectKey}/push-monitors/{monitorKey}` | Update push configuration at the version last read. |
 | `DELETE /api/projects/{projectKey}/push-monitors/{monitorKey}?version={version}` | Remove a push monitor while retaining its identity and history. |
 | `POST /api/projects/{projectKey}/push-monitors/{monitorKey}/pause` | Pause a push monitor. |
@@ -308,9 +312,15 @@ Check history is separate from the compact monitor response. `GET .../checks`
 returns completed checks newest first by monitor-local sequence. Each item has
 the trigger, scheduled/start/completion times, outcome, stable failure reason,
 status, response time, and sanitized effective URL. It contains no request
-headers, target query, response body, or executor message. Incident history is
-likewise separate at `GET .../incidents` and contains its preserved first,
+headers, target query, response body, or executor message. `applied_to_current_state`
+records whether evaluation used the result; it is null for checks written before
+that fact was stored. Incident history at `GET .../incidents` contains its preserved first,
 opening, latest-failure, and optional resolution facts.
+`GET .../checks/{checkId}` returns that same safe check shape when a current
+result or last success is older than the first history page. The ID must belong
+to the named live monitor; otherwise it returns 404.
+`GET .../incidents/{incidentId}` likewise reads one retained incident in the
+named live monitor, including a deep-linked incident outside the first page.
 
 Both history operations default to `limit=50` and accept 1 through 100.
 `before_sequence` and `before_opening_sequence` are exclusive positive cursors;
@@ -404,6 +414,10 @@ latest-failure, and optional recovery report references, sequences, times, and
 stable original/latest reasons. Both endpoints use the same default limit 50,
 maximum 100, and exclusive `before_sequence` or `before_opening_sequence`
 cursors as HTTP history.
+`GET .../reports/{reportId}` retrieves the same safe report shape by internal
+ID, scoped to the named live monitor. It supports current evidence retained
+beyond the first page without exposing the sender's diagnostic text.
+`GET .../incidents/{incidentId}` returns the scoped push incident timeline.
 
 ## Project investigation report
 

@@ -108,7 +108,43 @@ function history(request: Request) {
 }
 
 describe("HTTP monitor administration", () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => { vi.unstubAllGlobals(); window.history.replaceState({}, "", "/"); });
+
+  it("loads old pointer evidence and a deep-linked incident beyond the first history page", async () => {
+    const incidentId = "dcf2cf4b-1070-45b7-bd39-dfd12f1fb901";
+    const oldSuccess = { ...lastSuccess, sequence: 1, applied_to_current_state: true };
+    const late = { ...latestCheck, id: "44aa2e91-a7b4-4efd-8323-3c2d84445593", sequence: 10,
+      response_time_milliseconds: null, status_code: null, applied_to_current_state: false };
+    const oldIncident = { id: incidentId, first_failure_check_id: latestCheck.id,
+      opening_check_id: latestCheck.id, latest_failure_check_id: latestCheck.id,
+      resolution_check_id: null, first_failure_sequence: 9, opening_sequence: 9,
+      latest_failure_sequence: 9, resolution_sequence: null, began_at: latestCheck.completed_at,
+      opened_at: latestCheck.completed_at, last_observed_at: latestCheck.completed_at,
+      resolved_at: null, original_reason: "unexpected_status", latest_reason: "unexpected_status" };
+    window.history.replaceState({}, "", `/projects/public-site/http-monitors/homepage?incident=${incidentId}`);
+    const fetch = answering((request) => {
+      const path = new URL(request.url).pathname;
+      if (path.endsWith("/http-monitors/homepage")) return json({ ...baseMonitor, open_incident_id: incidentId });
+      if (path.endsWith("/checks")) return json({ items: [late, { ...latestCheck, applied_to_current_state: true }], next_before_sequence: 9 });
+      if (path.endsWith(`/checks/${oldSuccess.id}`)) return json(oldSuccess);
+      if (path.endsWith("/incidents")) return json({ items: [], next_before_opening_sequence: 9 });
+      if (path === `/api/email/incidents/${incidentId}`) return json({ incident_id: incidentId,
+        announcement_state: "announced", suppression_reason: null, deliveries: [] });
+      if (path.endsWith(`/incidents/${incidentId}`)) return json(oldIncident);
+      throw new Error(`Unexpected ${path}`);
+    });
+    render(<MonitorsView onBack={vi.fn()} onOpenPush={vi.fn()} onSignedOut={vi.fn()}
+      project={project} routeMonitorKey="homepage" />);
+    expect(await screen.findByRole("heading", { name: "Homepage", level: 1 })).toBeInTheDocument();
+    expect(await screen.findByText(/Began .*latest observation.*reason unexpected_status/, { selector: "dd" })).toBeInTheDocument();
+    expect(screen.getByText(/Last success/, { selector: "dt" }).nextElementSibling).toHaveTextContent("2026");
+    expect(screen.getByText("retained, not applied", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText("not available", { exact: false })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "Selected incident" })).toHaveTextContent("latest reason unexpected_status");
+    expect(await screen.findByText("Announcement: announced")).toBeInTheDocument();
+    expect(fetch.mock.calls.some(([request]) => new URL((request as Request).url).pathname.endsWith(`/checks/${oldSuccess.id}`))).toBe(true);
+    expect(screen.queryByText(oldSuccess.id)).not.toBeInTheDocument();
+  });
 
   it("renders every lifecycle state explicitly and opens detail from the keyboard", async () => {
     const list = deferred<Response>();

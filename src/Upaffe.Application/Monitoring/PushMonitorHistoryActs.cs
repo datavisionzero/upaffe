@@ -4,6 +4,34 @@ using Upaffe.Domain.Access;
 
 namespace Upaffe.Application.Monitoring;
 
+public sealed class ReadPushReportEvidence(IPushMonitorHistoryStore history)
+{
+    public async Task<PushReportHistoryItem> ExecuteAsync(
+        Identity identity, string? projectKey, string? monitorKey, Guid reportId,
+        CancellationToken cancellationToken)
+    {
+        _ = identity;
+        return await history.ReadReportAsync(
+            PushMonitorValidation.ProjectKey(projectKey),
+            PushMonitorValidation.MonitorKey(monitorKey), reportId, cancellationToken)
+            ?? throw Refusal.NotFound("No such push report.");
+    }
+}
+
+public sealed class ReadPushIncidentEvidence(IPushMonitorHistoryStore history)
+{
+    public async Task<PushIncidentHistoryItem> ExecuteAsync(
+        Identity identity, string? projectKey, string? monitorKey, Guid incidentId,
+        CancellationToken cancellationToken)
+    {
+        _ = identity;
+        return await history.ReadIncidentAsync(
+            PushMonitorValidation.ProjectKey(projectKey),
+            PushMonitorValidation.MonitorKey(monitorKey), incidentId, cancellationToken)
+            ?? throw Refusal.NotFound("No such push incident.");
+    }
+}
+
 public sealed class ListPushReportHistory(IPushMonitorHistoryStore history)
 {
     public async Task<PushReportHistoryPage> ExecuteAsync(

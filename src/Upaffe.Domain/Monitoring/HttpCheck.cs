@@ -67,11 +67,19 @@ public sealed partial class HttpCheck
     public int? StatusCode { get; private set; }
     public int? ResponseTimeMilliseconds { get; private set; }
     public string? EffectiveUrl { get; private set; }
+    public bool? AppliedToCurrentState { get; private set; }
     public Guid? ExecutionLeaseToken { get; private set; }
     public DateTimeOffset? ExecutionLeaseUntil { get; private set; }
     public int ExecutionAttempts { get; private set; }
     public DateTimeOffset? LastExecutionAttemptAt { get; private set; }
     public bool IsCompleted => Outcome is not null;
+
+    public void RecordApplicability(bool applied)
+    {
+        if (!IsCompleted) throw new InvalidOperationException("Only a completed check can be evaluated.");
+        if (AppliedToCurrentState is not null) throw new InvalidOperationException("Check applicability is immutable.");
+        AppliedToCurrentState = applied;
+    }
 
     public static HttpCheck Begin(
         Guid monitorId,

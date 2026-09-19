@@ -11,6 +11,34 @@ public static class HttpMonitorHistoryLimits
     public static readonly TimeSpan Retention = TimeSpan.FromDays(90);
 }
 
+public sealed class ReadHttpCheckEvidence(IHttpMonitorHistoryStore history)
+{
+    public async Task<HttpCheckHistoryItem> ExecuteAsync(
+        Identity identity, string? projectKey, string? monitorKey, Guid checkId,
+        CancellationToken cancellationToken)
+    {
+        _ = identity;
+        return await history.ReadCheckAsync(
+            HttpMonitorValidation.ProjectKey(projectKey),
+            HttpMonitorValidation.MonitorKey(monitorKey), checkId, cancellationToken)
+            ?? throw Refusal.NotFound("No such completed HTTP check.");
+    }
+}
+
+public sealed class ReadHttpIncidentEvidence(IHttpMonitorHistoryStore history)
+{
+    public async Task<IncidentHistoryItem> ExecuteAsync(
+        Identity identity, string? projectKey, string? monitorKey, Guid incidentId,
+        CancellationToken cancellationToken)
+    {
+        _ = identity;
+        return await history.ReadIncidentAsync(
+            HttpMonitorValidation.ProjectKey(projectKey),
+            HttpMonitorValidation.MonitorKey(monitorKey), incidentId, cancellationToken)
+            ?? throw Refusal.NotFound("No such HTTP incident.");
+    }
+}
+
 public sealed class ListHttpCheckHistory(IHttpMonitorHistoryStore history)
 {
     public async Task<HttpCheckHistoryPage> ExecuteAsync(

@@ -201,6 +201,10 @@ public sealed class HttpCheckEvaluationPersistenceTests(PostgresFixture postgres
         Assert.True(incident.IsOpen);
         Assert.Null(incident.ResolutionCheckId);
         Assert.Null(incident.ResolvedAt);
+        var history = await new HttpMonitorHistoryStore(inspection).ListChecksAsync(
+            "public-services", "public-site", null, 20, TestContext.Current.CancellationToken);
+        Assert.Equal(true, history!.Items[0].AppliedToCurrentState);
+        Assert.Equal(false, history.Items[1].AppliedToCurrentState);
     }
 
     [Fact]

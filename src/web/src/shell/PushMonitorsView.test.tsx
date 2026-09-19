@@ -98,7 +98,36 @@ function answering(answer: (request: Request) => Promise<Response> | Response) {
 }
 
 describe("push monitor administration", () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => { vi.unstubAllGlobals(); window.history.replaceState({}, "", "/"); });
+
+  it("loads old success and deep-linked incident evidence without exposing sender diagnostics", async () => {
+    const oldSuccess = { ...success, sequence: 1, observed_at: "2026-08-01T10:00:00Z",
+      received_at: "2026-08-01T10:00:03Z" };
+    window.history.replaceState({}, "",
+      `/projects/backup-jobs/push-monitors/nightly-backup?incident=${incident.id}`);
+    const fetch = answering((request) => {
+      const path = new URL(request.url).pathname;
+      if (path.endsWith(`/push-monitors/${monitor.key}`)) return json(monitor);
+      if (path.endsWith("/reports")) return json({ items: [report], next_before_sequence: 12 });
+      if (path.endsWith(`/reports/${oldSuccess.id}`)) return json(oldSuccess);
+      if (path.endsWith("/incidents")) return json({ items: [], next_before_opening_sequence: 12 });
+      if (path === `/api/email/incidents/${incident.id}`) return json({ incident_id: incident.id,
+        announcement_state: "announced", suppression_reason: null, deliveries: [] });
+      if (path.endsWith(`/incidents/${incident.id}`)) return json(incident);
+      throw new Error(`Unexpected ${path}`);
+    });
+    render(<PushMonitorsView onBack={vi.fn()} onOpenHttp={vi.fn()} onSignedOut={vi.fn()}
+      project={project} routeMonitorKey={monitor.key} />);
+    expect(await screen.findByRole("heading", { name: "Nightly backup", level: 1 })).toBeInTheDocument();
+    expect(screen.getByText("Last success", { selector: "dt" }).nextElementSibling).toHaveTextContent("2026");
+    expect(screen.getByText("Latest report", { selector: "dt" }).nextElementSibling).toHaveTextContent("observed");
+    expect(screen.getByText("Latest report", { selector: "dt" }).nextElementSibling).toHaveTextContent("received");
+    expect(await screen.findByRole("region", { name: "Selected incident" })).toHaveTextContent("latest reason backup_failed");
+    expect(await screen.findByText("Announcement: announced")).toBeInTheDocument();
+    expect(fetch.mock.calls.some(([request]) => new URL((request as Request).url).pathname.endsWith(`/reports/${oldSuccess.id}`))).toBe(true);
+    expect(screen.queryByText("private sender detail")).not.toBeInTheDocument();
+    expect(screen.queryByText(oldSuccess.id)).not.toBeInTheDocument();
+  });
 
   it("lists both modes and creates a state report from the explained form", async () => {
     const stateMonitor = { ...monitor, id: "75798222-1923-4a8b-a556-768a031b320f", key: "local-state", name: "Local state", mode: "state_report", state: "healthy", open_incident_id: null };
@@ -188,7 +217,7 @@ describe("push monitor administration", () => {
     expect(await screen.findByRole("heading", { name: "Nightly backup", level: 1 })).toBeInTheDocument();
     expect(screen.getByText("Incident open", { selector: ".state" })).toBeInTheDocument();
     expect(screen.getByText("Failed report")).toBeInTheDocument();
-    expect(screen.getAllByText(/reason backup_failed/)).toHaveLength(2);
+    expect(screen.getAllByText(/reason backup_failed/)).toHaveLength(3);
     expect(screen.getByText("Open incident", { selector: "strong" })).toBeInTheDocument();
     expect(screen.getByText("Inspect the backup log", { selector: ".operator-note p" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open runbook" })).toHaveAttribute("href", monitor.runbook_url);

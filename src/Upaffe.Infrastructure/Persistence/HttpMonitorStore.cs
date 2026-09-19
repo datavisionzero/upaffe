@@ -325,7 +325,8 @@ public sealed class HttpMonitorStore(UpaffeDbContext context) : IHttpMonitorStor
         var projectKey = await context.Projects.Where(value => value.Id == monitor.ProjectId)
             .Select(value => value.Key)
             .SingleAsync(cancellationToken);
-        if (!check.IsCompleted)
+        var alreadyCompleted = check.IsCompleted;
+        if (!alreadyCompleted)
         {
             if (result.Succeeded)
             {
@@ -346,7 +347,8 @@ public sealed class HttpMonitorStore(UpaffeDbContext context) : IHttpMonitorStor
             }
         }
 
-        var applied = await HttpCheckEvaluator.ApplyAsync(context, monitor, check, now, cancellationToken);
+        var applied = !alreadyCompleted
+            && await HttpCheckEvaluator.ApplyAsync(context, monitor, check, now, cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(check.Id, applied, result, await SnapshotAsync(monitor, projectKey, cancellationToken));

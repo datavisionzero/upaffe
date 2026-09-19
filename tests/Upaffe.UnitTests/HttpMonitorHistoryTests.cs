@@ -22,6 +22,14 @@ public sealed class HttpMonitorHistoryTests
     {
         public DateTimeOffset? Cutoff { get; private set; }
 
+        public Task<HttpCheckHistoryItem?> ReadCheckAsync(
+            string projectKey, string monitorKey, Guid checkId,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IncidentHistoryItem?> ReadIncidentAsync(
+            string projectKey, string monitorKey, Guid incidentId,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public Task<HttpHistoryPruneResult> PruneAsync(
             DateTimeOffset cutoff,
             CancellationToken cancellationToken)
