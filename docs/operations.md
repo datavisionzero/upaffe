@@ -1,5 +1,8 @@
 # Operations
 
+Production installation, backup, update, and recovery are the first sections
+of this guide. Local development procedures follow them.
+
 ## Production image identity
 
 The production application image is published from validated `main` commits as
@@ -46,12 +49,32 @@ proof belongs in production Compose environment values.
 
 ## Production Compose startup
 
-Copy `docker-compose.yml`, `docker-compose.bootstrap.yml`, and
-`production.env.example` from `deploy/` at the chosen source revision into one
-deployment directory. No source checkout or application runtime is needed on
-the host. Copy `production.env.example` to `.env` and replace
-`REPLACE_WITH_FULL_COMMIT_SHA` with the full commit used by the published GHCR
-image. Keep this directory and its `.env` for the lifetime of the installation.
+Choose a validated `main` revision whose image tag has been published. Download
+the deployment files from that same revision into one directory. This uses no
+source checkout or application runtime on the host. Replace the revision
+placeholder in the first line with its full 40-character commit SHA:
+
+```sh
+set -eu
+UPAFFE_REV=REPLACE_WITH_FULL_COMMIT_SHA
+mkdir -m 0700 upaffe-deploy
+cd upaffe-deploy
+for file in docker-compose.yml docker-compose.bootstrap.yml \
+  docker-compose.heartbeat.yml docker-compose.verify-restore.yml \
+  backup-production.sh restore-production.sh production.env.example \
+  nginx-upaffe.conf.example; do
+  curl --fail --location --silent --show-error \
+    "https://raw.githubusercontent.com/datavisionzero/upaffe/$UPAFFE_REV/deploy/$file" \
+    --output "$file"
+done
+chmod 0700 backup-production.sh restore-production.sh
+cp production.env.example .env
+```
+
+Edit `.env`: replace `REPLACE_WITH_FULL_COMMIT_SHA` with the same revision,
+leaving `UPAFFE_IMAGE` pinned to its full GHCR revision tag. Keep the deployment
+directory, `.env`, and these exact Compose files for the installation's lifetime.
+The optional overlays are used only for their named procedures.
 
 Create a `secrets` directory in the same directory as the Compose files with
 mode `0700`. Put a generated password in `secrets/postgres_password` and a
@@ -67,6 +90,7 @@ mkdir -m 0700 secrets
 openssl rand -base64 48 > secrets/postgres_password
 openssl rand -base64 48 > secrets/bootstrap_proof
 chmod 0644 secrets/postgres_password secrets/bootstrap_proof
+docker compose -f docker-compose.yml -f docker-compose.bootstrap.yml config --quiet
 docker compose -f docker-compose.yml -f docker-compose.bootstrap.yml up -d --wait
 ```
 
@@ -78,6 +102,7 @@ tunnel, then remove the one-time proof mount and source file:
 ```sh
 docker compose -f docker-compose.yml up -d --wait
 rm secrets/bootstrap_proof
+curl --fail-with-body http://127.0.0.1:8080/api/health/ready
 ```
 
 The first command recreates the application without the bootstrap overlay;
@@ -260,6 +285,173 @@ scheme and host.
 Check this through the public URL after configuring the proxy. Set the SMTP
 public base URL to the same HTTPS origin when configuring incident links;
 that saved email setting is separate from `UPAFFE_PUBLIC_ORIGIN`.
+
+## Routine production operation
+
+Run these commands from the deployment directory with the project name used
+at installation; add `-p NAME` if it differs from the default `upaffe`. If
+the optional heartbeat overlay is active, include
+`-f docker-compose.heartbeat.yml` on `config` and `up` commands so a recreation
+retains its secret mount.
+
+```sh
+docker compose -f docker-compose.yml ps
+docker compose -f docker-compose.yml logs --tail=100 app db
+docker compose -f docker-compose.yml exec -T db df -h /var/lib/postgresql
+docker system df
+```
+
+The logs are operational diagnostics; keep copies private. Check disk space
+before image updates and backups. A normal restart or app container recreation
+keeps the PostgreSQL volume:
+
+```sh
+docker compose -f docker-compose.yml restart app
+docker compose -f docker-compose.yml up -d --wait --force-recreate app
+```
+
+The app applies pending forward migrations before it becomes ready. A restart
+may briefly return `503` from `/api/health/progress` until both workers have
+polled. `docker compose down` without `--volumes` also preserves state, but
+stops PostgreSQL and is unnecessary for routine app restarts. Never use
+`down --volumes` for a production restart.
+
+## Update the production image
+
+Choose a new validated `main` revision with a published image. Review its
+changes and download the matching deployment files into a separate
+staging directory. Replace the placeholder with its full commit SHA:
+
+```sh
+set -eu
+UPAFFE_NEXT_REV=REPLACE_WITH_FULL_COMMIT_SHA
+mkdir -m 0700 ../upaffe-next
+for file in docker-compose.yml docker-compose.bootstrap.yml \
+  docker-compose.heartbeat.yml docker-compose.verify-restore.yml \
+  backup-production.sh restore-production.sh; do
+  curl --fail --location --silent --show-error \
+    "https://raw.githubusercontent.com/datavisionzero/upaffe/$UPAFFE_NEXT_REV/deploy/$file" \
+    --output "../upaffe-next/$file"
+done
+```
+
+Review differences in every deployed file. Keep the current files in place
+until the pre-upgrade backup completes; that backup must contain the old
+revision's deployment contract. Use the same Compose file set throughout the
+update. The commands below show the base stack.
+
+Stop the app so the backup is the exact pre-upgrade point, then create a new
+protected backup. The database container stays running for `pg_dump`. If the
+backup fails, restart the unchanged old app and resolve that failure first.
+
+```sh
+docker compose -f docker-compose.yml stop app
+./backup-production.sh ../upaffe-backups/pre-upgrade-2026-09-19 upaffe
+```
+
+Now install the reviewed Compose files and helpers from staging, retaining
+the current `.env` and `secrets/` directory:
+
+```sh
+cp ../upaffe-next/docker-compose.yml ../upaffe-next/docker-compose.bootstrap.yml \
+  ../upaffe-next/docker-compose.heartbeat.yml \
+  ../upaffe-next/docker-compose.verify-restore.yml \
+  ../upaffe-next/backup-production.sh ../upaffe-next/restore-production.sh .
+chmod 0700 backup-production.sh restore-production.sh
+```
+
+Edit only `UPAFFE_IMAGE` in `.env` to the new full `sha-<commit>` tag or a
+registry digest. Keep `UPAFFE_POSTGRES_IMAGE` on its saved major version;
+changing PostgreSQL major versions is a separate migration. Then validate,
+pull, and start the new app. `up --wait` fails if readiness does not become
+healthy:
+
+```sh
+docker compose -f docker-compose.yml config --quiet
+docker compose -f docker-compose.yml pull app
+docker compose -f docker-compose.yml up -d --wait app
+curl --fail-with-body http://127.0.0.1:8080/api/health/ready
+curl --fail-with-body --retry 6 --retry-delay 2 \
+  http://127.0.0.1:8080/api/health/progress
+```
+
+If `UPAFFE_PORT` differs from `8080`, use that loopback port in the checks.
+After startup, verify the public HTTPS login, a representative monitor, the
+external progress checker, the optional heartbeat receiver, and an
+[SMTP test send](#smtp-setup-and-test-send). A live or ready process alone does
+not prove that monitoring or email delivery works. Retain the pre-upgrade
+backup until the new revision has operated successfully.
+
+### Failed upgrade and recovery
+
+If the image could not be pulled or the new container never started, restore
+the old `.env` and deployment files from the pre-upgrade backup, then start
+the app again. The database has not been touched by the new binary:
+
+```sh
+cp ../upaffe-backups/pre-upgrade-2026-09-19/.env .env
+cp ../upaffe-backups/pre-upgrade-2026-09-19/docker-compose.yml .
+docker compose -f docker-compose.yml up -d --wait app
+```
+
+Restore any optional old overlay from that backup as well. If the new container
+started, stop it and inspect container state and the app/database logs:
+
+```sh
+docker compose -f docker-compose.yml stop app
+docker compose -f docker-compose.yml ps
+docker compose -f docker-compose.yml logs --tail=100 app db
+```
+
+Startup applies forward-only migrations before HTTP is ready, and an older
+binary rejects a schema it does not know. There is no automatic schema
+downgrade.
+
+When a newer migration was applied, reverting the image also requires the
+pre-upgrade database backup. If it is unclear whether startup changed the
+schema or accepted writes, use that backup as well. Do not run the old image
+against the possibly upgraded volume or restore over it. Use
+`restore-production.sh` with the pre-upgrade backup to create a fresh Compose
+project and volume:
+
+```sh
+./restore-production.sh ../upaffe-backups/pre-upgrade-2026-09-19 \
+  ../upaffe-recovered upaffe-recovered
+```
+
+Follow the [restore verification procedure](#restore-to-a-clean-host-or-compose-project)
+with `upaffe-recovered` as the project name. Cut over after stopping the
+failed stack. The saved backup `.env` pins the old image and PostgreSQL major
+version. This path deliberately preserves the failed volume for diagnosis.
+
+## Troubleshooting production health
+
+Use the three health paths for different questions:
+
+| Signal | What it proves | Next check when it fails |
+| --- | --- | --- |
+| `/api/health/live` | HTTP process answers | `docker compose ps`, app logs, port and proxy routing |
+| `/api/health/ready` | PostgreSQL answers with exactly this image's migrations | Database health and disk space, app migration logs, secret-file mount |
+| `/api/health/progress` | Both monitoring workers recently completed a database-backed iteration | `Monitoring__Enabled`, worker retry logs, PostgreSQL reachability |
+
+From the host, use the loopback URL; after configuring HTTPS, run the same
+checks through the public origin, replacing the fictional hostname below:
+
+```sh
+curl --fail-with-body https://status.example.test/api/health/progress
+```
+
+Point the independent progress checker at that public HTTPS URL from outside
+this host's failure domain. A missing HTTP response is a failure even though
+no JSON status arrives. A missing outbound heartbeat with healthy progress
+calls for checking DNS, TLS, network egress, and the independent receiver; the
+receiver URL is a secret and is not printed by the app. Persistent email
+delivery failures call for the authenticated
+delivery summary, relay configuration, and a new test send. A green health
+endpoint cannot prove SMTP acceptance or inbox delivery. If browser sign-in
+or writes fail only behind HTTPS, recheck the exact trusted proxy gateway IP,
+public origin, overwritten forwarded headers, and cookie/Origin behavior in
+the [proxy section](#https-reverse-proxy).
 
 ## Local Compose environment
 
