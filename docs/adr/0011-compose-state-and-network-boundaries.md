@@ -16,6 +16,7 @@ port. The application joins that network and a separate `edge` network for
 outbound checks and email. Its HTTP port is bound to `127.0.0.1` on the host by
 default. An existing host reverse proxy terminates HTTPS and forwards to that
 local port. The proxy trust and header policy are a separate decision.
+See [ADR 0012](./0012-trust-only-named-https-proxies.md).
 
 The database container becomes healthy when `pg_isready` can connect. The
 application starts after that condition and becomes healthy when
