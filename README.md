@@ -48,6 +48,8 @@ recent successful progress, including idle database polls; see the
 [operations guide](./docs/operations.md#production-compose-startup).
 The same progress rule gates an optional outbound HTTPS heartbeat configured
 through a mounted URL file.
+The [operations guide](./docs/operations.md#back-up-a-production-installation)
+also covers protected backups and isolated restoration of the production stack.
 
 A fresh database needs a one-time operator bootstrap. Set a locally generated
 `UPAFFE_BOOTSTRAP_SECRET` for one startup and follow the request documented in

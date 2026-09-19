@@ -230,6 +230,12 @@ It carries no project data. See [ADR 0013](adr/0013-report-worker-progress-separ
 An optional independent HTTPS heartbeat sender uses the same progress tracker
 and a mounted destination URL; see [ADR 0014](adr/0014-send-only-empty-healthy-heartbeats.md).
 
+The production backup unit is a whole-database PostgreSQL dump with the
+deployment configuration and mounted secret files. The restore helper only
+creates a new Compose project and database volume. An operator starts the
+application after data import under a verification overlay. See
+[ADR 0015](adr/0015-restore-complete-deployment-into-a-new-project.md).
+
 ## Web and CLI
 
 The web application is a Vite/React/TypeScript project built independently from

@@ -127,9 +127,100 @@ data. Removing the overlay and recreating the app disables the sender. See
 [ADR 0014](./adr/0014-send-only-empty-healthy-heartbeats.md).
 
 See [ADR 0011](./adr/0011-compose-state-and-network-boundaries.md) for the
-state and network boundaries. Routine updates, backup, restore, and
-failed-upgrade recovery are documented in later sections as their contracts
-are implemented.
+state and network boundaries. The backup and restore procedure is below;
+routine updates and failed-upgrade recovery follow in the operator runbook.
+
+## Back up a production installation
+
+The `postgres-data` volume holds all application state: operator access,
+projects, monitor definitions and stored headers, incidents and history,
+deadlines, email settings and password, and pending deliveries. Back up the
+whole `upaffe` database, not selected tables. Also retain the deployment
+`.env`, the Compose files in use, the backup/restore helpers and verification
+overlay, and `secrets/postgres_password`; include the optional heartbeat URL
+or a still-active bootstrap proof when present. The
+reverse proxy's TLS certificates and configuration, DNS, external receiver
+account, and any other infrastructure outside this Compose stack need their
+own backup or re-provisioning. Existing clients must retain their issued
+reporting tokens; the database stores token hashes and cannot recover their
+plaintext values.
+
+Copy `backup-production.sh`, `restore-production.sh`, and
+`docker-compose.verify-restore.yml` from `deploy/` at the same revision as
+the Compose files into the deployment directory. Run the
+backup helper there with the Compose project name used for this installation
+(`upaffe` by default) and a destination path that does not already exist:
+
+```sh
+mkdir -m 0700 ../upaffe-backups
+./backup-production.sh ../upaffe-backups/2026-09-19 upaffe
+```
+
+The helper creates a mode `0700` directory, copies the deployment inputs, and
+streams a consistent PostgreSQL custom-format snapshot into
+`database.dump`. It records a SHA-256 checksum and removes an incomplete
+backup after any failure. PostgreSQL's [pg_dump documentation](https://www.postgresql.org/docs/18/app-pgdump.html)
+states that a dump remains consistent while application writes continue.
+Avoid changing deployment configuration or rotating mounted secrets during
+the backup. Treat the entire directory as confidential: the dump includes
+saved credentials and private monitoring data. Transfer it to protected,
+off-host storage with access control and encryption appropriate to the
+operator's environment. The helper runs only when invoked; upaffe does not
+schedule or retain backups.
+
+## Restore to a clean host or Compose project
+
+Start with a host that has Docker Compose and the protected backup directory.
+Use the PostgreSQL major version and application image pinned in the saved
+`.env` first; do not treat restore as an application upgrade. The restore
+helper refuses an existing destination directory, database volume, Compose
+network, or project container. Choose an unused project name, especially
+when testing on the same host:
+
+```sh
+./restore-production.sh ../upaffe-backups/2026-09-19 ../upaffe-restored upaffe-restore
+```
+
+The helper verifies the archive checksum, copies the deployment inputs to a
+mode `0700` directory, starts only a new PostgreSQL container and volume,
+checks the archive, and restores it in one transaction. It never attaches to
+or replaces the source volume. A failed restore leaves only the isolated
+destination for inspection; its protected `restore-error.log` may contain
+database diagnostics. PostgreSQL documents
+[`pg_restore --single-transaction`](https://www.postgresql.org/docs/18/app-pgrestore.html)
+as all-or-nothing for the restored commands. A dump may generally load into
+a newer PostgreSQL major version, but this guide's verified path uses the
+saved major version and app image first.
+
+Before returning it to service, verify the restored app on a separate
+loopback port with monitoring and email delivery disabled. From the new
+deployment directory, using the same project name chosen above:
+
+```sh
+UPAFFE_PORT=18082 UPAFFE_TRUSTED_PROXY_IPS= UPAFFE_PUBLIC_ORIGIN= \
+  docker compose -p upaffe-restore -f docker-compose.yml \
+  -f docker-compose.verify-restore.yml up -d --wait app
+curl --fail-with-body http://127.0.0.1:18082/api/health/ready
+curl --fail-with-body http://127.0.0.1:18082/api/bootstrap
+```
+
+Readiness must be `ready`, and bootstrap must report that an operator
+already exists. Sign in through the loopback UI or an SSH tunnel using the
+restored operator password. Confirm projects, monitor settings, a known
+incident and history record, deadlines, and pending email deliveries. The
+verification overlay prevents duplicate checks and sends while the original
+instance may still run; `/api/health/progress` correctly reports stalled in
+this mode. A disposable verification copy can be removed with
+`docker compose -p upaffe-restore -f docker-compose.yml -f docker-compose.verify-restore.yml down --volumes`
+only after confirming its project name and that it is no longer needed.
+
+For a permanent move, stop the old application before enabling the restored
+one. Reconfigure the new host's loopback port, HTTPS proxy, trusted proxy IP,
+public origin, TLS certificates, DNS, and external receiver as appropriate;
+re-enter or rotate external SMTP credentials if the provider changed. Remove
+the verification overlay, start the base stack with the optional heartbeat
+overlay if used, and check readiness, progress, operator sign-in, and an SMTP
+test send. Keep the original installation and backup until these checks pass.
 
 ## HTTPS reverse proxy
 
