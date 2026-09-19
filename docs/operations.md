@@ -4,7 +4,8 @@
 
 The production application image is published from validated `main` commits as
 `ghcr.io/datavisionzero/upaffe:sha-<full-commit-sha>`. Pin that full revision tag
-or its registry digest in a deployment. The image contains the compiled React
+or its registry digest in a deployment. The published image supports Linux
+amd64 and arm64 hosts. It contains the compiled React
 application, .NET API, and embedded forward migrations. It listens on port
 `8080` as a non-root user and reports `0.0.0-rev.<full-commit-sha>` in the
 `Upaffe-Version` response header. A local build uses `0.0.0-dev` unless an

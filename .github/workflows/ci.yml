@@ -104,10 +104,20 @@ jobs:
           test "$(docker image inspect upaffe:image-check --format '{{.Config.User}}')" != 0
           ! docker run --rm --entrypoint sh upaffe:image-check -c 'test -d /source || test -d /usr/share/dotnet/sdk'
 
+  image-arm:
+    name: Production image ARM64
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build -f deploy/Dockerfile --build-arg APP_VERSION=0.0.0-rev.${GITHUB_SHA} --build-arg VCS_REF=${GITHUB_SHA} -t upaffe:image-check .
+      - run: scripts/check-image.sh upaffe:image-check
+      - run: test "$(docker image inspect upaffe:image-check --format '{{.Architecture}}')" = arm64
+
   publish-image:
     name: Publish production image
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [backend, web, cli, contract, compose, image, system]
+    needs: [backend, web, cli, contract, compose, image, image-arm, system]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -119,10 +129,13 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
         with:
           context: .
           file: deploy/Dockerfile
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ghcr.io/datavisionzero/upaffe:sha-${{ github.sha }}
           build-args: |
