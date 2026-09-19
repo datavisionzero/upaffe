@@ -22,8 +22,11 @@ public sealed record ReportMonitor(
     string? RunbookUrl);
 public sealed record ReportHealthyMonitor(string Type, Guid Id, string Key,
     string Name, string? Mode, DateTimeOffset? LastSuccessAt,
-    DateTimeOffset? NextDueAt);
-public sealed record ReportEmail(bool Configured, IReadOnlyList<string> Recipients,
+    DateTimeOffset? NextDueAt, ReportMaintenance? DirectMaintenance,
+    DateTimeOffset? EffectiveMaintenanceUntil);
+public sealed record ReportEmail(bool Configured, string? Host, int? Port,
+    string? Security, string? SenderAddress, string? PublicBaseUrl,
+    bool HasPassword, IReadOnlyList<string> Recipients,
     EmailDeliverySummary Delivery);
 public sealed record ProjectReport(DateTimeOffset GeneratedAt, ReportProject Project,
     ReportCounts Counts, IReadOnlyList<ReportMonitor> Attention,

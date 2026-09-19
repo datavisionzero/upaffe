@@ -137,9 +137,28 @@ UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
   "$ua" project get system-project --json >"$system_dir/project-cli-get.json"
 [ "$(json_value id <"$system_dir/project-cli-get.json")" = "$project_id" ]
 UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" project create --key cli-project --name 'CLI project' --json \
+  >"$system_dir/project-cli-create.json"
+cli_project_id=$(json_value id <"$system_dir/project-cli-create.json")
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" project create --key cli-project --name 'CLI project' --json \
+  >"$system_dir/project-cli-create-repeat.json"
+[ "$(json_value id <"$system_dir/project-cli-create-repeat.json")" = "$cli_project_id" ]
+[ "$(json_value version <"$system_dir/project-cli-create-repeat.json")" = "1" ]
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
   "$ua" project rename system-project --name 'System project renamed' --version 1 --json \
   >"$system_dir/project-cli-rename.json"
 [ "$(json_value version <"$system_dir/project-cli-rename.json")" = "2" ]
+set +e
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" project rename system-project --name 'Stale write' --version 1 --json \
+  >"$system_dir/project-stale-output.json" 2>"$system_dir/project-stale-error.json"
+stale_exit=$?
+set -e
+[ "$stale_exit" = "4" ]
+[ ! -s "$system_dir/project-stale-output.json" ]
+node -e 'const error = require(process.argv[1]); if (error.code !== "conflict" || error.exit_code !== 4 || error.http_status !== 409) process.exit(1)' \
+  "$system_dir/project-stale-error.json"
 
 # A direct bearer API call deletes it; the browser path observes and restores it.
 curl --fail --silent --show-error \
@@ -185,7 +204,8 @@ UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
   >"$system_dir/email-defaults.json"
 echo '{"version":4,"recipients":["ops@example.test"]}' >"$system_dir/email-project-recipients-input.json"
 UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
-  "$ua" email recipients set system-project --file "$system_dir/email-project-recipients-input.json" --json \
+  "$ua" email recipients set system-project --file - --json \
+  <"$system_dir/email-project-recipients-input.json" \
   >"$system_dir/email-project-recipients.json"
 UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
   "$ua" email test --recipient ops@example.test --json >"$system_dir/email-test-result.json"
@@ -220,6 +240,10 @@ UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
   "$ua" monitor create system-project --file "$system_dir/monitor-create-input.json" --json \
   >"$system_dir/monitor-cli-create.json"
 [ "$(json_value key <"$system_dir/monitor-cli-create.json")" = "public-homepage" ]
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" monitor create system-project --file "$system_dir/monitor-create-input.json" --json \
+  >"$system_dir/monitor-cli-create-repeat.json"
+[ "$(json_value id <"$system_dir/monitor-cli-create-repeat.json")" = "$(json_value id <"$system_dir/monitor-cli-create.json")" ]
 
 scheduled_ready=false
 attempt=0
@@ -299,6 +323,16 @@ node -e '
   const monitor = require(process.argv[1]);
   if (monitor.state !== "failing" || monitor.consecutive_failures !== 1 || monitor.open_incident_id !== null) process.exit(1);
 ' "$system_dir/monitor-below-threshold.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" project report system-project --json >"$system_dir/project-report-below-threshold.json"
+node -e '
+  const report = require(process.argv[1]);
+  const monitor = report.attention.find(item => item.type === "http" && item.key === "public-homepage");
+  if (!monitor || monitor.state !== "failing" || monitor.failure_count !== 1 ||
+      (monitor.incident !== undefined && monitor.incident !== null) ||
+      monitor.latest_result?.reason !== "unexpected_status" || !monitor.last_success ||
+      !monitor.next_due_at || monitor.instruction !== "Inspect the public documentation endpoint.") process.exit(1);
+' "$system_dir/project-report-below-threshold.json"
 
 set +e
 UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
@@ -531,6 +565,10 @@ UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
   >"$system_dir/push-state-create.json"
 [ "$(json_value mode <"$system_dir/push-job-create.json")" = "job_completion" ]
 [ "$(json_value mode <"$system_dir/push-state-create.json")" = "state_report" ]
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push create system-project --file - --json \
+  <"$system_dir/push-job-create-input.json" >"$system_dir/push-job-create-repeat.json"
+[ "$(json_value id <"$system_dir/push-job-create-repeat.json")" = "$(json_value id <"$system_dir/push-job-create.json")" ]
 
 UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
   "$ua" push credential issue system-project nightly-push --json \
@@ -538,6 +576,16 @@ UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
 UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
   "$ua" push credential issue system-project state-push --json \
   >"$system_dir/push-state-credential-issued.json"
+set +e
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" push credential issue system-project nightly-push --json \
+  >"$system_dir/push-job-issue-again-output.json" 2>"$system_dir/push-job-issue-again-error.json"
+issue_again_exit=$?
+set -e
+[ "$issue_again_exit" = "4" ]
+[ ! -s "$system_dir/push-job-issue-again-output.json" ]
+node -e 'const error = require(process.argv[1]); if (error.code !== "conflict" || error.http_status !== 409) process.exit(1)' \
+  "$system_dir/push-job-issue-again-error.json"
 push_job_token=$(json_value token <"$system_dir/push-job-credential-issued.json")
 push_job_url=$(json_value report_url <"$system_dir/push-job-credential-issued.json")
 push_job_url_secret=${push_job_url##*/}
@@ -810,6 +858,21 @@ while [ "$attempt" -lt 60 ]; do
 done
 [ "$push_missing_ready" = "true" ]
 echo "both push modes detected a missing report"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" project report system-project --json >"$system_dir/project-report-missing.json"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" project report system-project >"$system_dir/project-report-missing.txt"
+node -e '
+  const report = require(process.argv[1]);
+  for (const key of ["nightly-push", "state-push"]) {
+    const monitor = report.attention.find(item => item.type === "push" && item.key === key);
+    if (!monitor || monitor.latest_result?.reason !== "report_missing" ||
+        !monitor.last_success || !monitor.incident || monitor.incident.age_seconds < 0 ||
+        !monitor.next_due_at) process.exit(1);
+  }
+' "$system_dir/project-report-missing.json"
+grep 'operator_guidance' "$system_dir/project-report-missing.txt" >/dev/null
+grep 'report_missing' "$system_dir/project-report-missing.txt" >/dev/null
 
 # Pause and resume start a fresh untested generation while retaining the open
 # missing-report incident. Exercise one mode through the CLI and the other
@@ -1054,6 +1117,15 @@ node -e '
   if (!cli.effective_active || !browser.effective_active || Date.parse(cli.effective_ends_at) !== Date.parse(browser.effective_ends_at) || browser.active_scopes.length !== 2) process.exit(1);
 ' "$system_dir/mail-monitor-maintenance-start.json" "$system_dir/mail-monitor-maintenance-browser.json"
 echo "overlapping maintenance started"
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
+  "$ua" project report system-project --json >"$system_dir/project-report-maintenance.json"
+node -e '
+  const report = require(process.argv[1]);
+  const monitor = report.healthy.find(item => item.type === "push" && item.key === "mail-push");
+  if (!report.project_maintenance || !monitor || !monitor.direct_maintenance ||
+      !monitor.effective_maintenance_until || report.email.host !== "smtp-fixture" ||
+      !report.email.has_password || report.email.delivery.terminal_failure_count < 1) process.exit(1);
+' "$system_dir/project-report-maintenance.json"
 
 UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
   "$ua" monitor test system-project public-homepage --json >"$system_dir/mail-maintenance-http-check.json"
@@ -1188,13 +1260,18 @@ $system_dir/sign-in-response.txt
 $system_dir/session.json
 $system_dir/project-browser-create.json
 $system_dir/project-cli-get.json
+$system_dir/project-cli-create.json
+$system_dir/project-cli-create-repeat.json
 $system_dir/project-cli-rename.json
+$system_dir/project-stale-output.json
+$system_dir/project-stale-error.json
 $system_dir/project-api-delete.json
 $system_dir/project-browser-deleted.json
 $system_dir/project-browser-restore.json
 $system_dir/project-old-token.json
 $system_dir/project-new-token.json
 $system_dir/monitor-cli-create.json
+$system_dir/monitor-cli-create-repeat.json
 $system_dir/monitor-scheduled-checks.json
 $system_dir/monitor-cli-test-success.json
 $system_dir/monitor-before-planning-restart.json
@@ -1203,6 +1280,7 @@ $system_dir/monitor-failing-update.json
 $system_dir/monitor-first-failure.json
 $system_dir/monitor-first-failure-diagnostic.txt
 $system_dir/monitor-below-threshold.json
+$system_dir/project-report-below-threshold.json
 $system_dir/monitor-second-failure.json
 $system_dir/monitor-second-failure-diagnostic.txt
 $system_dir/monitor-open-incident.json
@@ -1220,7 +1298,10 @@ $system_dir/monitor-cli-resume.json
 $system_dir/monitor-browser-test-recovery.json
 $system_dir/monitor-resolved-incident.json
 $system_dir/push-job-create.json
+$system_dir/push-job-create-repeat.json
 $system_dir/push-state-create.json
+$system_dir/push-job-issue-again-output.json
+$system_dir/push-job-issue-again-error.json
 $system_dir/push-reporting-token-read.txt
 $system_dir/push-reporting-token-read-diagnostic.txt
 $system_dir/push-state-simple-success.txt
@@ -1247,6 +1328,8 @@ $system_dir/push-job-before-missing.json
 $system_dir/push-state-before-missing.json
 $system_dir/push-job-reports.json
 $system_dir/push-state-reports.json
+$system_dir/project-report-missing.json
+$system_dir/project-report-missing.txt
 $system_dir/push-job-missing.json
 $system_dir/push-job-pause.json
 $system_dir/push-job-resume.json
@@ -1264,6 +1347,7 @@ $system_dir/push-job-revoked.json
 $system_dir/push-job-old-revoked.json
 $system_dir/push-state-credential-revoked.json
 $system_dir/push-state-revoked.json
+$system_dir/project-report-maintenance.json
 $system_dir/revoke-response.txt
 $system_dir/revoked-output.txt
 $system_dir/revoked-diagnostic.txt

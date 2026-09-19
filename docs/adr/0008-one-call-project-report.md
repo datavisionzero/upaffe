@@ -26,11 +26,14 @@ The object contains:
   paused), then type (`http`, `push`) and key. It may be empty.
 - `healthy`: compact summaries of healthy monitors that are not overdue,
   ordered by type and key. Each keeps identity, mode where relevant, last
-  success time, and next check or reporting deadline. Detail is available
-  through the existing monitor and paginated history endpoints.
+  success time, next check or reporting deadline, and direct/effective
+  maintenance. Detail is available through the existing monitor and paginated
+  history endpoints.
 - `project_maintenance`: direct active window with start and end times, or
-  `null`. Each attention item also has direct and effective maintenance facts.
-- `email`: configured relay flag, project recipients, and the existing
+  `null`. Attention and healthy items also have direct and effective maintenance
+  facts.
+- `email`: configured relay flag, safe relay host, port, security, sender,
+  public base URL, password-presence flag, project recipients, and the existing
   project delivery summary (`pending`, `retrying`, `terminal_failure`,
   `accepted`, and oldest pending time). Accepted means SMTP relay acceptance,
   not inbox delivery. Retained counts cover only available history.

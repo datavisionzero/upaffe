@@ -86,6 +86,7 @@ public sealed class ProjectReportTests(PostgresFixture postgres)
         var report = JsonSerializer.Deserialize<ProjectReport>(bearerJson, Json)!;
         Assert.Equal(34, report.Counts.Total);
         Assert.Equal(30, report.Healthy.Count);
+        Assert.All(report.Healthy, monitor => Assert.NotNull(monitor.EffectiveMaintenanceUntil));
         Assert.Equal(["push", "http", "push", "push"],
             report.Attention.Select(value => value.Type).ToArray());
         var failed = Assert.Single(report.Attention, value => value.Key == "failed-http");

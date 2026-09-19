@@ -55,10 +55,11 @@ public sealed class ProjectReportStore(UpaffeDbContext context, IEmailStatusStor
         var active = windows.GroupBy(value => (value.ScopeType, value.ScopeId))
             .ToDictionary(group => group.Key, group => group.MaxBy(value => value.EndsAt)!);
         active.TryGetValue(("project", project.Id), out var projectWindow);
-        var smtpConfigured = await context.EmailConfigurations.AsNoTracking()
+        var smtp = await context.EmailConfigurations.AsNoTracking()
             .Where(value => value.Id == EmailConfiguration.SingletonId)
-            .Select(value => value.Host != null && value.Port != null
-                && value.SenderAddress != null)
+            .Select(value => new { value.Host, value.Port, value.Security,
+                value.SenderAddress, value.PublicBaseUrl,
+                HasPassword = value.Password != null })
             .SingleOrDefaultAsync(cancellationToken);
         var delivery = await emailStatus.SummaryAsync(projectKey, cancellationToken);
 
@@ -111,7 +112,8 @@ public sealed class ProjectReportStore(UpaffeDbContext context, IEmailStatusStor
             .ThenBy(value => value.Key, StringComparer.Ordinal)
             .Select(value => new ReportHealthyMonitor(value.Type, value.Id,
                 value.Key, value.Name, value.Mode, value.LastSuccess?.ObservedAt,
-                value.NextDueAt)).ToArray();
+                value.NextDueAt, value.DirectMaintenance,
+                value.EffectiveMaintenanceUntil)).ToArray();
         var counts = new ReportCounts(all.Count, http.Count, push.Count,
             all.Count(value => value.State == "healthy"),
             all.Count(value => value.State == "failing"),
@@ -120,7 +122,10 @@ public sealed class ProjectReportStore(UpaffeDbContext context, IEmailStatusStor
         return new ProjectReport(now, new ReportProject(project.Id, project.Key,
             project.Name, project.Version, project.CreatedAt, project.UpdatedAt),
             counts, attention, healthy, Window(projectWindow),
-            new ReportEmail(smtpConfigured, project.Recipients, delivery));
+            new ReportEmail(smtp?.Host is not null && smtp.Port is not null
+                && smtp.SenderAddress is not null, smtp?.Host, smtp?.Port,
+                smtp?.Security, smtp?.SenderAddress, smtp?.PublicBaseUrl,
+                smtp?.HasPassword ?? false, project.Recipients, delivery));
     }
 
     private static string State(MonitorState state) => state.ToString().ToLowerInvariant();

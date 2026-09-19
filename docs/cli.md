@@ -203,8 +203,9 @@ checks, reports, incidents, or deliveries. The report reads current facts; it
 does not trigger checks or acknowledge an incident.
 
 Text mode begins with the project and report time, state counts, project
-maintenance, and email summary. It then prints attention monitors in urgency
-order, followed by healthy summaries. Each attention monitor has labeled
+maintenance, and safe SMTP settings and delivery summary. It then prints
+attention monitors in urgency order, followed by healthy summaries. Each
+attention monitor has labeled
 `settings`, `diagnostic`, optional `incident`, `maintenance`, and
 `operator_guidance` lines. The latest result, last success, last receipt, and
 next deadline are distinct. `operator_guidance` contains only operator-written

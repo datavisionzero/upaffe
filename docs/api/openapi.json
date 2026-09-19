@@ -5823,12 +5823,52 @@
       "ReportEmail": {
         "required": [
           "configured",
+          "host",
+          "port",
+          "security",
+          "sender_address",
+          "public_base_url",
+          "has_password",
           "recipients",
           "delivery"
         ],
         "type": "object",
         "properties": {
           "configured": {
+            "type": "boolean"
+          },
+          "host": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "port": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "security": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sender_address": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "public_base_url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "has_password": {
             "type": "boolean"
           },
           "recipients": {
@@ -5850,7 +5890,9 @@
           "name",
           "mode",
           "last_success_at",
-          "next_due_at"
+          "next_due_at",
+          "direct_maintenance",
+          "effective_maintenance_until"
         ],
         "type": "object",
         "properties": {
@@ -5881,6 +5923,23 @@
             "format": "date-time"
           },
           "next_due_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "direct_maintenance": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReportMaintenance"
+              }
+            ]
+          },
+          "effective_maintenance_until": {
             "type": [
               "null",
               "string"

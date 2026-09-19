@@ -139,8 +139,11 @@ func writeProjectReportText(output io.Writer, report *api.ProjectReport) error {
 		fmt.Fprintf(&body, "project_maintenance\tuntil=%s\n",
 			report.ProjectMaintenance.EndsAt.Format(time.RFC3339Nano))
 	}
-	fmt.Fprintf(&body, "email\tconfigured=%t\trecipients=%d\tpending=%d\tretrying=%d\tterminal_failure=%d\taccepted_by_smtp=%d\n",
-		report.Email.Configured, len(report.Email.Recipients),
+	fmt.Fprintf(&body, "email\tconfigured=%t\thost=%s\tport=%s\tsecurity=%s\tsender=%s\tpublic_base_url=%s\thas_password=%t\trecipients=%d\tpending=%d\tretrying=%d\tterminal_failure=%d\taccepted_by_smtp=%d\n",
+		report.Email.Configured, quoteOptional(report.Email.Host),
+		formatInt(report.Email.Port), quoteOptional(report.Email.Security),
+		quoteOptional(report.Email.SenderAddress), quoteOptional(report.Email.PublicBaseUrl),
+		report.Email.HasPassword, len(report.Email.Recipients),
 		report.Email.Delivery.PendingCount, report.Email.Delivery.RetryingCount,
 		report.Email.Delivery.TerminalFailureCount,
 		report.Email.Delivery.SmtpAcceptedCount)
@@ -188,10 +191,11 @@ func writeProjectReportText(output io.Writer, report *api.ProjectReport) error {
 		}
 	}
 	for _, monitor := range report.Healthy {
-		fmt.Fprintf(&body, "healthy\ttype=%s\tkey=%s\tname=%s\tlast_success=%s\tnext_due=%s\n",
+		fmt.Fprintf(&body, "healthy\ttype=%s\tkey=%s\tname=%s\tlast_success=%s\tnext_due=%s\tdirect_maintenance=%t\teffective_maintenance_until=%s\n",
 			strconv.Quote(monitor.Type), strconv.Quote(monitor.Key),
 			strconv.Quote(monitor.Name), formatTime(monitor.LastSuccessAt),
-			formatTime(monitor.NextDueAt))
+			formatTime(monitor.NextDueAt), monitor.DirectMaintenance != nil,
+			formatTime(monitor.EffectiveMaintenanceUntil))
 	}
 	_, err := io.WriteString(output, body.String())
 	return err
