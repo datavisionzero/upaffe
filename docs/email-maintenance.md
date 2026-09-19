@@ -43,7 +43,13 @@ cannot guarantee it.
 
 Use `ua email summary`, `ua email summary --project PROJECT`, and `ua email
 deliveries --project PROJECT` for pending work and failures. Project and
-monitor web views show the same safe delivery facts. `ua email incident UUID
+monitor web views show the same safe delivery facts. From a dashboard delivery
+warning, **Open email status and settings** shows instance delivery counts and
+recent attempts across projects. The project's **Manage recipients and
+delivery** link narrows the list to that project. Each delivery links to its
+monitor and incident, where the announcement and recipient status can be
+inspected. The settings screens return to the health view that opened them.
+`ua email incident UUID
 --monitor-type http` (or `push`) and each monitor's **Email status for
 incident** control show whether the episode is pending, announced,
 suppressed, failed, or silent. Attempts, times, and stable failure codes are

@@ -71,6 +71,12 @@ it("triages both monitor types without changing health for maintenance or delive
     if (path === "/api/projects") return json([project]);
     if (path === "/api/projects/systems/report") return json(report);
     if (path === "/api/projects/systems/http-monitors") return json([]);
+    if (path === "/api/projects/systems/recipients") return json({ project_key: "systems", version: 1, recipients: ["ops@example.test"] });
+    if (path === "/api/projects/systems/maintenance") return json({ project_key: "systems", scope_type: "project",
+      version: 1, direct_active: true, effective_active: true, ends_at: "2026-09-19T14:00:00Z",
+      effective_ends_at: "2026-09-19T14:00:00Z", active_scopes: ["project"] });
+    if (path === "/api/projects/systems/email-summary") return json(report.email.delivery);
+    if (path === "/api/email/deliveries") return json({ items: [], total: 0, limit: 20, offset: 0, has_more: false });
     throw new Error(`Unexpected ${path}`);
   });
   vi.stubGlobal("fetch", fetch);
@@ -95,9 +101,16 @@ it("triages both monitor types without changing health for maintenance or delive
   expect(screen.getByRole("link", { name: "Explicit failure" })).toHaveAttribute("href", "/projects/systems/push-monitors/explicit");
   expect(screen.getByRole("link", { name: "Manage HTTP monitors" })).toHaveAttribute("href", "/projects/systems/http-monitors");
   expect(screen.getByRole("link", { name: "Manage push monitors" })).toHaveAttribute("href", "/projects/systems/push-monitors");
-  expect(screen.getByRole("link", { name: "Recipients and maintenance" })).toHaveAttribute("href", "/projects/systems/settings/email");
+  expect(screen.getByRole("link", { name: "Recipients and maintenance" })).toHaveAttribute("href", "/projects/systems/settings/email?return=%2Fprojects%2Fsystems");
   expect(screen.queryByText("mail.example.test")).not.toBeInTheDocument();
   const user = userEvent.setup();
+  await user.click(screen.getByRole("link", { name: "Manage recipients and delivery" }));
+  expect(window.location.pathname + window.location.search).toBe("/projects/systems/settings/email?return=%2Fprojects%2Fsystems");
+  expect(await screen.findByRole("region", { name: "Email delivery" })).toHaveTextContent("terminal failures 1");
+  expect(await screen.findByRole("region", { name: "Project maintenance" })).toHaveTextContent("Checks, reports, and incident history continue");
+  await user.click(screen.getByRole("button", { name: "Back to investigation" }));
+  expect(window.location.pathname).toBe("/projects/systems");
+  expect(await screen.findByRole("heading", { name: "Needs attention" })).toBeInTheDocument();
   await user.click(screen.getByRole("link", { name: "Manage HTTP monitors" }));
   expect(window.location.pathname).toBe("/projects/systems/http-monitors");
   expect(await screen.findByRole("heading", { name: "Create an HTTP monitor" })).toBeInTheDocument();

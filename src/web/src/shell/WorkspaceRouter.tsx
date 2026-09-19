@@ -9,7 +9,7 @@ import { MonitorsView } from "@/shell/MonitorsView";
 import { ProjectOverviewView } from "@/shell/ProjectOverviewView";
 import { ProjectsView } from "@/shell/ProjectsView";
 import { PushMonitorsView } from "@/shell/PushMonitorsView";
-import { monitorPath, projectPath, useAppRoute } from "@/shell/routes";
+import { monitorPath, projectPath, returnPath, useAppRoute, withReturn } from "@/shell/routes";
 
 type Session = components["schemas"]["CurrentSessionResponse"];
 type Project = components["schemas"]["ProjectResponse"];
@@ -19,6 +19,7 @@ export function WorkspaceRouter({ session, onSignedOut }: {
   session: Session; onSignedOut: () => void;
 }) {
   const { route, path, navigate } = useAppRoute();
+  const search = path.includes("?") ? path.slice(path.indexOf("?")) : "";
   const projectKey = route.kind === "project" ? route.projectKey : undefined;
   const monitorKey = route.kind === "project" ? route.monitorKey : undefined;
   const [projectLoad, setProjectLoad] = useState<ProjectLoad>();
@@ -83,7 +84,8 @@ export function WorkspaceRouter({ session, onSignedOut }: {
   } else if (route.kind === "projects") {
     content = <ProjectsView onNavigate={navigate} onSignedOut={onSignedOut} session={session} />;
   } else if (route.kind === "settings") {
-    content = <InstanceEmailView onBack={() => navigate("/projects")} onSignedOut={onSignedOut} />;
+    content = <InstanceEmailView onBack={() => navigate(returnPath(search, "/projects"))}
+      onSignedOut={onSignedOut} />;
   } else if (route.kind === "missing") {
     content = <div className="workspace"><section className="panel">
       <h1>Page unavailable</h1><p>The requested page does not exist.</p>
@@ -102,7 +104,8 @@ export function WorkspaceRouter({ session, onSignedOut }: {
         {link("/projects", "Go to projects", false)}
       </section></div>;
     } else if (route.section === "email") {
-      content = <ProjectEmailView project={project} onBack={() => navigate(projectPath(project.key))}
+      content = <ProjectEmailView project={project}
+        onBack={() => navigate(returnPath(search, projectPath(project.key)))}
         onSignedOut={onSignedOut} />;
     } else if (route.section === "overview") {
       content = <ProjectOverviewView key={project.key} project={project} onNavigate={navigate}
@@ -131,7 +134,8 @@ export function WorkspaceRouter({ session, onSignedOut }: {
       <span className="brand">upaffe</span>
       {link("/dashboard", "Dashboard", route.kind === "dashboard")}
       {link("/projects", "Projects", route.kind === "projects")}
-      {link("/settings/email", "Settings", route.kind === "settings")}
+      {link(route.kind === "settings" ? "/settings/email" : withReturn("/settings/email", path),
+        "Settings", route.kind === "settings")}
     </nav>
     {route.kind === "project" && <nav aria-label="Breadcrumb" className="breadcrumbs">
       {link("/projects", "Projects", false)}<span aria-hidden="true">/</span>

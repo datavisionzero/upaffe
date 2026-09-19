@@ -39,6 +39,7 @@ describe("email and maintenance administration", () => {
       requests.push(request);
       const path = new URL(request.url).pathname;
       if (path === "/api/email/settings") return json(settings);
+      if (path === "/api/email/deliveries") return json({ items: [], total: 0, limit: 20, offset: 0, has_more: false });
       if (path === "/api/email/deliveries/summary") return json({ pending_count: 0, retrying_count: 0, terminal_failure_count: 0, smtp_accepted_count: 0 });
       if (path === "/api/email/password") return json({ ...settings, version: 3, has_password: true });
       if (path === "/api/email/test") return json({ status: "accepted_by_smtp", accepted_at: "2026-09-19T12:00:00Z" });
@@ -67,6 +68,7 @@ describe("email and maintenance administration", () => {
     answering((request) => {
       const path = new URL(request.url).pathname;
       if (path === "/api/email/settings" && request.method === "GET") return json({ ...base, version: ++reads });
+      if (path === "/api/email/deliveries") return json({ items: [], total: 0, limit: 20, offset: 0, has_more: false });
       if (path === "/api/email/settings" && request.method === "PUT") return json({ code: "conflict", status: 409, title: "untrusted relay detail" }, 409);
       if (path === "/api/email/deliveries/summary") return json({ pending_count: 0, retrying_count: 0, terminal_failure_count: 0, smtp_accepted_count: 0 });
       return json({ code: "not_found", status: 404 }, 404);
@@ -120,6 +122,50 @@ describe("email and maintenance administration", () => {
     expect(calls).toContain("/api/projects/systems/http-monitors/site/maintenance");
   });
 
+  it("starts, extends, and ends direct monitor maintenance after a concurrent change", async () => {
+    const future = new Date(Date.now() + 3600000).toISOString();
+    const requests: Request[] = [];
+    let version = 0;
+    let active = false;
+    let writes = 0;
+    answering((request) => {
+      requests.push(request);
+      if (request.method === "POST") {
+        writes += 1;
+        if (writes === 2) { version = 2; return json({ code: "conflict", title: "raw relay diagnostic" }, 409); }
+        version += 1;
+        active = true;
+      }
+      if (request.method === "DELETE") { version += 1; active = false; }
+      return json({ project_key: "systems", monitor_key: "site", scope_type: "http", version,
+        direct_active: active, effective_active: true, ends_at: active ? future : null,
+        effective_ends_at: future, active_scopes: active ? ["project", "http"] : ["project"] });
+    });
+    const user = userEvent.setup();
+    render(<MaintenancePanel projectKey="systems" monitorType="http" monitorKey="site" onSignedOut={vi.fn()} />);
+    const panel = await screen.findByRole("region", { name: "HTTP monitor maintenance" });
+    expect(await within(panel).findByText("Direct scope: inactive", { exact: false })).toBeInTheDocument();
+    expect(within(panel).getByText("Effective: Active", { exact: false })).toBeInTheDocument();
+    await user.click(within(panel).getByRole("button", { name: "Start maintenance" }));
+    expect(await within(panel).findByRole("button", { name: "Extend maintenance" })).toBeInTheDocument();
+    await user.click(within(panel).getByRole("button", { name: "Extend maintenance" }));
+    expect(await within(panel).findByRole("alert")).toHaveTextContent("Refresh and try again");
+    expect(within(panel).getByText("version 2", { exact: false })).toBeInTheDocument();
+    expect(panel.textContent).not.toContain("raw relay diagnostic");
+    await user.click(within(panel).getByRole("button", { name: "Extend maintenance" }));
+    expect(await within(panel).findByText("Maintenance window saved.", { exact: false })).toBeInTheDocument();
+    await user.click(within(panel).getByRole("button", { name: "End direct maintenance" }));
+    expect(await within(panel).findByText("Direct maintenance ended.", { exact: false })).toBeInTheDocument();
+    expect(within(panel).getByText("Effective: Active", { exact: false })).toBeInTheDocument();
+    expect(within(panel).getByText("Direct scope: inactive", { exact: false })).toBeInTheDocument();
+    const posts = requests.filter((request) => request.method === "POST");
+    expect(await Promise.all(posts.map((request) => request.clone().json()))).toEqual([
+      { version: 0, duration_seconds: 3600 }, { version: 1, duration_seconds: 3600 },
+      { version: 2, duration_seconds: 3600 },
+    ]);
+    expect(new URL(requests.find((request) => request.method === "DELETE")!.url).searchParams.get("version")).toBe("3");
+  });
+
   it("shows actionable sanitized delivery failure and incident suppression", async () => {
     answering((request) => {
       const path = new URL(request.url).pathname;
@@ -132,6 +178,8 @@ describe("email and maintenance administration", () => {
     const history = await screen.findByRole("region", { name: "Email delivery" });
     expect(await within(history).findByText("terminal failures 1", { exact: false })).toBeInTheDocument();
     expect(within(history).getByText("Failure code smtp_timeout")).toBeInTheDocument();
+    expect(within(history).getByRole("link", { name: /Inspect incident and recipient status/ })).toHaveAttribute("href",
+      `/projects/systems/http-monitors/site?incident=${incidentId}`);
     const incident = await screen.findByRole("region", { name: "Incident email status" });
     expect(within(incident).getByText("Announcement: suppressed", { exact: false })).toBeInTheDocument();
     expect(document.body.textContent).not.toContain("raw relay diagnostic");

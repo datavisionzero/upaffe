@@ -277,15 +277,18 @@ operator instructions, and safe runbook links appear alongside health without
 changing its state. Both monitor types link to their stable detail routes;
 project actions link to the existing creation and management screens.
 
-The instance email screen reads safe SMTP settings and default recipients,
-updates them at the read version, replaces or clears the password explicitly,
-and sends a single test email with relay-acceptance feedback. Project email
-administration edits live recipients and shows timed project maintenance and
-delivery counts/history. HTTP and push detail screens reuse the maintenance
-and delivery panels for their own scope and offer per-incident announcement
-status. Effective maintenance and its expiry are shown apart from monitor
-health and pause. The browser reads only the generated safe status responses;
-it never renders SMTP diagnostics or a saved password.
+The instance email screen leads with delivery counts and recent attempts across
+projects, then reads safe SMTP settings and default recipients, updates them at
+the read version, replaces or clears the password explicitly, and sends a
+single test email with relay-acceptance feedback. Project email administration
+leads with project delivery history, then edits live recipients and timed
+project maintenance. Each delivery links to its monitor and incident. Settings
+links carry the current health route so the operator can return to the same
+investigation. HTTP and push detail screens reuse the maintenance and delivery
+panels for their own scope and offer per-incident announcement status.
+Effective maintenance and its expiry are shown apart from monitor health and
+pause. The browser reads only the generated safe status responses; it never
+renders SMTP diagnostics or a saved password.
 
 The CLI is an independent Go module whose executable is `ua`. It is designed for
 unattended use: machine-readable output, data on stdout, diagnostics on stderr,

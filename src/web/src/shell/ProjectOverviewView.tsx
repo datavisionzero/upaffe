@@ -4,7 +4,7 @@ import type { components } from "@/api/schema";
 import { api } from "@/api/client";
 import { problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
-import { monitorPath, projectPath } from "@/shell/routes";
+import { monitorPath, projectPath, withReturn } from "@/shell/routes";
 
 type Project = components["schemas"]["ProjectResponse"];
 type Report = components["schemas"]["ProjectReport"];
@@ -65,7 +65,7 @@ export function ProjectOverviewView({ project, onNavigate, onSignedOut }: {
     <nav aria-label="Project actions" className="project-action-nav">
       {link(`${base}/http-monitors`, "Manage HTTP monitors")}
       {link(`${base}/push-monitors`, "Manage push monitors")}
-      {link(`${base}/settings/email`, "Recipients and maintenance")}
+      {link(withReturn(`${base}/settings/email`, base), "Recipients and maintenance")}
     </nav>
 
     {loading && !report && <div className="panel" role="status">Loading project health…</div>}
@@ -95,14 +95,14 @@ export function ProjectOverviewView({ project, onNavigate, onSignedOut }: {
           <p>{report.project_maintenance
             ? `Active until ${dateLabel(report.project_maintenance.ends_at)}. Monitoring continues; notifications are suppressed.`
             : "No project maintenance is active."}</p>
-          {link(`${base}/settings/email`, "Manage maintenance", "text-link")}
+          {link(withReturn(`${base}/settings/email`, base), "Manage maintenance", "text-link")}
         </div>
         <div>
           <h2>Email delivery</h2>
           <p>{report.email.delivery.terminal_failure_count} terminal failures · {report.email.delivery.retrying_count} retrying · {report.email.delivery.pending_count} pending</p>
           <p className="muted">{report.email.delivery.smtp_accepted_count} accepted by SMTP; inbox receipt is not confirmed.</p>
           <p className="muted">{report.email.configured ? "Relay configured" : "Relay not configured"} · {report.email.recipients.length} project recipients</p>
-          {link(`${base}/settings/email`, "Manage recipients and delivery", "text-link")}
+          {link(withReturn(`${base}/settings/email`, base), "Manage recipients and delivery", "text-link")}
         </div>
       </section>
 

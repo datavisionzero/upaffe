@@ -43,6 +43,17 @@ export const projectPath = (projectKey: string) => `/projects/${encodeURICompone
 export const monitorPath = (projectKey: string, type: "http" | "push", monitorKey: string) =>
   `${projectPath(projectKey)}/${type}-monitors/${encodeURIComponent(monitorKey)}`;
 
+export const withReturn = (destination: string, source: string) =>
+  `${destination}?return=${encodeURIComponent(source)}`;
+
+export function returnPath(search: string, fallback: string): string {
+  const destination = new URLSearchParams(search).get("return");
+  if (!destination || destination.length > 2048 || !destination.startsWith("/")
+    || destination.startsWith("//") || destination.includes("\\")
+    || parseRoute(destination.split("?", 1)[0]).kind === "missing") return fallback;
+  return destination;
+}
+
 export function useAppRoute() {
   const [path, setPath] = useState(() => window.location.pathname + window.location.search);
   useEffect(() => {
