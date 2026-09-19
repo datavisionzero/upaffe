@@ -4,7 +4,7 @@ import type { components } from "@/api/schema";
 import { api } from "@/api/client";
 import { problemMessage } from "@/api/problems";
 import { BootstrapView, SignInView } from "@/shell/AccessViews";
-import { ProjectsView } from "@/shell/ProjectsView";
+import { WorkspaceRouter } from "@/shell/WorkspaceRouter";
 
 type Session = components["schemas"]["CurrentSessionResponse"];
 type Screen =
@@ -47,6 +47,7 @@ export function App() {
     setScreen({ state: "loading" });
     void enter();
   }, [enter]);
+  const signedOut = useCallback(() => setScreen({ state: "signin" }), []);
 
   return (
     <main className="app-shell">
@@ -55,7 +56,7 @@ export function App() {
         <BootstrapView available={screen.available} onEstablished={() => setScreen({ state: "signin" })} onRefresh={reenter} />
       )}
       {screen.state === "signin" && <SignInView onSignedIn={reenter} />}
-      {screen.state === "projects" && <ProjectsView onSignedOut={() => setScreen({ state: "signin" })} session={screen.session} />}
+      {screen.state === "projects" && <WorkspaceRouter onSignedOut={signedOut} session={screen.session} />}
       {screen.state === "failed" && (
         <section className="panel panel-narrow">
           <p className="eyebrow">Connection</p>

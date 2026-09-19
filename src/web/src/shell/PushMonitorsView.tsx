@@ -21,11 +21,16 @@ type Props = {
   onBack: () => void;
   onOpenHttp: () => void;
   onSignedOut: () => void;
+  routeMonitorKey?: string;
+  onOpenMonitor?: (key: string) => void;
+  onBackToList?: () => void;
 };
 
-export function PushMonitorsView({ project, onBack, onOpenHttp, onSignedOut }: Props) {
+export function PushMonitorsView({ project, onBack, onOpenHttp, onSignedOut,
+  routeMonitorKey, onOpenMonitor, onBackToList }: Props) {
   const [monitors, setMonitors] = useState<Monitor[]>([]);
   const [selectedKey, setSelectedKey] = useState<string | undefined>(() => {
+    if (onOpenMonitor) return undefined;
     const link = monitorLink();
     return link?.projectKey === project.key && link.monitorType === "push" ? link.monitorKey : undefined;
   });
@@ -64,7 +69,8 @@ export function PushMonitorsView({ project, onBack, onOpenHttp, onSignedOut }: P
       });
       if (result.data) {
         await load();
-        setSelectedKey(result.data.key);
+        if (onOpenMonitor) onOpenMonitor(result.data.key);
+        else setSelectedKey(result.data.key);
       } else if (result.response.status === 401) onSignedOut();
       else setError(problemMessage(result.error, result.response.status));
     } catch {
@@ -74,11 +80,12 @@ export function PushMonitorsView({ project, onBack, onOpenHttp, onSignedOut }: P
     }
   }
 
-  if (selectedKey) {
+  const activeKey = routeMonitorKey ?? selectedKey;
+  if (activeKey) {
     return <PushMonitorDetail
-      monitorKey={selectedKey}
-      onBack={() => { setSelectedKey(undefined); void load(); }}
-      onRemoved={() => { setSelectedKey(undefined); void load(); }}
+      monitorKey={activeKey}
+      onBack={() => { if (onBackToList) onBackToList(); else { setSelectedKey(undefined); void load(); } }}
+      onRemoved={() => { if (onBackToList) onBackToList(); else { setSelectedKey(undefined); void load(); } }}
       onSignedOut={onSignedOut}
       project={project}
     />;
@@ -124,7 +131,7 @@ export function PushMonitorsView({ project, onBack, onOpenHttp, onSignedOut }: P
             </div>
             <div className="monitor-card-actions">
               <span className="version">version {monitor.version}</span>
-              <Button onClick={() => setSelectedKey(monitor.key)} type="button">Open details</Button>
+              <Button onClick={() => onOpenMonitor ? onOpenMonitor(monitor.key) : setSelectedKey(monitor.key)} type="button">Open details</Button>
             </div>
           </article>)}
         </div>}
@@ -366,6 +373,7 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
 
   if (loading && !monitor) return <div className="workspace"><p role="status">Loading push monitor detail…</p></div>;
   if (!monitor) return <div className="workspace panel">
+    <h1>Monitor unavailable</h1>
     <div className="error" role="alert">{error ?? "The push monitor is unavailable."}</div>
     <div className="actions"><Button onClick={() => void load()} type="button">Try again</Button><Button onClick={onBack} type="button">Back to push monitors</Button></div>
   </div>;

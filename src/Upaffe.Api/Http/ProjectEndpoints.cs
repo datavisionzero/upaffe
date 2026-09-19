@@ -28,6 +28,17 @@ public static class ProjectEndpoints
     {
         var projects = endpoints.MapGroup("/projects").ManagementAccess();
 
+        endpoints.MapGet("/overview", async (
+                HttpContext http,
+                ReadInstanceOverview read,
+                CancellationToken cancellationToken) =>
+            await read.ExecuteAsync(http.ActingIdentity(), cancellationToken))
+            .ManagementAccess()
+            .WithName("ReadInstanceOverview")
+            .WithSummary("Read current, safe health across all live projects.")
+            .Produces<InstanceOverview>()
+            .Produces<ProblemResponse>(StatusCodes.Status401Unauthorized, "application/problem+json");
+
         projects.MapPost(string.Empty, async (
                 CreateProjectRequest request,
                 HttpContext http,

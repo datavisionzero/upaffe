@@ -39,6 +39,7 @@ public sealed class ContractTests(PostgresFixture postgres)
                 "/api/management-credentials",
                 "/api/management-credentials/{id}",
                 "/api/management-credentials/{id}/rotate",
+                "/api/overview",
                 "/api/projects",
                 "/api/projects/{key}",
                 "/api/projects/{key}/email-summary",
