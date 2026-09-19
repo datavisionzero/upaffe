@@ -29,6 +29,10 @@ func ResolveURL(flagValue string, environment Environment) (string, error) {
 	if parsed.User != nil {
 		return "", fmt.Errorf("instance address must not contain credentials")
 	}
+	if parsed.RawQuery != "" || parsed.ForceQuery || parsed.Fragment != "" ||
+		strings.ContainsAny(parsed.Path, "\r\n\t") {
+		return "", fmt.Errorf("instance address must not contain a query, fragment, or control character")
+	}
 	parsed.Path = strings.TrimRight(parsed.Path, "/")
 	return strings.TrimRight(parsed.String(), "/"), nil
 }

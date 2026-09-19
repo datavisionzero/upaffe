@@ -132,6 +132,10 @@ is never returned by ordinary text or JSON output.
 The same CLI configures SMTP and recipients, sends an explicit test email,
 inspects delivery failures, and manages project or monitor maintenance. Its
 secret-bearing email input comes from an explicit file or stdin.
+It also provides a one-call project report for agent investigations. The
+[unattended administration workflow](./docs/agent-workflow.md) maps current
+web management actions to CLI commands and describes retry and secret handoff
+rules.
 
 ## Local Compose environment
 

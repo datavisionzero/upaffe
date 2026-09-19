@@ -63,7 +63,7 @@ func newCredentialCreate(output io.Writer, getenv environment, flags *management
 				ctx,
 				api.CreateCredentialRequest{Name: &name})
 			if err != nil {
-				return process.New(process.Unreachable, "instance is unreachable: %v", err)
+				return responseOrTransportError(err)
 			}
 			if response.StatusCode() != http.StatusCreated || response.JSON201 == nil {
 				return responseProblem(response.StatusCode(), response.Body)
@@ -97,7 +97,7 @@ func newCredentialList(output io.Writer, getenv environment, flags *managementFl
 			defer cancel()
 			response, err := client.ListManagementCredentialsWithResponse(ctx)
 			if err != nil {
-				return process.New(process.Unreachable, "instance is unreachable: %v", err)
+				return responseOrTransportError(err)
 			}
 			if response.StatusCode() != http.StatusOK || response.JSON200 == nil {
 				return responseProblem(response.StatusCode(), response.Body)
@@ -136,7 +136,7 @@ func newCredentialRotate(output io.Writer, getenv environment, flags *management
 			defer cancel()
 			response, err := client.RotateManagementCredentialWithResponse(ctx, id)
 			if err != nil {
-				return process.New(process.Unreachable, "instance is unreachable: %v", err)
+				return responseOrTransportError(err)
 			}
 			if response.StatusCode() != http.StatusOK || response.JSON200 == nil {
 				return responseProblem(response.StatusCode(), response.Body)
@@ -172,7 +172,7 @@ func newCredentialRevoke(output io.Writer, getenv environment, flags *management
 			defer cancel()
 			response, err := client.RevokeManagementCredentialWithResponse(ctx, id)
 			if err != nil {
-				return process.New(process.Unreachable, "instance is unreachable: %v", err)
+				return responseOrTransportError(err)
 			}
 			if response.StatusCode() != http.StatusNoContent {
 				return responseProblem(response.StatusCode(), response.Body)

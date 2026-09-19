@@ -13,6 +13,7 @@ deliberately departs from a product commitment or an adopted reference.
 - [0005 — Claim scheduled HTTP work in PostgreSQL](./0005-claim-scheduled-http-work-in-postgresql.md)
 - [0006 — Receive and order push reports](./0006-receive-and-order-push-reports.md)
 - [0007 — Deliver incident email around timed maintenance](./0007-deliver-incident-email-around-timed-maintenance.md)
+- [0008 — One-call project report](./0008-one-call-project-report.md)
 
 ## Decisions adopted from planaffe
 

@@ -1001,6 +1001,67 @@
         }
       }
     },
+    "/api/projects/{key}/report": {
+      "get": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Read one safe, current investigation report for a live project.",
+        "operationId": "ReadProjectReport",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/projects/{key}/restore": {
       "post": {
         "tags": [
@@ -5221,6 +5282,55 @@
           }
         }
       },
+      "ProjectReport": {
+        "required": [
+          "generated_at",
+          "project",
+          "counts",
+          "attention",
+          "healthy",
+          "project_maintenance",
+          "email"
+        ],
+        "type": "object",
+        "properties": {
+          "generated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "project": {
+            "$ref": "#/components/schemas/ReportProject"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/ReportCounts"
+          },
+          "attention": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportMonitor"
+            }
+          },
+          "healthy": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportHealthyMonitor"
+            }
+          },
+          "project_maintenance": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReportMaintenance"
+              }
+            ]
+          },
+          "email": {
+            "$ref": "#/components/schemas/ReportEmail"
+          }
+        }
+      },
       "ProjectResponse": {
         "required": [
           "id",
@@ -5665,6 +5775,484 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "ReportCounts": {
+        "required": [
+          "total",
+          "http",
+          "push",
+          "healthy",
+          "failing",
+          "untested",
+          "paused"
+        ],
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "http": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "push": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "healthy": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "failing": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "untested": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "paused": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ReportEmail": {
+        "required": [
+          "configured",
+          "host",
+          "port",
+          "security",
+          "sender_address",
+          "public_base_url",
+          "has_password",
+          "recipients",
+          "delivery"
+        ],
+        "type": "object",
+        "properties": {
+          "configured": {
+            "type": "boolean"
+          },
+          "host": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "port": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "security": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sender_address": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "public_base_url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "has_password": {
+            "type": "boolean"
+          },
+          "recipients": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "delivery": {
+            "$ref": "#/components/schemas/EmailDeliverySummary"
+          }
+        }
+      },
+      "ReportHealthyMonitor": {
+        "required": [
+          "type",
+          "id",
+          "key",
+          "name",
+          "mode",
+          "last_success_at",
+          "next_due_at",
+          "direct_maintenance",
+          "effective_maintenance_until"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "mode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "last_success_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "next_due_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "direct_maintenance": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReportMaintenance"
+              }
+            ]
+          },
+          "effective_maintenance_until": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "ReportIncident": {
+        "required": [
+          "id",
+          "began_at",
+          "opened_at",
+          "age_seconds",
+          "original_reason",
+          "latest_reason"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "began_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "opened_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "age_seconds": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "original_reason": {
+            "type": "string"
+          },
+          "latest_reason": {
+            "type": "string"
+          }
+        }
+      },
+      "ReportMaintenance": {
+        "required": [
+          "started_at",
+          "ends_at"
+        ],
+        "type": "object",
+        "properties": {
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ends_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ReportMonitor": {
+        "required": [
+          "type",
+          "id",
+          "key",
+          "name",
+          "state",
+          "mode",
+          "version",
+          "target_url",
+          "expected_status_code",
+          "text_condition",
+          "interval_seconds",
+          "timeout_seconds",
+          "failure_threshold",
+          "failure_count",
+          "tolerance_seconds",
+          "last_received_at",
+          "next_due_at",
+          "overdue",
+          "latest_result",
+          "last_success",
+          "incident",
+          "direct_maintenance",
+          "effective_maintenance_until",
+          "instruction",
+          "runbook_url"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "mode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "target_url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "expected_status_code": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "text_condition": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "interval_seconds": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "timeout_seconds": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "failure_threshold": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "failure_count": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "tolerance_seconds": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "last_received_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "next_due_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "overdue": {
+            "type": "boolean"
+          },
+          "latest_result": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReportResult"
+              }
+            ]
+          },
+          "last_success": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReportResult"
+              }
+            ]
+          },
+          "incident": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReportIncident"
+              }
+            ]
+          },
+          "direct_maintenance": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReportMaintenance"
+              }
+            ]
+          },
+          "effective_maintenance_until": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "instruction": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "runbook_url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "ReportProject": {
+        "required": [
+          "id",
+          "key",
+          "name",
+          "version",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ReportResult": {
+        "required": [
+          "id",
+          "outcome",
+          "reason",
+          "observed_at",
+          "received_at"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "received_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },

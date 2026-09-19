@@ -203,6 +203,10 @@ docker compose -f deploy/docker-compose.dev.yml up --build --wait
 
 ## Disposable monitoring system test
 
+For the noninteractive administration path and a mapping from every current
+web management action to a CLI command, see the
+[unattended administration workflow](./agent-workflow.md).
+
 Run the complete implemented vertical slice from the repository root:
 
 ```sh
@@ -219,8 +223,10 @@ scheduled and requested success, crosses a two-failure threshold into exactly
 one incident, survives restarts while planned and while failing, exercises
 pause/resume through both access paths, and records a fresh recovery. It proves
 credential rotation overlap, immediate revocation, singular persisted
-identities, and absence of generated access and monitor secrets from ordinary
-HTTP/CLI artifacts and application logs. Explicit secret input and credential
+identities, repeated keyed project and monitor creates, stale version errors,
+stdin and file input, one-call project reports, and absence of generated access
+and monitor secrets from ordinary HTTP/CLI artifacts and application logs.
+Explicit secret input and credential
 issuance files are excluded because those are their documented secret-bearing
 purposes.
 

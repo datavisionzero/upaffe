@@ -29,6 +29,7 @@ builder.Services.AddScoped<RotateManagementCredential>();
 builder.Services.AddScoped<RevokeManagementCredential>();
 builder.Services.AddScoped<CreateProject>();
 builder.Services.AddScoped<ReadProject>();
+builder.Services.AddScoped<ReadProjectReport>();
 builder.Services.AddScoped<ListProjects>();
 builder.Services.AddScoped<RenameProject>();
 builder.Services.AddScoped<DeleteProject>();

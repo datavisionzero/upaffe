@@ -1,12 +1,14 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/datavisionzero/upaffe/src/cli/internal/api"
@@ -15,6 +17,12 @@ import (
 	"github.com/datavisionzero/upaffe/src/cli/internal/version"
 	"github.com/spf13/cobra"
 )
+
+type diagnostic struct {
+	Code       string `json:"code"`
+	ExitCode   int    `json:"exit_code"`
+	HTTPStatus *int   `json:"http_status,omitempty"`
+}
 
 type environment func(string) string
 
@@ -25,19 +33,48 @@ func Run(
 	diagnostics io.Writer,
 	getenv environment,
 ) int {
-	root := newRoot(output, getenv)
+	var buffered bytes.Buffer
+	root := newRoot(&buffered, getenv)
 	root.SetArgs(arguments)
 	root.SetIn(input)
-	root.SetOut(output)
+	root.SetOut(&buffered)
 	root.SetErr(diagnostics)
 	root.SilenceErrors = true
 	root.SilenceUsage = true
 
 	if err := root.Execute(); err != nil {
-		fmt.Fprintf(diagnostics, "ua: %v\n", err)
-		return process.CodeOf(err)
+		code, machineCode, httpStatus := process.DetailsOf(err)
+		if code == process.CheckFailed {
+			if _, copyErr := io.Copy(output, &buffered); copyErr != nil {
+				return process.Unexpected
+			}
+		}
+		if jsonRequested(arguments) {
+			result := diagnostic{Code: machineCode, ExitCode: code}
+			if httpStatus != 0 {
+				result.HTTPStatus = &httpStatus
+			}
+			_ = writeJSON(diagnostics, result)
+		} else if httpStatus != 0 {
+			fmt.Fprintf(diagnostics, "ua: %s (HTTP %d)\n", machineCode, httpStatus)
+		} else {
+			fmt.Fprintf(diagnostics, "ua: %s\n", machineCode)
+		}
+		return code
+	}
+	if _, err := io.Copy(output, &buffered); err != nil {
+		return process.Unexpected
 	}
 	return process.Success
+}
+
+func jsonRequested(arguments []string) bool {
+	for _, argument := range arguments {
+		if argument == "--json" || argument == "--json=true" {
+			return true
+		}
+	}
+	return false
 }
 
 func newRoot(output io.Writer, getenv environment) *cobra.Command {
@@ -96,7 +133,7 @@ func newStatus(output io.Writer, getenv environment) *cobra.Command {
 			defer cancel()
 			response, err := client.ReadVersionWithResponse(ctx)
 			if err != nil {
-				return process.New(process.Unreachable, "instance is unreachable: %v", err)
+				return responseOrTransportError(err)
 			}
 
 			if response.StatusCode() != http.StatusOK || response.JSON200 == nil {
@@ -122,26 +159,56 @@ func newStatus(output io.Writer, getenv environment) *cobra.Command {
 func responseError(status int) error {
 	switch status {
 	case http.StatusUnauthorized, http.StatusForbidden:
-		return process.New(process.Unauthorized, "instance did not authorize the request (HTTP %d)", status)
+		return process.Remote(process.Unauthorized, "unauthorized", status)
 	case http.StatusNotFound:
-		return process.New(process.NotFound, "instance has no such endpoint (HTTP %d)", status)
+		return process.Remote(process.NotFound, "not_found", status)
 	case http.StatusBadRequest, http.StatusConflict, http.StatusUnprocessableEntity:
-		return process.New(process.Refused, "instance refused the request (HTTP %d)", status)
+		return process.Remote(process.Refused, "request_refused", status)
 	default:
-		return process.New(process.Unexpected, "instance returned HTTP %d", status)
+		return process.Remote(process.Unexpected, "unexpected_response", status)
 	}
 }
 
 func responseProblem(status int, body []byte) error {
 	var problem api.ProblemResponse
-	if json.Unmarshal(body, &problem) == nil && problem.Code != "" {
-		classified := responseError(status)
-		var failure *process.Error
-		if errors.As(classified, &failure) {
-			return process.New(failure.Code, "%s (HTTP %d)", problem.Code, status)
+	if json.Unmarshal(body, &problem) == nil && knownProblemCode(problem.Code, status) {
+		category := process.CodeOf(responseError(status))
+		if problem.Code == "smtp_rejected" && status == http.StatusBadGateway {
+			category = process.Refused
 		}
+		return process.Remote(category, problem.Code, status)
 	}
 	return responseError(status)
+}
+
+func knownProblemCode(code string, status int) bool {
+	switch code {
+	case "validation":
+		return status == http.StatusBadRequest
+	case "bootstrap_rejected", "sign_in_rejected", "authentication_required",
+		"authentication_rejected", "reporting_rejected":
+		return status == http.StatusUnauthorized
+	case "forbidden":
+		return status == http.StatusForbidden
+	case "bootstrap_closed", "conflict", "report_id_conflict", "email_not_configured":
+		return status == http.StatusConflict
+	case "not_found":
+		return status == http.StatusNotFound
+	case "unprocessable":
+		return status == http.StatusUnprocessableEntity
+	case "smtp_rejected":
+		return status == http.StatusBadGateway
+	default:
+		return false
+	}
+}
+
+func responseOrTransportError(err error) error {
+	var address *url.Error
+	if errors.As(err, &address) || errors.Is(err, context.DeadlineExceeded) {
+		return process.New(process.Unreachable, "instance_unreachable")
+	}
+	return process.New(process.Unexpected, "unexpected_response")
 }
 
 func writeJSON(output io.Writer, value any) error {

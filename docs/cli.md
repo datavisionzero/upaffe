@@ -27,8 +27,9 @@ Commands that contact an instance resolve its base URL in this order:
 2. `UPAFFE_URL`
 
 The address must be an absolute `http` or `https` URL and cannot embed a user
-name or password. HTTPS is the deployment expectation; HTTP remains usable for
-the local loopback development environment.
+name or password, query, fragment, or control character. HTTPS is the
+deployment expectation; HTTP remains usable for the local loopback development
+environment.
 
 Management commands resolve their bearer credential in this order:
 
@@ -44,9 +45,26 @@ once; the caller is responsible for placing it in a secret store.
 ## Output and exit codes
 
 Successful data goes to stdout. Diagnostics go to stderr. `--json` writes one
-JSON value followed by a newline. Remote response bodies are never copied into
-diagnostics. When the API returns a problem, diagnostics retain only its stable
-code and HTTP status, such as `authentication_rejected (HTTP 401)`.
+JSON value followed by a newline. A failed `--json` command writes exactly one
+error object to stderr and leaves stdout empty, except that a completed
+immediate HTTP check writes its result to stdout before exiting 5. The object
+has a stable `code`, numeric `exit_code`, and `http_status` only for an HTTP
+response. For example:
+
+```json
+{"code":"authentication_rejected","exit_code":7,"http_status":401}
+```
+
+Local failures use `usage_error`, `instance_unreachable`, or
+`unexpected_response`; an immediate failed check uses `check_failed`.
+Recognized API problem codes retain their names. An unknown or malformed
+problem uses the category's generic code (`unauthorized`, `not_found`,
+`request_refused`, or `unexpected_response`). Text diagnostics contain the
+same stable code and, where applicable, HTTP status, such as
+`ua: authentication_rejected (HTTP 401)`. Neither mode copies a remote title,
+response body, submitted document, credential, or transport error text.
+Callers should branch on `exit_code` and use `code` for finer known cases;
+future releases may add new stable codes without changing the exit categories.
 
 | Code | Category |
 | ---: | --- |
@@ -54,7 +72,7 @@ code and HTTP status, such as `authentication_rejected (HTTP 401)`.
 | 1 | unexpected response or internal failure |
 | 2 | usage or missing configuration |
 | 3 | endpoint or object not found |
-| 4 | request refused by validation or conflict |
+| 4 | request refused by validation, conflict, or SMTP test rejection |
 | 5 | an immediate monitor check completed with a failure |
 | 7 | unauthenticated or unauthorized |
 | 10 | instance or network unreachable |
@@ -73,6 +91,7 @@ ua credential rotate ID [--url ADDRESS] [--credential TOKEN] [--json]
 ua credential revoke ID [--url ADDRESS] [--credential TOKEN] [--json]
 ua project create --key KEY --name NAME [--url ADDRESS] [--credential TOKEN] [--json]
 ua project get KEY [--url ADDRESS] [--credential TOKEN] [--json]
+ua project report KEY [--url ADDRESS] [--credential TOKEN] [--json]
 ua project list [--deleted] [--url ADDRESS] [--credential TOKEN] [--json]
 ua project rename KEY --name NAME --version VERSION [--url ADDRESS] [--credential TOKEN] [--json]
 ua project delete KEY --version VERSION [--url ADDRESS] [--credential TOKEN] [--json]
@@ -171,6 +190,31 @@ API `validation` and `conflict` problems exit with code 4, `not_found` with
 code 3, and authentication problems with code 7. Diagnostics include only the
 stable problem code and HTTP status, never the remote title, response body, or
 management credential.
+
+### One-call project report
+
+`ua project report KEY --json` makes one authenticated GET to
+`/api/projects/{key}/report` and writes the typed project report as one JSON
+value. It is the starting point for an unattended investigation. The report
+timestamp, state counts, attention list, compact healthy summaries, maintenance,
+and email delivery summary are defined in [ADR 0008](adr/0008-one-call-project-report.md)
+and [the API guide](api.md). Use the existing history commands for individual
+checks, reports, incidents, or deliveries. The report reads current facts; it
+does not trigger checks or acknowledge an incident.
+
+Text mode begins with the project and report time, state counts, project
+maintenance, and safe SMTP settings and delivery summary. It then prints
+attention monitors in urgency order, followed by healthy summaries. Each
+attention monitor has labeled
+`settings`, `diagnostic`, optional `incident`, `maintenance`, and
+`operator_guidance` lines. The latest result, last success, last receipt, and
+next deadline are distinct. `operator_guidance` contains only operator-written
+instruction and runbook data; `diagnostic` contains stable system reason codes.
+Display strings are quoted so control characters cannot create forged lines.
+Target queries, header values, reporting URLs, submitted push reasons, and
+credentials do not appear in either mode. Unknown or deleted projects exit 3;
+authentication exits 7, unreachable instances exit 10, and malformed success
+responses exit 1 with empty stdout.
 
 ### HTTP monitors
 

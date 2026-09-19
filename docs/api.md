@@ -404,6 +404,24 @@ stable original/latest reasons. Both endpoints use the same default limit 50,
 maximum 100, and exclusive `before_sequence` or `before_opening_sequence`
 cursors as HTTP history.
 
+## Project investigation report
+
+`GET /api/projects/{key}/report` returns one management-authenticated,
+read-only snapshot for a live project. Unknown or deleted projects return
+`404 not_found`; malformed keys return `400 validation`. Browser sessions and
+management bearers see the same facts. See [ADR 0008](adr/0008-one-call-project-report.md)
+for the full field semantics, ordering, null behavior, and trust boundary.
+
+The typed response has `generated_at`, `project`, `counts`, `attention`,
+`healthy`, `project_maintenance`, and `email`. `attention` contains full current
+facts for failing, untested, paused, or overdue HTTP and push monitors. It is
+ordered by urgency, type, and key. `healthy` contains shorter summaries ordered
+by type and key. The snapshot exposes only stable failure reasons. It keeps
+operator `instruction` and `runbook_url` separate from diagnostic fields.
+Use the existing paginated check, report, incident, and delivery endpoints for
+history. The report cannot prove that an overdue worker has run or that SMTP
+acceptance reached an inbox.
+
 ## Contract rule
 
 `docs/api/openapi.json` is checked in and is the source for both clients. It is
