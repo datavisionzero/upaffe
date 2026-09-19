@@ -105,6 +105,9 @@ deadlines, reports, incidents, pause/resume, and one-time credential handoff.
 
 ## SMTP setup and test send
 
+The complete email and maintenance workflow is in
+[the email and maintenance guide](./email-maintenance.md).
+
 Configure one relay and sender through the authenticated email settings API.
 The security mode is `starttls` for a relay that upgrades a plain connection,
 `tls` for TLS from connection start, or `none` for an explicitly trusted local

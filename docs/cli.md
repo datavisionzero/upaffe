@@ -300,6 +300,9 @@ same trusted origin used for management requests.
 
 ### Email and timed maintenance
 
+For the incident lifecycle and maintenance rules behind these commands, see
+[the email and maintenance guide](./email-maintenance.md).
+
 `email settings get` returns the safe shared relay configuration, default
 recipients, version, and `has_password`. `settings set` reads one JSON object
 with `version`, relay host and port, security mode, sender address and name,

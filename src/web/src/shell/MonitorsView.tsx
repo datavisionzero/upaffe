@@ -5,6 +5,7 @@ import { api } from "@/api/client";
 import { csrfHeaders, problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
 import { DeliveryHistoryPanel, IncidentEmailPanel, MaintenancePanel } from "@/shell/EmailPanels";
+import { monitorLink } from "@/shell/deepLink";
 
 type Project = components["schemas"]["ProjectResponse"];
 type Monitor = components["schemas"]["HttpMonitorResponse"];
@@ -23,7 +24,10 @@ type Props = {
 
 export function MonitorsView({ project, onBack, onOpenPush, onSignedOut }: Props) {
   const [monitors, setMonitors] = useState<Monitor[]>([]);
-  const [selectedKey, setSelectedKey] = useState<string>();
+  const [selectedKey, setSelectedKey] = useState<string | undefined>(() => {
+    const link = monitorLink();
+    return link?.projectKey === project.key && link.monitorType === "http" ? link.monitorKey : undefined;
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [creating, setCreating] = useState(false);
@@ -300,7 +304,10 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
   const [notice, setNotice] = useState<string>();
   const [testResult, setTestResult] = useState<TestResult>();
   const [confirmRemove, setConfirmRemove] = useState(false);
-  const [emailIncidentId, setEmailIncidentId] = useState<string>();
+  const [emailIncidentId, setEmailIncidentId] = useState<string | undefined>(() => {
+    const link = monitorLink();
+    return link?.projectKey === project.key && link.monitorType === "http" && link.monitorKey === monitorKey ? link.incidentId : undefined;
+  });
 
   const paths = useMemo(() => ({ projectKey: project.key, monitorKey }), [monitorKey, project.key]);
 

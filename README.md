@@ -5,16 +5,20 @@ infrastructure with AI agents. It is under active development and has not been
 released.
 
 The repository currently contains the technical foundation, secure access and
-project administration, and complete HTTP- and push-monitoring paths. HTTP
+project administration, complete HTTP- and push-monitoring paths, incident email,
+and timed maintenance. HTTP
 monitors perform bounded public-internet checks with threshold incidents. Push
 monitors accept ordered job-completion or state reports, detect persisted
 deadlines, and use monitor-scoped rotatable reporting credentials. Both paths
 survive restarts, retain 90-day history, and have API, CLI, web, and composed
-system-test coverage. Notifications are still under active implementation;
+system-test coverage. Email uses one configurable SMTP relay, per-project
+recipients, durable bounded retries, and explicit delivery status. Project and
+monitor maintenance holds email while observations and incidents continue;
 [`VISION.md`](./VISION.md) defines the committed MVP and
 [`docs/http-monitoring.md`](./docs/http-monitoring.md) and
 [`docs/push-monitoring.md`](./docs/push-monitoring.md) document the implemented
-monitoring workflows.
+monitoring workflows. [The email and maintenance guide](./docs/email-maintenance.md)
+connects the new operator controls and delivery behavior.
 
 ## Backend development
 
@@ -125,6 +129,9 @@ immediate HTTP checks, reads both history models, and explicitly issues,
 rotates, and revokes monitor-scoped reporting credentials. Secret-bearing
 monitor configuration is accepted only from an explicit JSON file or stdin and
 is never returned by ordinary text or JSON output.
+The same CLI configures SMTP and recipients, sends an explicit test email,
+inspects delivery failures, and manages project or monitor maintenance. Its
+secret-bearing email input comes from an explicit file or stdin.
 
 ## Local Compose environment
 
@@ -141,8 +148,8 @@ The web application is then available at `http://localhost:8080`.
 
 For a disposable end-to-end check of the compiled web host, one-operator
 bootstrap, browser session, credential rotation/revocation, and the same
-project, HTTP monitor, and both push-monitor modes through browser, CLI, and
-direct API paths, run:
+project, HTTP monitor, both push-monitor modes, SMTP delivery, and maintenance
+through browser, CLI, and direct API paths, run:
 
 ```sh
 scripts/smoke.sh
@@ -150,8 +157,9 @@ scripts/smoke.sh
 
 The system test uses ports 18080 and 15432 by default, creates a unique Compose
 project from an empty database, verifies deadlines, ordering, incidents,
-restart durability, and that ordinary output and logs contain none of its
-generated secrets, then removes its containers and volume. HTTP execution
+SMTP acceptance and failures, maintenance across restart, and absence of its
+generated secrets from ordinary output and logs, then removes its containers
+and volume. HTTP execution
 defaults to `https://example.com/`; restricted test
 environments can provide another public status-200 URL through
 `UPAFFE_SMOKE_HTTP_TARGET`.

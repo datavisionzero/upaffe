@@ -12,6 +12,8 @@ version endpoints, PostgreSQL context, forward-only startup migration,
 checked-in OpenAPI contract, two generated client packages, React application,
 and Go CLI exist. Access, projects, HTTP-monitor administration, and push
 monitor administration work through the shared API, web application, and CLI.
+The same surfaces configure incident email, inspect durable delivery, and
+manage finite project and monitor maintenance.
 The HTTP monitoring domain and PostgreSQL schema persist monitor configuration,
 scheduling and current-result facts, explicitly separated secrets, ordered
 checks, and incident lifecycles. A shared bounded executor performs one
@@ -378,6 +380,8 @@ runtime behavior against a real PostgreSQL-backed Compose application.
   operator surfaces, runtime, storage, and security boundary.
 - `docs/push-monitoring.md` connects both push modes, reporting credentials,
   deadlines, ordering, incidents, retention, and operator surfaces.
+- `docs/email-maintenance.md` connects SMTP delivery, safe status, and finite
+  suppression across the operator surfaces and runtime.
 - `docs/storage.md` changes with schema, migrations, retention, and backup
   boundaries.
 - `docs/install.md` exists when there is a supported installation procedure.

@@ -88,6 +88,9 @@ projects never track later default changes.
 
 ## Email delivery schema
 
+The operator-facing behavior of these rows is described in
+[the email and maintenance guide](./email-maintenance.md).
+
 `notification_delivery` represents one alert or recovery intent for one
 incident and normalized recipient. A unique `(incident_id, kind, recipient_key)`
 index prevents intentional duplicates even when two evaluators race. The row

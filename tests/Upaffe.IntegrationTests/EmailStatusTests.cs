@@ -110,6 +110,16 @@ public sealed class EmailStatusTests(PostgresFixture postgres)
             300, 10, 1, null, null, old);
         context.AddRange(project, monitor, HttpMonitorSecret.FromTarget(monitor.Id, monitor.TargetUrl));
         await context.SaveChangesAsync(ct);
+        var started = await new HttpMonitorStore(context).StartTestAsync("systems", "site", old.AddSeconds(1), ct);
+        await new HttpMonitorStore(context).CompleteTestAsync(started.CheckId!.Value,
+            new HttpExecutionResult(false, "timeout", "Timeout", null, 10,
+                "https://site.example.test/health"), old.AddSeconds(2), ct);
+        var openAlert = await context.NotificationDeliveries.SingleAsync(ct);
+        var alertToken = Guid.NewGuid();
+        openAlert.Claim(alertToken, old.AddSeconds(2), TimeSpan.FromMinutes(2));
+        openAlert.BeginAttempt(alertToken, old.AddSeconds(2));
+        openAlert.Complete(alertToken, false, false, "smtp_rejected", old.AddSeconds(2));
+        await context.SaveChangesAsync(ct);
         var oldFinished = NotificationDelivery.Queue(Guid.NewGuid(), NotificationKind.Recovery,
             "ops@example.test", "systems", "Systems", "site", "Site", "http",
             "recovered", old, old);
@@ -131,7 +141,11 @@ public sealed class EmailStatusTests(PostgresFixture postgres)
         var result = await new EmailHistoryStore(context).PruneAsync(Noon.AddDays(-90), ct);
         Assert.Equal(1, result.DeliveriesDeleted);
         Assert.Equal(1, result.WindowsDeleted);
-        Assert.Equal(recent.Id, (await context.NotificationDeliveries.AsNoTracking().SingleAsync(ct)).Id);
+        var remaining = await context.NotificationDeliveries.AsNoTracking().Select(value => value.Id).ToListAsync(ct);
+        Assert.Equal(2, remaining.Count);
+        Assert.Contains(recent.Id, remaining);
+        Assert.Contains(openAlert.Id, remaining);
+        Assert.DoesNotContain(oldFinished.Id, remaining);
         Assert.Equal(2, (await context.MaintenanceWindows.AsNoTracking().SingleAsync(ct)).Version);
     }
 }

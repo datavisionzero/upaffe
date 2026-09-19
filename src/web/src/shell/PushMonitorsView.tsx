@@ -5,6 +5,7 @@ import { api } from "@/api/client";
 import { csrfHeaders, problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
 import { DeliveryHistoryPanel, IncidentEmailPanel, MaintenancePanel } from "@/shell/EmailPanels";
+import { monitorLink } from "@/shell/deepLink";
 
 type Project = components["schemas"]["ProjectResponse"];
 type Monitor = components["schemas"]["PushMonitorResponse"];
@@ -24,7 +25,10 @@ type Props = {
 
 export function PushMonitorsView({ project, onBack, onOpenHttp, onSignedOut }: Props) {
   const [monitors, setMonitors] = useState<Monitor[]>([]);
-  const [selectedKey, setSelectedKey] = useState<string>();
+  const [selectedKey, setSelectedKey] = useState<string | undefined>(() => {
+    const link = monitorLink();
+    return link?.projectKey === project.key && link.monitorType === "push" ? link.monitorKey : undefined;
+  });
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string>();
@@ -223,7 +227,10 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [confirmRemove, setConfirmRemove] = useState(false);
-  const [emailIncidentId, setEmailIncidentId] = useState<string>();
+  const [emailIncidentId, setEmailIncidentId] = useState<string | undefined>(() => {
+    const link = monitorLink();
+    return link?.projectKey === project.key && link.monitorType === "push" && link.monitorKey === monitorKey ? link.incidentId : undefined;
+  });
   const paths = useMemo(() => ({ projectKey: project.key, monitorKey }), [monitorKey, project.key]);
 
   const load = useCallback(async () => {

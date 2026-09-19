@@ -165,6 +165,9 @@ browser session or management credential; anonymous requests return
 
 ## Email configuration and recipients
 
+The cross-surface operator workflow and SMTP acceptance limits are in
+[the email and maintenance guide](./email-maintenance.md).
+
 The instance has one versioned SMTP configuration. `GET /api/email/settings`
 returns relay host and port, transport security (`none`, `starttls`, or `tls`),
 sender address and display name, optional authentication username, public

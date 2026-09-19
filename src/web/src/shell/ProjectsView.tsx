@@ -7,6 +7,7 @@ import { Button } from "@/components/Button";
 import { InstanceEmailView, ProjectEmailView } from "@/shell/EmailSettingsView";
 import { MonitorsView } from "@/shell/MonitorsView";
 import { PushMonitorsView } from "@/shell/PushMonitorsView";
+import { monitorLink } from "@/shell/deepLink";
 
 type Project = components["schemas"]["ProjectResponse"];
 type Session = components["schemas"]["CurrentSessionResponse"];
@@ -34,7 +35,12 @@ export function ProjectsView({ session, onSignedOut }: Props) {
       const { data, response, error: problem } = await api.GET("/api/projects", {
         params: { query: { deleted } },
       });
-      if (data) setProjects(data);
+      if (data) {
+        setProjects(data);
+        const link = monitorLink();
+        const linkedProject = link && data.find((item) => item.key === link.projectKey);
+        if (linkedProject) { setMonitorKind(link.monitorType); setSelectedProject(linkedProject); }
+      }
       else if (response.status === 401) onSignedOut();
       else setError(problemMessage(problem, response.status));
     } catch {
@@ -131,7 +137,7 @@ export function ProjectsView({ session, onSignedOut }: Props) {
     if (monitorKind === "push") {
       return (
         <PushMonitorsView
-          onBack={() => setSelectedProject(undefined)}
+          onBack={() => { setSelectedProject(undefined); if (monitorLink()) window.history.replaceState({}, "", "/"); }}
           onOpenHttp={() => setMonitorKind("http")}
           onSignedOut={onSignedOut}
           project={selectedProject}
@@ -140,7 +146,7 @@ export function ProjectsView({ session, onSignedOut }: Props) {
     }
     return (
       <MonitorsView
-        onBack={() => setSelectedProject(undefined)}
+        onBack={() => { setSelectedProject(undefined); if (monitorLink()) window.history.replaceState({}, "", "/"); }}
         onOpenPush={() => setMonitorKind("push")}
         onSignedOut={onSignedOut}
         project={selectedProject}
