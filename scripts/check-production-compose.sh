@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-sh -n deploy/backup-production.sh deploy/restore-production.sh
+sh -n deploy/backup-production.sh deploy/restore-production.sh \
+  scripts/check-production-workflow.sh scripts/check-production-heartbeat.sh
 
 export UPAFFE_IMAGE="${UPAFFE_IMAGE:-ghcr.io/datavisionzero/upaffe:sha-validation-only}"
 base_config=$(mktemp)

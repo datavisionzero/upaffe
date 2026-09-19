@@ -151,6 +151,46 @@ sender does not log the destination, read the response body, or send project
 data. Removing the overlay and recreating the app disables the sender. See
 [ADR 0014](./adr/0014-send-only-empty-healthy-heartbeats.md).
 
+## Production workflow validation
+
+Maintainers can rehearse the production path with two already published
+revision images. Run this from a source checkout containing the matching
+`deploy/` and `scripts/` files. Docker Compose, `curl`, `jq`, `openssl`, and
+Python 3 are required; the scripts do not build an application image:
+
+```sh
+scripts/check-production-workflow.sh \
+  ghcr.io/datavisionzero/upaffe:sha-REPLACE_WITH_PREVIOUS_FULL_SHA \
+  ghcr.io/datavisionzero/upaffe:sha-REPLACE_WITH_CURRENT_FULL_SHA
+```
+
+The command first exercises the optional sender against a local HTTPS fixture
+receiver. It checks that the base stack sends nothing, that healthy workers
+send, that live and ready HTTP endpoints still answer while disabled monitoring
+makes progress return `503`, that no heartbeat is sent during that stall, and
+that progress and sends resume after monitoring restarts. The receiver's
+fixture URL is not printed by the command.
+
+It then installs the previous image from empty state, establishes a fixture
+operator, creates a project and push monitor, records a failed report, and
+checks its incident, deadline, and pending notification after container
+recreation. It backs up, proves a failed image pull can be rolled back, updates
+to the current image, and confirms worker progress and preserved state. A
+fixture future migration makes the previous image reject that database; the
+command restores the pre-upgrade backup into a separate project and volume,
+then verifies operator access, report evidence, incident, deadline, and
+pending notification there. It also rejects reused restore destinations and
+tampered archives. The script prints each phase and exits nonzero on any
+failed assertion.
+
+The tests use only invented addresses and local loopback ports `18083`,
+`18084`, and `18087` by default. Override those with
+`UPAFFE_WORKFLOW_TEST_PORT`, `UPAFFE_RESTORE_TEST_PORT`, and
+`UPAFFE_HEARTBEAT_TEST_PORT` if needed. Each script removes only its own
+temporary directory, Compose projects, and volumes on exit. Run this separately
+from the development smoke test and migration tests; the production rehearsal
+uses published images and the actual Compose deployment procedure.
+
 See [ADR 0011](./adr/0011-compose-state-and-network-boundaries.md) for the
 state and network boundaries. The backup and restore procedure is below;
 routine updates and failed-upgrade recovery follow in the operator runbook.
