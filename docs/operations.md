@@ -1,5 +1,20 @@
 # Operations
 
+## Production image identity
+
+The production application image is published from validated `main` commits as
+`ghcr.io/datavisionzero/upaffe:sha-<full-commit-sha>`. Pin that full revision tag
+or its registry digest in a deployment. The image contains the compiled React
+application, .NET API, and embedded forward migrations. It listens on port
+`8080` as a non-root user and reports `0.0.0-rev.<full-commit-sha>` in the
+`Upaffe-Version` response header. A local build uses `0.0.0-dev` unless an
+`APP_VERSION` build argument is supplied. The publication workflow needs only
+the scoped GitHub Actions package token; deployment secrets are supplied at
+runtime and never enter the image build.
+
+The production Compose installation procedure is specified below after the
+remaining deployment components are available.
+
 Only the local development lifecycle is supported by the current foundation.
 Production images, reverse-proxy configuration, upgrades, backup, restore, and
 failed-upgrade recovery arrive in the operations epic and are not implied by
