@@ -3,6 +3,7 @@ import type { components } from "@/api/schema";
 
 import { api } from "@/api/client";
 import { problemMessage } from "@/api/problems";
+import { DashboardView } from "@/shell/DashboardView";
 import { InstanceEmailView, ProjectEmailView } from "@/shell/EmailSettingsView";
 import { MonitorsView } from "@/shell/MonitorsView";
 import { ProjectsView } from "@/shell/ProjectsView";
@@ -76,9 +77,10 @@ export function WorkspaceRouter({ session, onSignedOut }: {
   }
 
   let content;
-  if (route.kind === "projects" || route.kind === "dashboard") {
-    content = <ProjectsView heading={route.kind === "dashboard" ? "Dashboard" : "Projects"}
-      onNavigate={navigate} onSignedOut={onSignedOut} session={session} />;
+  if (route.kind === "dashboard") {
+    content = <DashboardView onNavigate={navigate} onSignedOut={onSignedOut} />;
+  } else if (route.kind === "projects") {
+    content = <ProjectsView onNavigate={navigate} onSignedOut={onSignedOut} session={session} />;
   } else if (route.kind === "settings") {
     content = <InstanceEmailView onBack={() => navigate("/projects")} onSignedOut={onSignedOut} />;
   } else if (route.kind === "missing") {

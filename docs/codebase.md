@@ -254,8 +254,12 @@ Incident email links retain their `incident` query. `/settings/email` and
 The router handles history and reloads, shows a path back for unknown or
 deleted resources, names the active location in semantic navigation, and
 focuses the new page heading. A URL carries stable keys only, never a
-credential or reporting secret. The dashboard route initially shares the
-project registry until its health view is implemented.
+credential or reporting secret. The first signed-in screen reads the
+authenticated instance overview and puts open incidents, failed results, and
+overdue work before healthy and empty project summaries. It uses the response's
+generation time for incident age and shows delivery failures, retries, overdue
+attempts, and SMTP acceptance with a path to email status. Project creation
+remains on the project registry route.
 
 The instance email screen reads safe SMTP settings and default recipients,
 updates them at the read version, replaces or clears the password explicitly,

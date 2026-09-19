@@ -445,7 +445,9 @@ applicable outcome and stable reason, open incident identity and time, and
 effective maintenance expiry. It does not include a target URL, request
 header, reporting credential, raw HTTP body, or sender diagnostic. Project and
 instance delivery summaries count pending work (queued, claimed, and retrying),
-retrying, terminal failure, and SMTP acceptance. `oldest_pending_at` is omitted
+overdue work, retrying, terminal failure, and SMTP acceptance. Overdue means a
+queued or retrying intent whose next attempt is before `generated_at`, or a
+claimed intent whose lease has expired. `oldest_pending_at` is omitted
 when no work is pending. SMTP acceptance never means inbox receipt. Retained
 delivery history limits these counts. Detailed configuration and histories
 remain on the project report and paginated endpoints. See

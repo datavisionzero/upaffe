@@ -5332,6 +5332,7 @@
       "OverviewDelivery": {
         "required": [
           "pending",
+          "overdue",
           "retrying",
           "terminal_failure",
           "accepted",
@@ -5340,6 +5341,10 @@
         "type": "object",
         "properties": {
           "pending": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "overdue": {
             "type": "integer",
             "format": "int32"
           },

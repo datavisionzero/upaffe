@@ -23,5 +23,6 @@ first, then failures or terminal delivery trouble, overdue or pending work,
 untested projects, and finally healthy or empty projects, with key as a stable
 tie breaker. The response omits detailed history and all secret and untrusted
 diagnostic content. Delivery counts describe recorded intent state, and
-`accepted` means SMTP acceptance only. These rules follow ADRs 0003, 0007,
+`overdue` uses stored next-attempt times or an expired claim lease; `accepted`
+means SMTP acceptance only. These rules follow ADRs 0003, 0007,
 and 0008.

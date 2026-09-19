@@ -51,7 +51,11 @@ public sealed class InstanceOverviewStore(UpaffeDbContext context) : IInstanceOv
             .Where(value => projectKeys.Contains(value.ProjectKey))
             .GroupBy(value => new { value.ProjectKey, value.State })
             .Select(group => new { group.Key.ProjectKey, group.Key.State,
-                Count = group.Count(), Oldest = group.Min(value => value.CreatedAt) })
+                Count = group.Count(), Oldest = group.Min(value => value.CreatedAt),
+                Overdue = group.Count(value =>
+                    (value.State == DeliveryState.Queued || value.State == DeliveryState.Retrying)
+                        && value.NextAttemptAt < now
+                    || value.State == DeliveryState.Claimed && value.LeaseUntil < now) })
             .ToListAsync(cancellationToken);
         var projectById = projects.ToDictionary(value => value.Id);
         var all = new List<OverviewMonitor>(http.Count + push.Count);
@@ -97,7 +101,7 @@ public sealed class InstanceOverviewStore(UpaffeDbContext context) : IInstanceOv
 
         var deliveryByProject = deliveries.GroupBy(value => value.ProjectKey)
             .ToDictionary(group => group.Key, group => Delivery(group
-                .Select(row => (row.State, row.Count, row.Oldest))));
+                .Select(row => (row.State, row.Count, row.Oldest, row.Overdue))));
         var monitorsByProject = all.GroupBy(value => value.ProjectKey)
             .ToDictionary(group => group.Key, group => group.ToArray());
         var overviewProjects = projects.Select(project =>
@@ -105,7 +109,7 @@ public sealed class InstanceOverviewStore(UpaffeDbContext context) : IInstanceOv
             var members = monitorsByProject.GetValueOrDefault(project.Key) ?? [];
             active.TryGetValue(("project", project.Id), out var maintenanceEnd);
             return new OverviewProject(project.Key, project.Name, Counts(members),
-                deliveryByProject.GetValueOrDefault(project.Key) ?? new OverviewDelivery(0, 0, 0, 0, null),
+                deliveryByProject.GetValueOrDefault(project.Key) ?? new OverviewDelivery(0, 0, 0, 0, 0, null),
                 maintenanceEnd == default ? null : maintenanceEnd);
         }).OrderByDescending(value => ProjectPriority(value,
             monitorsByProject.GetValueOrDefault(value.Key) ?? []))
@@ -115,7 +119,7 @@ public sealed class InstanceOverviewStore(UpaffeDbContext context) : IInstanceOv
             .ThenBy(value => value.Type, StringComparer.Ordinal)
             .ThenBy(value => value.Key, StringComparer.Ordinal).ToArray();
         return new InstanceOverview(now, Counts(all),
-            Delivery(deliveries.Select(row => (row.State, row.Count, row.Oldest))),
+            Delivery(deliveries.Select(row => (row.State, row.Count, row.Oldest, row.Overdue))),
             attention, overviewProjects);
     }
 
@@ -129,12 +133,12 @@ public sealed class InstanceOverviewStore(UpaffeDbContext context) : IInstanceOv
         monitors.Count(value => value.State == "paused"),
         monitors.Count(value => value.Overdue));
     private static OverviewDelivery Delivery(IEnumerable<(DeliveryState State, int Count,
-        DateTimeOffset Oldest)> rows)
+        DateTimeOffset Oldest, int Overdue)> rows)
     {
         var values = rows.ToArray();
         var pending = values.Where(value => value.State is DeliveryState.Queued
             or DeliveryState.Claimed or DeliveryState.Retrying).ToArray();
-        return new(pending.Sum(value => value.Count),
+        return new(pending.Sum(value => value.Count), pending.Sum(value => value.Overdue),
             values.Where(value => value.State == DeliveryState.Retrying).Sum(value => value.Count),
             values.Where(value => value.State == DeliveryState.TerminalFailure).Sum(value => value.Count),
             values.Where(value => value.State == DeliveryState.Accepted).Sum(value => value.Count),

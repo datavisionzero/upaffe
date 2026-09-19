@@ -95,6 +95,7 @@ public sealed class InstanceOverviewTests(PostgresFixture postgres)
         Assert.Equal(0, overview.Projects[2].Counts.Total);
         Assert.Equal(1, overview.Projects[3].Counts.Healthy);
         Assert.Equal(3, overview.Delivery.Pending);
+        Assert.Equal(1, overview.Delivery.Overdue);
         Assert.Equal(1, overview.Delivery.Retrying);
         Assert.Equal(1, overview.Delivery.TerminalFailure);
         Assert.Equal(1, overview.Delivery.Accepted);

@@ -3,19 +3,20 @@
 @theme {
   --color-ink: oklch(0.23 0.025 250);
   --color-paper: oklch(0.985 0.008 90);
-  --color-muted: oklch(0.52 0.02 250);
+  --color-muted: oklch(0.43 0.02 250);
   --color-line: oklch(0.88 0.018 90);
   --color-accent: oklch(0.54 0.15 154);
-  --color-danger: oklch(0.55 0.19 28);
+  --color-danger: oklch(0.47 0.18 28);
 }
 
 @media (prefers-color-scheme: dark) {
   @theme {
     --color-ink: oklch(0.94 0.008 250);
     --color-paper: oklch(0.2 0.015 250);
-    --color-muted: oklch(0.68 0.02 250);
+    --color-muted: oklch(0.76 0.02 250);
     --color-line: oklch(0.32 0.015 250);
     --color-accent: oklch(0.74 0.11 245);
+    --color-danger: oklch(0.78 0.15 28);
   }
 }
 
@@ -487,6 +488,220 @@ h2 {
   justify-content: flex-start;
 }
 
+.dashboard-header,
+.dashboard-section-heading,
+.delivery-strip,
+.attention-card,
+.project-summary-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.dashboard-header {
+  margin-bottom: 1.6rem;
+}
+
+.dashboard-header h1 {
+  margin-bottom: 0.35rem;
+}
+
+.workspace h1[tabindex="-1"]:focus {
+  outline: none;
+}
+
+.snapshot-time {
+  margin: 0.8rem 0 0;
+  color: var(--color-muted);
+  font-size: 0.8rem;
+}
+
+.health-counts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.health-count {
+  min-width: 0;
+  border: 1px solid var(--color-line);
+  border-radius: 0.75rem;
+  padding: 1rem 1.15rem;
+  background: color-mix(in oklab, var(--color-paper), white 8%);
+}
+
+.health-count strong,
+.health-count span {
+  display: block;
+}
+
+.health-count strong {
+  font-size: clamp(1.7rem, 4vw, 2.5rem);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.health-count span {
+  margin-top: 0.45rem;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.health-count-urgent {
+  border-color: color-mix(in oklab, var(--color-danger), transparent 60%);
+}
+
+.delivery-strip {
+  align-items: center;
+  border: 1px solid var(--color-line);
+  border-radius: 0.75rem;
+  padding: 1rem 1.3rem;
+  margin-bottom: 1.8rem;
+  background: color-mix(in oklab, var(--color-accent), transparent 95%);
+}
+
+.delivery-strip h2,
+.dashboard-section-heading h2 {
+  margin-bottom: 0.35rem;
+}
+
+.delivery-strip p {
+  margin-bottom: 0.35rem;
+}
+
+.text-link,
+.monitor-name-link,
+.project-name-link {
+  color: inherit;
+  text-underline-offset: 0.2rem;
+}
+
+.text-link {
+  color: var(--color-accent);
+  font-size: 0.85rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.dashboard-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(18rem, 1fr);
+  align-items: start;
+  gap: 2rem;
+}
+
+.dashboard-section-heading {
+  align-items: center;
+  min-height: 3.7rem;
+  margin-bottom: 0.65rem;
+}
+
+.count-pill {
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  min-width: 1.5rem;
+  padding: 0.2rem 0.45rem;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.attention-list,
+.project-summary-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.attention-card,
+.project-summary {
+  min-width: 0;
+  border: 1px solid var(--color-line);
+  border-radius: 0.75rem;
+  padding: 1rem 1.15rem;
+  background: color-mix(in oklab, var(--color-paper), white 8%);
+}
+
+.attention-card {
+  border-left: 3px solid var(--color-danger);
+}
+
+.attention-card:has(.state-paused) {
+  border-left-color: var(--color-muted);
+}
+
+.attention-card:has(.state-untested) {
+  border-left-color: var(--color-line);
+}
+
+.attention-card h3,
+.project-summary h3 {
+  margin-bottom: 0.3rem;
+  font-size: 1.05rem;
+}
+
+.attention-card p,
+.project-summary p {
+  margin-bottom: 0.35rem;
+}
+
+.attention-card-main {
+  min-width: 0;
+}
+
+.attention-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.55rem;
+}
+
+.attention-tags .state,
+.project-summary .state {
+  margin: 0;
+}
+
+.state-overdue {
+  border-color: color-mix(in oklab, var(--color-danger), transparent 45%);
+}
+
+.state-maintenance {
+  border-color: var(--color-accent);
+}
+
+.monitor-context,
+.project-key,
+.project-counts {
+  color: var(--color-muted);
+  font-size: 0.8rem;
+}
+
+.monitor-reason {
+  font-weight: 650;
+}
+
+.maintenance-note {
+  color: var(--color-accent);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.project-summary-top {
+  align-items: center;
+}
+
+.project-summary-top h3 {
+  overflow-wrap: anywhere;
+}
+
+.project-warning {
+  color: var(--color-danger);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -500,6 +715,26 @@ h2 {
 }
 
 @media (max-width: 700px) {
+  .dashboard-columns {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .health-counts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-header,
+  .delivery-strip,
+  .attention-card {
+    flex-direction: column;
+  }
+
+  .attention-card .text-link,
+  .delivery-strip .text-link {
+    white-space: normal;
+  }
+
   .create-grid {
     grid-template-columns: 1fr;
   }

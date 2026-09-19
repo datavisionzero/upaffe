@@ -17,8 +17,8 @@ function key(value: string): string | undefined {
 }
 
 export function parseRoute(pathname: string): AppRoute {
-  if (pathname === "/" || pathname === "/projects") return { kind: "projects" };
-  if (pathname === "/dashboard") return { kind: "dashboard" };
+  if (pathname === "/" || pathname === "/dashboard") return { kind: "dashboard" };
+  if (pathname === "/projects") return { kind: "projects" };
   if (pathname === "/settings" || pathname === "/settings/email") return { kind: "settings" };
   const parts = pathname.split("/");
   if (parts[1] !== "projects" || !parts[2]) return { kind: "missing" };
