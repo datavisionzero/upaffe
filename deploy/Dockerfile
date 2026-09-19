@@ -28,8 +28,10 @@ RUN apk add --no-cache curl
 WORKDIR /app
 COPY --from=build /app/ ./
 ARG VCS_REF=unknown
+ARG APP_VERSION=0.0.0-dev
 LABEL org.opencontainers.image.source="https://github.com/datavisionzero/upaffe" \
-      org.opencontainers.image.revision="${VCS_REF}"
+      org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.version="${APP_VERSION}"
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 USER $APP_UID

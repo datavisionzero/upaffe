@@ -37,4 +37,5 @@ scripts/check-cli-release.sh 0.1.0-rc.1 darwin_arm64 scratchpad/cli-candidate
 ```
 
 Replace the platform with the workstation's own entry from the table. The
-release publication workflow consumes the same build and validation path.
+[release publication workflow](../.github/workflows/release.yml) consumes
+the same build and validation path.
