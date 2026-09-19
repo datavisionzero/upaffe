@@ -26,6 +26,7 @@ secret supplied in the request body.
 | `DELETE /api/management-credentials/{id}` | Revoke every token for the credential immediately. |
 | `POST /api/projects` | Create a project idempotently by its immutable key. |
 | `GET /api/projects?deleted=false` | List live projects, or deleted projects with `deleted=true`. |
+| `GET /api/overview` | Read a current, safe health overview across live projects. |
 | `GET /api/projects/{key}` | Read a live or deleted project by immutable key. |
 | `PUT /api/projects/{key}` | Rename a live project at the version last read. |
 | `DELETE /api/projects/{key}?version={version}` | Soft-delete a project at the version last read. |
@@ -421,6 +422,34 @@ operator `instruction` and `runbook_url` separate from diagnostic fields.
 Use the existing paginated check, report, incident, and delivery endpoints for
 history. The report cannot prove that an overdue worker has run or that SMTP
 acceptance reached an inbox.
+
+## Instance health overview
+
+`GET /api/overview` returns one management-authenticated, read-only
+snapshot of every live project. Browser sessions and management bearers receive
+the same response. `generated_at` is the single UTC instant used to compare
+stored deadlines and active maintenance; an overdue deadline is not itself a
+failed observation. `counts` sums all live HTTP and push monitors. `attention`
+contains monitors with a non-healthy state or overdue work, ordered by open
+incident, failing, overdue, untested, paused, then project key, type, and monitor
+key. An incident kept during a pause remains first, with state `paused` and a
+null `next_due_at`. `projects` contains every live project, including projects
+with no monitors or only healthy monitors. It orders affected projects first,
+then project key. All collections are empty arrays when they have no entries;
+optional observations, incidents, maintenance, and deadlines are omitted when
+absent by the API serializer.
+
+Each attention entry has stable project, monitor type, and monitor keys for
+navigation, current state, mode, stored due time, last success time, latest
+applicable outcome and stable reason, open incident identity and time, and
+effective maintenance expiry. It does not include a target URL, request
+header, reporting credential, raw HTTP body, or sender diagnostic. Project and
+instance delivery summaries count pending work (queued, claimed, and retrying),
+retrying, terminal failure, and SMTP acceptance. `oldest_pending_at` is omitted
+when no work is pending. SMTP acceptance never means inbox receipt. Retained
+delivery history limits these counts. Detailed configuration and histories
+remain on the project report and paginated endpoints. See
+[ADR 0009](adr/0009-project-instance-health-overview.md).
 
 ## Contract rule
 

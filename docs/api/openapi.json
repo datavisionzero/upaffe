@@ -253,6 +253,37 @@
         }
       }
     },
+    "/api/overview": {
+      "get": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Read current, safe health across all live projects.",
+        "operationId": "ReadInstanceOverview",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceOverview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/projects/{key}/email-summary": {
       "get": {
         "tags": [
@@ -5060,6 +5091,40 @@
           }
         }
       },
+      "InstanceOverview": {
+        "required": [
+          "generated_at",
+          "counts",
+          "delivery",
+          "attention",
+          "projects"
+        ],
+        "type": "object",
+        "properties": {
+          "generated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/OverviewCounts"
+          },
+          "delivery": {
+            "$ref": "#/components/schemas/OverviewDelivery"
+          },
+          "attention": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OverviewMonitor"
+            }
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OverviewProject"
+            }
+          }
+        }
+      },
       "IssuedCredentialResponse": {
         "required": [
           "id",
@@ -5224,6 +5289,216 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "OverviewCounts": {
+        "required": [
+          "total",
+          "healthy",
+          "failing",
+          "untested",
+          "paused",
+          "overdue"
+        ],
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "healthy": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "failing": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "untested": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "paused": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "overdue": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "OverviewDelivery": {
+        "required": [
+          "pending",
+          "retrying",
+          "terminal_failure",
+          "accepted",
+          "oldest_pending_at"
+        ],
+        "type": "object",
+        "properties": {
+          "pending": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "retrying": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "terminal_failure": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "accepted": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "oldest_pending_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "OverviewMonitor": {
+        "required": [
+          "project_key",
+          "type",
+          "key",
+          "name",
+          "state",
+          "mode",
+          "overdue",
+          "next_due_at",
+          "last_success_at",
+          "latest_result_at",
+          "latest_outcome",
+          "latest_reason",
+          "incident_id",
+          "incident_began_at",
+          "incident_reason",
+          "effective_maintenance_until"
+        ],
+        "type": "object",
+        "properties": {
+          "project_key": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "mode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "overdue": {
+            "type": "boolean"
+          },
+          "next_due_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "last_success_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "latest_result_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "latest_outcome": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "latest_reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "incident_id": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "incident_began_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "incident_reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "effective_maintenance_until": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "OverviewProject": {
+        "required": [
+          "key",
+          "name",
+          "counts",
+          "delivery",
+          "maintenance_until"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/OverviewCounts"
+          },
+          "delivery": {
+            "$ref": "#/components/schemas/OverviewDelivery"
+          },
+          "maintenance_until": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },
