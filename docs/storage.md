@@ -301,3 +301,8 @@ Push persistence tests additionally prove restart-safe deadlines and reports,
 digest-only credential rotation and revocation, duplicate and concurrent
 report rejection, value constraints, one-open-push-incident uniqueness, and
 pause/resume generation isolation with retained incident and success facts.
+Retention persistence tests cover the exclusive 90-day boundary for HTTP
+checks, push reports, resolved incidents, deliveries, and maintenance windows;
+preserve open incidents, current monitor references, pending deliveries, and
+accepted alerts awaiting a recovery decision; and repeat cleanup through a
+fresh database context to verify restart-safe idempotence.

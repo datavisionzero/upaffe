@@ -162,10 +162,14 @@ authoritative network decision.
 ## Verification
 
 The security cases use deterministic controlled DNS and raw socket fixtures in
-`HttpCheckExecutorTests`: public success, private/mixed/literal rejection, DNS
-change and redirect revalidation, cross-origin header stripping, TLS failure,
-whole-operation timeout, cancellation, oversized decoded/compressed bodies,
-and oversized response headers. API and PostgreSQL integration tests then prove
+`HttpCheckExecutorTests`: public success, private/mixed/IPv4/IPv6/mapped-literal
+rejection, DNS change and redirect revalidation, pinned-socket behavior,
+cross-origin header stripping, TLS failure, whole-operation timeout,
+cancellation, oversized streamed/decoded/compressed bodies, and oversized
+response headers. The address table is checked against the
+[IANA IPv4](https://www.iana.org/assignments/iana-ipv4-special-registry) and
+[IANA IPv6](https://www.iana.org/assignments/iana-ipv6-special-registry)
+special-purpose registries. API and PostgreSQL integration tests then prove
 secret reconstruction only at execution, ordered scheduled completion,
 threshold evaluation, exactly-one incident, recovery, concurrency, pagination,
 retention, and redacted authenticated responses. CLI and React tests cover the

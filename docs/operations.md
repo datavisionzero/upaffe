@@ -183,6 +183,23 @@ pending notification there. It also rejects reused restore destinations and
 tampered archives. The script prints each phase and exits nonzero on any
 failed assertion.
 
+The PostgreSQL fault tests make the interruption boundaries repeatable:
+
+| Interruption point | Expected recovery | Check |
+| --- | --- | --- |
+| Database unavailable after an HTTP lease is committed | The same check is reclaimed after expiry; a stale completion loses its lease, and a repeated completion adds no result. | `ScheduledHttpCheckPersistenceTests` |
+| HTTP worker resumes after a long outage | One check records the actual result, next due time starts from execution, and no missed interval is reported as success. | `ScheduledHttpCheckPersistenceTests` |
+| Push deadline worker stops after claim or races a fresh report | An expired claim resumes once; the fresh report wins or resolves the incident without duplicate missing observations. | `PushDeadlinePersistenceTests` |
+| Email worker stops before or after durable SMTP attempt start | A pre-send claim spends no attempt; a started attempt may be retried, but the fifth uncertain outcome becomes terminal without a sixth send. | `EmailDeliveryPersistenceTests` |
+| Incident resolves or maintenance expires while an alert is pending | Obsolete alerts do not send; only still-open incidents receive one post-maintenance alert decision. | `NotificationIntentTests` |
+
+Run the targeted database checks with:
+
+```sh
+dotnet test tests/Upaffe.IntegrationTests --filter \
+  'FullyQualifiedName~ScheduledHttpCheckPersistenceTests|FullyQualifiedName~PushDeadlinePersistenceTests|FullyQualifiedName~EmailDeliveryPersistenceTests|FullyQualifiedName~NotificationIntentTests'
+```
+
 The tests use only invented addresses and local loopback ports `18083`,
 `18084`, and `18087` by default. Override those with
 `UPAFFE_WORKFLOW_TEST_PORT`, `UPAFFE_RESTORE_TEST_PORT`, and
@@ -659,10 +676,12 @@ failure, retry identity, or sender observation time. Never put the secret URL
 in source control, command history, ordinary status output, or monitoring
 exports.
 
-upaffe redacts the secret segment before its own routing and application logs
+upaffe redacts every nonempty `/api/report/*` path, including malformed paths
+with extra segments, before its own routing and application logs
 and suppresses the framework request-start log that would run before that
 redaction. A reverse proxy sits outside this boundary: configure it not to log
-`/api/report/*` paths verbatim, replacing the final segment with a fixed marker.
+`/api/report/*` paths verbatim, replacing the whole secret-bearing suffix with a
+fixed marker.
 Rotation keeps the prior URL valid for five minutes; after that window or an
 explicit revocation, it returns the same `401` as an unknown secret.
 

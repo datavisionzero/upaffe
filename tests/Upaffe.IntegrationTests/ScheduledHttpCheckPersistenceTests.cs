@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Upaffe.Application.Ports;
 using Upaffe.Domain.Monitoring;
 using Upaffe.Domain.Projects;
@@ -62,6 +63,16 @@ public sealed class ScheduledHttpCheckPersistenceTests(PostgresFixture postgres)
                 TestContext.Current.CancellationToken));
         }
 
+        var unavailable = new NpgsqlConnectionStringBuilder(connectionString)
+        {
+            Port = 1,
+            Timeout = 1,
+        };
+        await using (var unavailableContext = AnInstance.ContextFor(unavailable.ConnectionString))
+            await Assert.ThrowsAnyAsync<NpgsqlException>(() =>
+                new ScheduledHttpCheckStore(unavailableContext).ClaimAsync(
+                    Noon.AddMinutes(1), LeaseDuration, TestContext.Current.CancellationToken));
+
         ScheduledHttpCheckLease resumed;
         await using (var resumedContext = AnInstance.ContextFor(connectionString))
         {
@@ -94,6 +105,10 @@ public sealed class ScheduledHttpCheckPersistenceTests(PostgresFixture postgres)
                 Noon.AddMinutes(3).AddSeconds(2),
                 TestContext.Current.CancellationToken);
             Assert.Equal(ScheduledHttpCheckCompletion.Completed, completed);
+            Assert.Equal(ScheduledHttpCheckCompletion.AlreadyCompleted,
+                await new ScheduledHttpCheckStore(currentContext).CompleteAsync(
+                    resumed.CheckId, resumed.Token, Success(),
+                    Noon.AddMinutes(3).AddSeconds(3), TestContext.Current.CancellationToken));
         }
 
         await using var inspection = AnInstance.ContextFor(connectionString);
@@ -153,6 +168,43 @@ public sealed class ScheduledHttpCheckPersistenceTests(PostgresFixture postgres)
             Noon.AddHours(1),
             LeaseDuration,
             TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task A_long_monitoring_gap_runs_once_and_records_only_the_actual_result()
+    {
+        var connectionString = await EstablishedAsync();
+        var restartedAt = Noon.AddDays(30);
+        ScheduledHttpCheckLease lease;
+        await using (var restarted = AnInstance.ContextFor(connectionString))
+            lease = (await new ScheduledHttpCheckStore(restarted).ClaimAsync(restartedAt,
+                LeaseDuration, TestContext.Current.CancellationToken))!;
+
+        await using (var inspectClaim = AnInstance.ContextFor(connectionString))
+        {
+            var check = await inspectClaim.HttpChecks.SingleAsync(TestContext.Current.CancellationToken);
+            var monitor = await inspectClaim.HttpMonitors.SingleAsync(TestContext.Current.CancellationToken);
+            Assert.Equal(Noon, check.ScheduledFor);
+            Assert.Equal(restartedAt.AddMinutes(5), monitor.NextCheckAt);
+            Assert.False(check.IsCompleted);
+        }
+
+        await using (var complete = AnInstance.ContextFor(connectionString))
+            Assert.Equal(ScheduledHttpCheckCompletion.Completed,
+                await new ScheduledHttpCheckStore(complete).CompleteAsync(lease.CheckId,
+                    lease.Token, new(false, "timeout", "The check timed out.", null, 10, null),
+                    restartedAt.AddSeconds(1), TestContext.Current.CancellationToken));
+
+        await using var afterRestart = AnInstance.ContextFor(connectionString);
+        var result = await afterRestart.HttpChecks.SingleAsync(TestContext.Current.CancellationToken);
+        var current = await afterRestart.HttpMonitors.SingleAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(CheckOutcome.Failure, result.Outcome);
+        Assert.Equal(MonitorState.Failing, current.State);
+        Assert.Equal(result.Id, current.LatestResultId);
+        Assert.Null(current.LatestSuccessId);
+        Assert.Equal(1, await afterRestart.HttpChecks.CountAsync(TestContext.Current.CancellationToken));
+        Assert.Null(await new ScheduledHttpCheckStore(afterRestart).ClaimAsync(
+            restartedAt.AddSeconds(2), LeaseDuration, TestContext.Current.CancellationToken));
     }
 
     private async Task<string> EstablishedAsync(bool paused = false)

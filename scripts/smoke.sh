@@ -593,6 +593,13 @@ push_state_token=$(json_value token <"$system_dir/push-state-credential-issued.j
 push_state_url=$(json_value report_url <"$system_dir/push-state-credential-issued.json")
 push_state_url_secret=${push_state_url##*/}
 
+# Malformed variants of a secret report path must also be redacted before
+# routing and application diagnostics.
+malformed_report_status=$(curl --silent --show-error \
+  --output "$system_dir/push-malformed-report.json" --write-out '%{http_code}' \
+  "${base_url}${push_job_url}/extra")
+[ "$malformed_report_status" = "401" ]
+
 # A reporting credential grants no management read access.
 set +e
 UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$push_job_token" \
@@ -1368,6 +1375,7 @@ assert_absent "$rotated_token" $ordinary_files
 assert_absent "$monitor_header_secret" $ordinary_files
 assert_absent "$push_job_token" $ordinary_files
 assert_absent "$push_job_url_secret" $ordinary_files
+assert_absent "$push_job_url_secret" "$system_dir/push-malformed-report.json"
 assert_absent "$push_state_token" $ordinary_files
 assert_absent "$push_state_url_secret" $ordinary_files
 assert_absent "$push_job_rotated_token" $ordinary_files

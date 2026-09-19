@@ -104,6 +104,7 @@ public sealed class EmailStatusTests(PostgresFixture postgres)
         await using var context = AnInstance.ContextFor(connection);
         await AnInstance.MigratorFor(context).ApplyAsync(ct);
         var old = Noon.AddDays(-100);
+        var cutoff = Noon.AddDays(-90);
         var project = Project.Create("systems", "Systems", old, ["ops@example.test"]);
         var monitor = HttpMonitor.Create(project.Id, "site", "Site",
             "https://site.example.test/health", 200, TextCondition.None, null,
@@ -133,19 +134,49 @@ public sealed class EmailStatusTests(PostgresFixture postgres)
         recent.Claim(token, Noon, TimeSpan.FromMinutes(2));
         recent.BeginAttempt(token, Noon);
         recent.Complete(token, true, false, null, Noon);
-        context.AddRange(oldFinished, recent);
+        var atBoundary = NotificationDelivery.Queue(Guid.NewGuid(), NotificationKind.Recovery,
+            "boundary@example.test", "systems", "Systems", "site", "Site", "http",
+            "recovered", cutoff, cutoff);
+        atBoundary.Claim(token, cutoff, TimeSpan.FromMinutes(2));
+        atBoundary.BeginAttempt(token, cutoff);
+        atBoundary.Complete(token, true, false, null, cutoff);
+        var awaitingRecovery = NotificationDelivery.Queue(Guid.NewGuid(), NotificationKind.Alert,
+            "awaiting@example.test", "systems", "Systems", "site", "Site", "http",
+            "timeout", old, old);
+        awaitingRecovery.Claim(token, old, TimeSpan.FromMinutes(2));
+        awaitingRecovery.BeginAttempt(token, old);
+        awaitingRecovery.Complete(token, true, false, null, old);
+        var pending = NotificationDelivery.Queue(Guid.NewGuid(), NotificationKind.Recovery,
+            "pending@example.test", "systems", "Systems", "site", "Site", "http",
+            "recovered", old, old);
+        var obsolete = NotificationDelivery.Queue(Guid.NewGuid(), NotificationKind.Recovery,
+            "obsolete@example.test", "systems", "Systems", "site", "Site", "http",
+            "recovered", old, old);
+        obsolete.Obsolete(old);
+        context.AddRange(oldFinished, recent, atBoundary, awaitingRecovery, pending, obsolete);
         context.MaintenanceWindows.AddRange(
             MaintenanceWindow.Start("project", project.Id, 1, old, TimeSpan.FromMinutes(1)),
-            MaintenanceWindow.Start("project", project.Id, 2, old.AddMinutes(2), TimeSpan.FromMinutes(1)));
+            MaintenanceWindow.Start("project", project.Id, 2, old.AddMinutes(2), TimeSpan.FromMinutes(1)),
+            MaintenanceWindow.Start("project", project.Id, 3, cutoff.AddMinutes(-1), TimeSpan.FromMinutes(1)),
+            MaintenanceWindow.Start("project", project.Id, 4, Noon, TimeSpan.FromMinutes(1)));
         await context.SaveChangesAsync(ct);
-        var result = await new EmailHistoryStore(context).PruneAsync(Noon.AddDays(-90), ct);
-        Assert.Equal(1, result.DeliveriesDeleted);
-        Assert.Equal(1, result.WindowsDeleted);
+        var result = await new EmailHistoryStore(context).PruneAsync(cutoff, ct);
+        Assert.Equal(2, result.DeliveriesDeleted);
+        Assert.Equal(2, result.WindowsDeleted);
         var remaining = await context.NotificationDeliveries.AsNoTracking().Select(value => value.Id).ToListAsync(ct);
-        Assert.Equal(2, remaining.Count);
+        Assert.Equal(5, remaining.Count);
         Assert.Contains(recent.Id, remaining);
         Assert.Contains(openAlert.Id, remaining);
+        Assert.Contains(atBoundary.Id, remaining);
+        Assert.Contains(awaitingRecovery.Id, remaining);
+        Assert.Contains(pending.Id, remaining);
         Assert.DoesNotContain(oldFinished.Id, remaining);
-        Assert.Equal(2, (await context.MaintenanceWindows.AsNoTracking().SingleAsync(ct)).Version);
+        Assert.DoesNotContain(obsolete.Id, remaining);
+        Assert.Equal([3, 4], await context.MaintenanceWindows.AsNoTracking()
+            .OrderBy(value => value.Version).Select(value => value.Version).ToListAsync(ct));
+
+        await using var resumed = AnInstance.ContextFor(connection);
+        Assert.Equal(new EmailHistoryPruneResult(0, 0), await new EmailHistoryStore(resumed)
+            .PruneAsync(cutoff, ct));
     }
 }

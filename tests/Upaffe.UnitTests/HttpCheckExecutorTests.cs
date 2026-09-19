@@ -108,6 +108,37 @@ public sealed class HttpCheckExecutorTests
     }
 
     [Fact]
+    public async Task A_port_change_strips_secret_headers_even_on_the_same_host()
+    {
+        await using var server = new LoopbackHttpServer(
+            LoopbackResponse.Redirect("http://status.example:8080/final"),
+            LoopbackResponse.Http(200, "ready"));
+        var resolver = Resolver(
+            ("status.example", [PublicOne]),
+            ("status.example", [PublicOne]));
+        var result = await Executor(server, resolver).ExecuteAsync(
+            Request("http://status.example/start", headers: [new("Authorization", "Bearer write-only")]),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.Succeeded);
+        Assert.Contains("Authorization: Bearer write-only", server.Requests[0], StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Authorization", server.Requests[1], StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task A_sixth_redirect_fails_without_opening_another_connection()
+    {
+        await using var server = new LoopbackHttpServer(
+            Enumerable.Repeat(LoopbackResponse.Redirect("/again"), 6).ToArray());
+        var resolver = Resolver(Enumerable.Repeat(("status.example", new[] { PublicOne }), 6).ToArray());
+        var result = await Executor(server, resolver).ExecuteAsync(
+            Request("http://status.example/start"), TestContext.Current.CancellationToken);
+
+        Assert.Equal("too_many_redirects", result.ReasonCode);
+        Assert.Equal(6, server.Requests.Count);
+    }
+
+    [Fact]
     public async Task Private_or_mixed_DNS_answers_never_reach_the_connector()
     {
         var connector = new RejectingConnector();
@@ -139,6 +170,50 @@ public sealed class HttpCheckExecutorTests
         Assert.Equal("target_not_allowed", result.ReasonCode);
         Assert.Empty(resolver.RequestedHosts);
         Assert.Equal(0, connector.Calls);
+    }
+
+    [Theory]
+    [InlineData("http://[::ffff:127.0.0.1]/health")]
+    [InlineData("http://[::1]/health")]
+    [InlineData("http://[2001:db8::1]/health")]
+    [InlineData("http://169.254.169.254/health")]
+    public async Task Forbidden_IPv4_and_IPv6_literals_never_connect(string target)
+    {
+        var connector = new RejectingConnector();
+        var result = await new HttpCheckExecutor(Resolver(), connector).ExecuteAsync(
+            Request(target), TestContext.Current.CancellationToken);
+
+        Assert.Equal("target_not_allowed", result.ReasonCode);
+        Assert.Equal(0, connector.Calls);
+    }
+
+    [Fact]
+    public async Task A_redirect_to_a_forbidden_literal_never_connects_again()
+    {
+        await using var server = new LoopbackHttpServer(
+            LoopbackResponse.Redirect("http://[::ffff:127.0.0.1]/private"));
+        var result = await Executor(server).ExecuteAsync(
+            Request("http://status.example/start"), TestContext.Current.CancellationToken);
+
+        Assert.Equal("target_not_allowed", result.ReasonCode);
+        Assert.Single(server.Requests);
+    }
+
+    [Fact]
+    public async Task A_pinned_socket_uses_only_the_supplied_address()
+    {
+        await using var server = new LoopbackHttpServer(LoopbackResponse.Http(200, "ready"));
+        var factory = new SocketPinnedConnectionFactory();
+        await using var stream = await factory.ConnectAsync(
+            [IPAddress.Loopback], server.Port, TestContext.Current.CancellationToken);
+        await stream.WriteAsync(
+            "GET / HTTP/1.1\r\nHost: status.example\r\nConnection: close\r\n\r\n"u8.ToArray(),
+            TestContext.Current.CancellationToken);
+        var response = new byte[512];
+        var read = await stream.ReadAsync(response, TestContext.Current.CancellationToken);
+
+        Assert.Contains("HTTP/1.1 200", Encoding.ASCII.GetString(response, 0, read));
+        Assert.Single(server.Requests);
     }
 
     [Fact]
@@ -205,6 +280,17 @@ public sealed class HttpCheckExecutorTests
     }
 
     [Fact]
+    public async Task A_streamed_body_cannot_cross_the_decoded_limit()
+    {
+        await using var server = new LoopbackHttpServer(LoopbackResponse.Http(
+            200, new byte[1_024 * 1_024 + 1], "application/octet-stream"));
+        var result = await Executor(server).ExecuteAsync(
+            Request("http://status.example/stream"), TestContext.Current.CancellationToken);
+
+        Assert.Equal("response_too_large", result.ReasonCode);
+    }
+
+    [Fact]
     public async Task Oversized_response_headers_fail_before_body_processing()
     {
         var oversized = Encoding.ASCII.GetBytes(
@@ -243,12 +329,22 @@ public sealed class HttpCheckExecutorTests
     [InlineData("100.64.0.1", false)]
     [InlineData("127.0.0.1", false)]
     [InlineData("169.254.169.254", false)]
+    [InlineData("0.0.0.1", false)]
     [InlineData("192.0.2.1", false)]
+    [InlineData("192.0.0.8", false)]
+    [InlineData("192.88.99.2", false)]
+    [InlineData("198.18.0.1", false)]
+    [InlineData("203.0.113.1", false)]
     [InlineData("224.0.0.1", false)]
+    [InlineData("255.255.255.255", false)]
     [InlineData("2001:4860:4860::8888", true)]
     [InlineData("2001:1::1", true)]
     [InlineData("::1", false)]
     [InlineData("2001:db8::1", false)]
+    [InlineData("2001:2::1", false)]
+    [InlineData("2002::1", false)]
+    [InlineData("3fff::1", false)]
+    [InlineData("5f00::1", false)]
     [InlineData("fc00::1", false)]
     [InlineData("fe80::1", false)]
     [InlineData("ff02::1", false)]

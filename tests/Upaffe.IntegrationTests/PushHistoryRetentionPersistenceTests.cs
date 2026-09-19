@@ -22,6 +22,8 @@ public sealed class PushHistoryRetentionPersistenceTests(PostgresFixture postgre
         Guid openLatestId;
         Guid resolvedFailureId;
         Guid resolvedCurrentId;
+        Guid boundaryFailureId;
+        Guid boundaryResolutionId;
         DateTimeOffset resolvedDeadline;
         await using (var setup = AnInstance.ContextFor(connectionString))
         {
@@ -31,7 +33,8 @@ public sealed class PushHistoryRetentionPersistenceTests(PostgresFixture postgre
             var ordinary = Monitor(project.Id, "ordinary", createdAt);
             var open = Monitor(project.Id, "open-incident", createdAt);
             var resolved = Monitor(project.Id, "resolved-incident", createdAt);
-            setup.AddRange(project, ordinary, open, resolved);
+            var boundary = Monitor(project.Id, "boundary-incident", createdAt);
+            setup.AddRange(project, ordinary, open, resolved, boundary);
             await setup.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             var ordinaryOld = Success(ordinary, Cutoff.AddSeconds(-1));
@@ -63,6 +66,15 @@ public sealed class PushHistoryRetentionPersistenceTests(PostgresFixture postgre
             setup.Add(resolvedCurrent);
             await setup.SaveChangesAsync(TestContext.Current.CancellationToken);
 
+            var boundaryFailure = Failure(boundary, Cutoff.AddMinutes(-1));
+            var boundaryIncident = PushIncident.Open(boundaryFailure, boundaryFailure.ReceivedAt);
+            setup.AddRange(boundaryFailure, boundaryIncident);
+            await setup.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var boundaryResolution = Success(boundary, Cutoff);
+            boundaryIncident.Resolve(boundaryResolution);
+            setup.Add(boundaryResolution);
+            await setup.SaveChangesAsync(TestContext.Current.CancellationToken);
+
             ordinaryOldId = ordinaryOld.Id;
             ordinaryBoundaryId = ordinaryBoundary.Id;
             ordinaryCurrentId = ordinaryCurrent.Id;
@@ -70,6 +82,8 @@ public sealed class PushHistoryRetentionPersistenceTests(PostgresFixture postgre
             openLatestId = openLatest.Id;
             resolvedFailureId = resolvedFailure.Id;
             resolvedCurrentId = resolvedCurrent.Id;
+            boundaryFailureId = boundaryFailure.Id;
+            boundaryResolutionId = boundaryResolution.Id;
             resolvedDeadline = resolved.NextDeadlineAt!.Value;
         }
 
@@ -94,8 +108,11 @@ public sealed class PushHistoryRetentionPersistenceTests(PostgresFixture postgre
         Assert.Contains(openMissingId, reportIds);
         Assert.Contains(openLatestId, reportIds);
         Assert.Contains(resolvedCurrentId, reportIds);
+        Assert.Contains(boundaryFailureId, reportIds);
+        Assert.Contains(boundaryResolutionId, reportIds);
 
-        var incident = await inspection.PushIncidents.SingleAsync(TestContext.Current.CancellationToken);
+        var incident = await inspection.PushIncidents.SingleAsync(value => value.ResolvedAt == null,
+            TestContext.Current.CancellationToken);
         Assert.True(incident.IsOpen);
         Assert.Equal(openMissingId, incident.OpeningReportId);
         Assert.Equal(openLatestId, incident.LatestFailureReportId);
@@ -109,6 +126,11 @@ public sealed class PushHistoryRetentionPersistenceTests(PostgresFixture postgre
         Assert.Equal(resolvedCurrentId, resolvedMonitor.LatestReportId);
         Assert.Equal(resolvedCurrentId, resolvedMonitor.LatestSuccessId);
         Assert.Equal(resolvedDeadline, resolvedMonitor.NextDeadlineAt);
+        Assert.Equal(2, await inspection.PushIncidents.CountAsync(TestContext.Current.CancellationToken));
+
+        await using var resumed = AnInstance.ContextFor(connectionString);
+        Assert.Equal(new PushHistoryPruneResult(0, 0), await new PushMonitorHistoryStore(resumed)
+            .PruneAsync(Cutoff, TestContext.Current.CancellationToken));
     }
 
     private static PushMonitor Monitor(Guid projectId, string key, DateTimeOffset createdAt) =>

@@ -59,6 +59,17 @@ public sealed class HttpHistoryRetentionPersistenceTests(PostgresFixture postgre
             Success(),
             Cutoff.AddMinutes(-1));
 
+        var boundaryFailure = await RunAsync(
+            connectionString,
+            "boundary-incident",
+            Failure("timeout"),
+            Cutoff.AddMinutes(-1));
+        var boundaryResolution = await RunAsync(
+            connectionString,
+            "boundary-incident",
+            Success(),
+            Cutoff);
+
         HttpHistoryPruneResult result;
         await using (var pruneContext = AnInstance.ContextFor(connectionString))
         {
@@ -81,8 +92,11 @@ public sealed class HttpHistoryRetentionPersistenceTests(PostgresFixture postgre
         Assert.Contains(openAtThreshold.CheckId, retainedCheckIds);
         Assert.Contains(openLatest.CheckId, retainedCheckIds);
         Assert.Contains(resolvedCurrent.CheckId, retainedCheckIds);
+        Assert.Contains(boundaryFailure.CheckId, retainedCheckIds);
+        Assert.Contains(boundaryResolution.CheckId, retainedCheckIds);
 
-        var incident = await inspection.Incidents.SingleAsync(TestContext.Current.CancellationToken);
+        var incident = await inspection.Incidents.SingleAsync(value => value.ResolvedAt == null,
+            TestContext.Current.CancellationToken);
         Assert.True(incident.IsOpen);
         Assert.Equal(openFirst.CheckId, incident.FirstFailureCheckId);
         Assert.Equal(openAtThreshold.CheckId, incident.OpeningCheckId);
@@ -94,6 +108,11 @@ public sealed class HttpHistoryRetentionPersistenceTests(PostgresFixture postgre
         Assert.Equal(MonitorState.Healthy, resolvedMonitor.State);
         Assert.Equal(resolvedCurrent.CheckId, resolvedMonitor.LatestResultId);
         Assert.Equal(resolvedCurrent.CheckId, resolvedMonitor.LatestSuccessId);
+        Assert.Equal(2, await inspection.Incidents.CountAsync(TestContext.Current.CancellationToken));
+
+        await using var resumed = AnInstance.ContextFor(connectionString);
+        Assert.Equal(new HttpHistoryPruneResult(0, 0), await new HttpMonitorHistoryStore(resumed)
+            .PruneAsync(Cutoff, TestContext.Current.CancellationToken));
     }
 
     private async Task<string> EstablishedAsync()
@@ -106,14 +125,17 @@ public sealed class HttpHistoryRetentionPersistenceTests(PostgresFixture postgre
         var ordinary = Monitor(project.Id, "ordinary", failureThreshold: 100, createdAt);
         var open = Monitor(project.Id, "open-incident", failureThreshold: 2, createdAt);
         var resolved = Monitor(project.Id, "resolved-incident", failureThreshold: 1, createdAt);
+        var boundary = Monitor(project.Id, "boundary-incident", failureThreshold: 1, createdAt);
         context.AddRange(
             project,
             ordinary,
             open,
             resolved,
+            boundary,
             HttpMonitorSecret.FromTarget(ordinary.Id, ordinary.TargetUrl),
             HttpMonitorSecret.FromTarget(open.Id, open.TargetUrl),
-            HttpMonitorSecret.FromTarget(resolved.Id, resolved.TargetUrl));
+            HttpMonitorSecret.FromTarget(resolved.Id, resolved.TargetUrl),
+            HttpMonitorSecret.FromTarget(boundary.Id, boundary.TargetUrl));
         await context.SaveChangesAsync(TestContext.Current.CancellationToken);
         return connectionString;
     }

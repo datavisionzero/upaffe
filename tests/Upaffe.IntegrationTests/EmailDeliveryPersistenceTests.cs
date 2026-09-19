@@ -91,6 +91,57 @@ public sealed class EmailDeliveryPersistenceTests(PostgresFixture postgres)
             TimeSpan.FromMinutes(2), ct));
     }
 
+    [Fact]
+    public async Task Crashes_before_and_after_SMTP_start_respect_the_five_attempt_cap()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var connection = await postgres.CreateDatabaseAsync();
+        var now = new DateTimeOffset(2026, 9, 19, 12, 0, 0, TimeSpan.Zero);
+        await using (var setup = AnInstance.ContextFor(connection))
+        {
+            await AnInstance.MigratorFor(setup).ApplyAsync(ct);
+            setup.NotificationDeliveries.Add(New(now));
+            await setup.SaveChangesAsync(ct);
+        }
+
+        EmailDeliveryLease lease;
+        await using (var first = AnInstance.ContextFor(connection))
+            lease = (await new EmailDeliveryStore(first).ClaimAsync(now,
+                TimeSpan.FromMinutes(2), ct))!;
+
+        // A crash after claim but before SMTP begins does not spend an attempt.
+        now = now.AddMinutes(3);
+        await using (var resumed = AnInstance.ContextFor(connection))
+            lease = (await new EmailDeliveryStore(resumed).ClaimAsync(now,
+                TimeSpan.FromMinutes(2), ct))!;
+        await using (var inspect = AnInstance.ContextFor(connection))
+            Assert.Equal(0, (await inspect.NotificationDeliveries.SingleAsync(ct)).AttemptCount);
+
+        // Each crash after the durable begin may have reached SMTP. The fifth
+        // expired lease must become terminal without a sixth submission.
+        for (var attempt = 1; attempt <= 5; attempt++)
+        {
+            await using (var begun = AnInstance.ContextFor(connection))
+                await BeginAsync(begun, lease, now, ct);
+            now = now.AddMinutes(3);
+            await using var recovered = AnInstance.ContextFor(connection);
+            var next = await new EmailDeliveryStore(recovered).ClaimAsync(now,
+                TimeSpan.FromMinutes(2), ct);
+            if (attempt < 5)
+                lease = Assert.IsType<EmailDeliveryLease>(next);
+            else
+                Assert.Null(next);
+        }
+
+        await using var final = AnInstance.ContextFor(connection);
+        var delivery = await final.NotificationDeliveries.SingleAsync(ct);
+        Assert.Equal(DeliveryState.TerminalFailure, delivery.State);
+        Assert.Equal(5, delivery.AttemptCount);
+        Assert.Equal("smtp_outcome_unknown", delivery.LastErrorCode);
+        Assert.Null(await new EmailDeliveryStore(final).ClaimAsync(now.AddDays(1),
+            TimeSpan.FromMinutes(2), ct));
+    }
+
     private static NotificationDelivery New(DateTimeOffset now) =>
         NotificationDelivery.Queue(Guid.NewGuid(), NotificationKind.Alert,
             "ops@example.test", "project", "Project", "monitor", "Monitor",
