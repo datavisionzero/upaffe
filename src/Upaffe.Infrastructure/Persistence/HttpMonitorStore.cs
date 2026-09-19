@@ -277,13 +277,36 @@ public sealed class HttpMonitorStore(UpaffeDbContext context) : IHttpMonitorStor
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var found = await FindLiveAsync(projectKey, monitorKey, cancellationToken);
-        if (found is null)
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var projectId = await context.Projects.AsNoTracking()
+            .Where(value => value.Key == projectKey && value.DeletedAt == null)
+            .Select(value => (Guid?)value.Id)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (projectId is null)
         {
             return new(HttpMonitorMutation.Missing);
         }
 
-        var monitor = found.Value.Monitor;
+        var monitorId = await context.HttpMonitors.AsNoTracking()
+            .Where(value => value.ProjectId == projectId && value.Key == monitorKey && value.DeletedAt == null)
+            .Select(value => (Guid?)value.Id)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (monitorId is null
+            || !await PostgresRowLocks.HttpMonitorAsync(context, monitorId.Value, transaction, cancellationToken))
+        {
+            return new(HttpMonitorMutation.Missing);
+        }
+
+        // Load after acquiring the same row lock used by the scheduler so the
+        // sequence is allocated from the latest committed monitor state.
+        var monitor = await context.HttpMonitors.SingleOrDefaultAsync(
+            value => value.Id == monitorId && value.DeletedAt == null,
+            cancellationToken);
+        if (monitor is null)
+        {
+            return new(HttpMonitorMutation.Missing);
+        }
+
         if (monitor.State == MonitorState.Paused)
         {
             return new(HttpMonitorMutation.Paused);
@@ -295,6 +318,7 @@ public sealed class HttpMonitorStore(UpaffeDbContext context) : IHttpMonitorStor
         try
         {
             await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
             return new(HttpMonitorMutation.Changed, check.Id, request);
         }
         catch (DbUpdateConcurrencyException)

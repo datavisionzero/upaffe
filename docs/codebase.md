@@ -121,9 +121,10 @@ creation, optimistic changes, secret-specific header operations, and requested
 check persistence. The nested management API exposes create/read/list/update,
 pause/resume/remove, header set/remove, and immediate-test operations. Ordinary
 snapshots contain only target-query and header metadata; only the store builds
-the executor request from explicit secret rows. An immediate test persists its
-ordered check before network I/O and completes it afterwards without shifting
-the regular due time.
+the executor request from explicit secret rows. An immediate test locks the
+monitor row to allocate its ordered check alongside scheduled work, commits
+before network I/O, and completes afterwards without shifting the regular due
+time.
 
 `IScheduledHttpCheckStore` gives the background monitoring act two short,
 durable transaction boundaries around that same executor. PostgreSQL claims a

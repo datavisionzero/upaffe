@@ -12,6 +12,32 @@ public sealed class HttpCheckEvaluationPersistenceTests(PostgresFixture postgres
     private static readonly DateTimeOffset Noon = new(2026, 9, 16, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]
+    public async Task Concurrent_requested_starts_allocate_distinct_monitor_sequences()
+    {
+        var connectionString = await EstablishedAsync(failureThreshold: 1);
+        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var tasks = Enumerable.Range(0, 12).Select(async _ =>
+        {
+            await start.Task;
+            await using var context = AnInstance.ContextFor(connectionString);
+            return await new HttpMonitorStore(context).StartTestAsync(
+                "public-services", "public-site", Noon.AddMinutes(1),
+                TestContext.Current.CancellationToken);
+        }).ToArray();
+
+        start.SetResult();
+        var results = await Task.WhenAll(tasks);
+        Assert.All(results, result => Assert.Equal(HttpMonitorMutation.Changed, result.Outcome));
+
+        await using var verify = AnInstance.ContextFor(connectionString);
+        var sequences = await verify.HttpChecks
+            .OrderBy(check => check.Sequence)
+            .Select(check => check.Sequence)
+            .ToArrayAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(Enumerable.Range(1, 12).Select(value => (long)value), sequences);
+    }
+
+    [Fact]
     public async Task A_failure_is_visible_immediately_but_only_the_threshold_opens_an_incident()
     {
         var connectionString = await EstablishedAsync(failureThreshold: 3);
