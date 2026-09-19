@@ -24,7 +24,8 @@ func TestResolveURL(t *testing.T) {
 		}
 	})
 
-	for _, value := range []string{"", "localhost:8080", "ftp://example.test", "https://user:secret@example.test"} {
+	for _, value := range []string{"", "localhost:8080", "ftp://example.test", "https://user:secret@example.test",
+		"https://example.test/?token=hidden", "https://example.test/#secret"} {
 		t.Run("refuses "+value, func(t *testing.T) {
 			if _, err := ResolveURL(value, func(string) string { return "" }); err == nil {
 				t.Fatal("expected an error")

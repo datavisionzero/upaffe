@@ -87,12 +87,91 @@ func TestStatusClassifiesFailuresAndKeepsDataOffStdout(t *testing.T) {
 
 func TestUsageAndNetworkErrorsHaveStableCodes(t *testing.T) {
 	code, output, diagnostics := run(t, "status")
-	if code != process.Usage || output != "" || !strings.Contains(diagnostics, "UPAFFE_URL") {
+	if code != process.Usage || output != "" || !strings.Contains(diagnostics, "usage_error") {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, output, diagnostics)
 	}
 
 	code, output, diagnostics = run(t, "status", "--url", "http://127.0.0.1:1")
 	if code != process.Unreachable || output != "" || diagnostics == "" {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, output, diagnostics)
+	}
+}
+
+func TestJSONProblemContractIsUniformAcrossManagementCommands(t *testing.T) {
+	commands := []struct {
+		name string
+		args []string
+	}{
+		{"credential", []string{"credential", "list"}},
+		{"project", []string{"project", "get", "backup-jobs"}},
+		{"monitor", []string{"monitor", "get", "backup-jobs", "homepage"}},
+		{"push", []string{"push", "get", "backup-jobs", "backup"}},
+		{"email", []string{"email", "settings", "get"}},
+		{"maintenance", []string{"maintenance", "get", "backup-jobs", "--scope", "project"}},
+		{"report", []string{"project", "report", "backup-jobs"}},
+	}
+	problems := []struct {
+		status int
+		name   string
+		exit   int
+	}{
+		{400, "validation", process.Refused},
+		{401, "authentication_rejected", process.Unauthorized},
+		{403, "forbidden", process.Unauthorized},
+		{404, "not_found", process.NotFound},
+		{409, "conflict", process.Refused},
+		{422, "unprocessable", process.Refused},
+		{502, "smtp_rejected", process.Refused},
+	}
+	for _, command := range commands {
+		for _, problem := range problems {
+			t.Run(command.name+"/"+problem.name, func(t *testing.T) {
+				instance := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+					writer.Header().Set("Content-Type", "application/problem+json")
+					writer.WriteHeader(problem.status)
+					_, _ = fmt.Fprintf(writer,
+						`{"code":%q,"title":"remote secret title","status":%d}`,
+						problem.name, problem.status)
+				}))
+				defer instance.Close()
+				args := append(append([]string(nil), command.args...),
+					"--url", instance.URL, "--credential", "private-credential", "--json")
+				code, output, diagnostics := run(t, args...)
+				var parsed diagnostic
+				if err := json.Unmarshal([]byte(diagnostics), &parsed); err != nil ||
+					code != problem.exit || output != "" || parsed.ExitCode != problem.exit ||
+					parsed.Code != problem.name || parsed.HTTPStatus == nil ||
+					*parsed.HTTPStatus != problem.status ||
+					strings.Contains(diagnostics, "remote secret") ||
+					strings.Contains(diagnostics, "private-credential") {
+					t.Fatalf("code=%d stdout=%q stderr=%q parse=%v", code, output, diagnostics, err)
+				}
+			})
+		}
+	}
+}
+
+func TestLocalJSONErrorsAreStableAndRedacted(t *testing.T) {
+	for _, item := range []struct {
+		name    string
+		args    []string
+		code    int
+		machine string
+	}{
+		{"usage", []string{"project", "rename", "backup-jobs", "--json"}, process.Usage, "usage_error"},
+		{"unsafe URL", []string{"project", "get", "backup-jobs", "--url", "https://example.test/?token=secret-query", "--credential", "private-credential", "--json"}, process.Usage, "usage_error"},
+		{"unreachable", []string{"status", "--url", "http://127.0.0.1:1", "--json"}, process.Unreachable, "instance_unreachable"},
+	} {
+		t.Run(item.name, func(t *testing.T) {
+			code, output, diagnostics := run(t, item.args...)
+			var parsed diagnostic
+			if err := json.Unmarshal([]byte(diagnostics), &parsed); err != nil ||
+				code != item.code || output != "" || parsed.ExitCode != item.code ||
+				parsed.Code != item.machine || parsed.HTTPStatus != nil ||
+				strings.Contains(diagnostics, "secret-query") ||
+				strings.Contains(diagnostics, "private-credential") {
+				t.Fatalf("code=%d stdout=%q stderr=%q parse=%v", code, output, diagnostics, err)
+			}
+		})
 	}
 }

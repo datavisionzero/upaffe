@@ -411,5 +411,5 @@ func writeProjectText(output io.Writer, project *api.ProjectResponse) error {
 }
 
 func unreachable(err error) error {
-	return process.New(process.Unreachable, "instance is unreachable: %v", err)
+	return responseOrTransportError(err)
 }

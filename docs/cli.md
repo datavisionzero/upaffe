@@ -27,8 +27,9 @@ Commands that contact an instance resolve its base URL in this order:
 2. `UPAFFE_URL`
 
 The address must be an absolute `http` or `https` URL and cannot embed a user
-name or password. HTTPS is the deployment expectation; HTTP remains usable for
-the local loopback development environment.
+name or password, query, fragment, or control character. HTTPS is the
+deployment expectation; HTTP remains usable for the local loopback development
+environment.
 
 Management commands resolve their bearer credential in this order:
 
@@ -44,9 +45,26 @@ once; the caller is responsible for placing it in a secret store.
 ## Output and exit codes
 
 Successful data goes to stdout. Diagnostics go to stderr. `--json` writes one
-JSON value followed by a newline. Remote response bodies are never copied into
-diagnostics. When the API returns a problem, diagnostics retain only its stable
-code and HTTP status, such as `authentication_rejected (HTTP 401)`.
+JSON value followed by a newline. A failed `--json` command writes exactly one
+error object to stderr and leaves stdout empty, except that a completed
+immediate HTTP check writes its result to stdout before exiting 5. The object
+has a stable `code`, numeric `exit_code`, and `http_status` only for an HTTP
+response. For example:
+
+```json
+{"code":"authentication_rejected","exit_code":7,"http_status":401}
+```
+
+Local failures use `usage_error`, `instance_unreachable`, or
+`unexpected_response`; an immediate failed check uses `check_failed`.
+Recognized API problem codes retain their names. An unknown or malformed
+problem uses the category's generic code (`unauthorized`, `not_found`,
+`request_refused`, or `unexpected_response`). Text diagnostics contain the
+same stable code and, where applicable, HTTP status, such as
+`ua: authentication_rejected (HTTP 401)`. Neither mode copies a remote title,
+response body, submitted document, credential, or transport error text.
+Callers should branch on `exit_code` and use `code` for finer known cases;
+future releases may add new stable codes without changing the exit categories.
 
 | Code | Category |
 | ---: | --- |
@@ -54,7 +72,7 @@ code and HTTP status, such as `authentication_rejected (HTTP 401)`.
 | 1 | unexpected response or internal failure |
 | 2 | usage or missing configuration |
 | 3 | endpoint or object not found |
-| 4 | request refused by validation or conflict |
+| 4 | request refused by validation, conflict, or SMTP test rejection |
 | 5 | an immediate monitor check completed with a failure |
 | 7 | unauthenticated or unauthorized |
 | 10 | instance or network unreachable |

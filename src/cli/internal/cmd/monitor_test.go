@@ -209,7 +209,7 @@ func TestMonitorFailedImmediateCheckHasStructuredOutputAndDistinctExitCode(t *te
 		"--url", instance.URL,
 		"--credential", "not-returned",
 		"--json")
-	if code != process.CheckFailed || !strings.Contains(diagnostics, "unexpected_status") {
+	if code != process.CheckFailed || !strings.Contains(diagnostics, `"code":"check_failed"`) {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, output, diagnostics)
 	}
 	var result map[string]any
