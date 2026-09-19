@@ -1,0 +1,81 @@
+name: CLI release artifacts
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to embed in a nonpublishing candidate bundle
+        required: true
+        default: 0.1.0-rc.1
+        type: string
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Native ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux_amd64
+            runner: ubuntu-24.04
+          - platform: linux_arm64
+            runner: ubuntu-24.04-arm
+          - platform: darwin_amd64
+            runner: macos-15-intel
+          - platform: darwin_arm64
+            runner: macos-15
+    runs-on: ${{ matrix.runner }}
+    env:
+      RELEASE_VERSION: ${{ inputs.version || '0.1.0-rc.1' }}
+      UPAFFE_RELEASE_SOURCE_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: src/cli/go.mod
+          cache-dependency-path: src/cli/go.sum
+      - run: scripts/build-cli-release.sh "$RELEASE_VERSION" "${{ matrix.platform }}" "$RUNNER_TEMP/cli-release"
+      - run: scripts/check-cli-release.sh "$RELEASE_VERSION" "${{ matrix.platform }}" "$RUNNER_TEMP/cli-release"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ matrix.platform }}
+          path: |
+            ${{ runner.temp }}/cli-release/*.zip
+            ${{ runner.temp }}/cli-release/*.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  bundle:
+    name: CLI candidate bundle
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cli-*
+          path: cli-release
+          merge-multiple: true
+      - name: Verify the complete matrix
+        run: |
+          test "$(find cli-release -maxdepth 1 -name '*.zip' | wc -l)" -eq 4
+          cat cli-release/*.sha256 | LC_ALL=C sort -k2 > cli-release/SHA256SUMS
+          (cd cli-release && sha256sum --check SHA256SUMS)
+          printf '%s\n' "$GITHUB_SHA" > cli-release/source-revision.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-release-bundle
+          path: |
+            cli-release/*.zip
+            cli-release/SHA256SUMS
+            cli-release/source-revision.txt
+          if-no-files-found: error
+          retention-days: 14
