@@ -394,6 +394,9 @@ public sealed class PushReportTests(PostgresFixture postgres)
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync(
             $"/api/report/{replacement}", TestContext.Current.CancellationToken)).StatusCode);
 
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync(
+            $"/api/report/{replacement}/extra", TestContext.Current.CancellationToken)).StatusCode);
+
         Assert.DoesNotContain(logs.Messages, message =>
             message.Contains(setup.ReportingToken, StringComparison.Ordinal)
             || message.Contains(replacement, StringComparison.Ordinal));

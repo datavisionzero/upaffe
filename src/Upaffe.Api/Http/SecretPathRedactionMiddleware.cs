@@ -11,10 +11,13 @@ public sealed class SecretPathRedactionMiddleware(RequestDelegate next)
         if (context.Request.Path.StartsWithSegments("/api/report", out var remaining)
             && remaining.HasValue
             && remaining.Value!.Length > 1
-            && remaining.Value[0] == '/'
-            && !remaining.Value.AsSpan(1).Contains('/'))
+            && remaining.Value[0] == '/')
         {
-            context.Items[SecretItem] = remaining.Value[1..];
+            if (!remaining.Value.AsSpan(1).Contains('/'))
+            {
+                context.Items[SecretItem] = remaining.Value[1..];
+            }
+
             context.Request.Path = RedactedPath;
         }
 

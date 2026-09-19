@@ -659,10 +659,12 @@ failure, retry identity, or sender observation time. Never put the secret URL
 in source control, command history, ordinary status output, or monitoring
 exports.
 
-upaffe redacts the secret segment before its own routing and application logs
+upaffe redacts every nonempty `/api/report/*` path, including malformed paths
+with extra segments, before its own routing and application logs
 and suppresses the framework request-start log that would run before that
 redaction. A reverse proxy sits outside this boundary: configure it not to log
-`/api/report/*` paths verbatim, replacing the final segment with a fixed marker.
+`/api/report/*` paths verbatim, replacing the whole secret-bearing suffix with a
+fixed marker.
 Rotation keeps the prior URL valid for five minutes; after that window or an
 explicit revocation, it returns the same `401` as an unknown secret.
 

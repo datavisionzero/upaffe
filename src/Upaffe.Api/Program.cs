@@ -114,6 +114,7 @@ if (trustedProxy is not null)
 
 app.UseUpaffeVersion();
 app.UseMiddleware<SecretPathRedactionMiddleware>();
+app.UseRouting();
 app.UseMiddleware<ProblemMiddleware>();
 app.UseDefaultFiles();
 app.UseStaticFiles();
