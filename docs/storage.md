@@ -42,6 +42,7 @@ The next migration adds the singleton email configuration and project
 recipient snapshot decided in ADR 0007.
 The following migration adds durable notification deliveries and their due-work
 index and logical uniqueness boundary.
+The next migration adds timed maintenance windows for projects and monitors.
 
 Add a migration from the repository root after changing the context model:
 
@@ -112,6 +113,18 @@ The worker logs a fixed failure message without SMTP exception text. Status
 surfaces only a short failure code. Delivery records for open incidents remain
 authoritative for future recovery eligibility; later retention must preserve
 them until the incident resolves.
+
+## Timed maintenance schema
+
+`maintenance_window` records each finite project, HTTP monitor, or push monitor
+window with its scope identity, start, planned end, optional early end, and
+optimistic version. A unique scope/version index detects simultaneous new
+windows. Starting an active scope extends the same row; starting after expiry
+or early end appends another row and preserves history. Expiry is derived from
+`ends_at <= server now`, so restart or delayed processing cannot leave a
+window active forever. Project and monitor windows compose by union, with the
+later active end as the effective expiry. Neither monitoring observations nor
+incident lifecycle rows are changed by maintenance mutations.
 
 ## HTTP monitoring schema
 

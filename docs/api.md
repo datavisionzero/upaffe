@@ -36,6 +36,9 @@ secret supplied in the request body.
 | `DELETE /api/email/password?version={version}` | Clear the SMTP password explicitly. |
 | `PUT /api/email/default-recipients` | Replace recipients copied to new projects. |
 | `POST /api/email/test` | Submit one explicit test message to SMTP without creating an incident. |
+| `GET`, `POST`, `DELETE /api/projects/{projectKey}/maintenance` | Inspect, start or extend, and end a project maintenance window. |
+| `GET`, `POST`, `DELETE /api/projects/{projectKey}/http-monitors/{monitorKey}/maintenance` | Manage direct HTTP monitor maintenance and inspect inherited project maintenance. |
+| `GET`, `POST`, `DELETE /api/projects/{projectKey}/push-monitors/{monitorKey}/maintenance` | Manage direct push monitor maintenance and inspect inherited project maintenance. |
 | `GET /api/projects/{key}/recipients` | Read a project's recipients and version. |
 | `PUT /api/projects/{key}/recipients` | Replace recipients on a live project at the version last read. |
 | `POST /api/projects/{projectKey}/http-monitors` | Create an HTTP monitor idempotently within a project. |
@@ -186,6 +189,25 @@ acceptance, not inbox arrival. It creates no incident or retry intent. Missing
 sender settings return `409 email_not_configured`; a relay failure returns
 `502 smtp_rejected` with a short failure code. Raw SMTP diagnostics and
 credential values are not returned.
+
+## Timed maintenance
+
+Each project, HTTP monitor, and push monitor has an independent maintenance
+scope. `GET` returns the latest direct window version and times, whether it is
+active, the effective active scopes, and the latest effective expiry. A monitor
+inherits project maintenance. If both direct and project windows are active,
+the effective expiry is the later end; ending one scope does not end the other.
+Maintenance is separate from monitor state and pause.
+
+`POST` accepts the last read maintenance `version` and `duration_seconds` from
+60 through 2,592,000. Version `0` starts a scope with no prior window. Starting
+again while active extends to the later of the current expiry and server time
+plus the requested duration. An expired or ended window is followed by a new
+record with the next version. `DELETE ?version=…` ends only the direct active
+window early. Stale versions or ending an inactive window return `409 conflict`;
+invalid durations return `400 validation`, and absent scopes return `404`.
+The server's current UTC time decides expiry, including after downtime: no
+background transition is needed. Checks, reports, and incident state continue.
 
 ## HTTP monitors
 

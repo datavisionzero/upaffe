@@ -28,6 +28,7 @@ public static class InfrastructureServices
         services.AddScoped<IProjectStore, ProjectStore>();
         services.AddScoped<IEmailConfigurationStore, EmailConfigurationStore>();
         services.AddScoped<IEmailDeliveryStore, EmailDeliveryStore>();
+        services.AddScoped<IMaintenanceStore, MaintenanceStore>();
         services.AddScoped<IHttpMonitorStore, HttpMonitorStore>();
         services.AddScoped<IPushMonitorStore, PushMonitorStore>();
         services.AddScoped<IReportingCredentialStore, ReportingCredentialStore>();
