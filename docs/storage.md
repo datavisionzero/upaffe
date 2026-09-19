@@ -40,6 +40,8 @@ existing migration is never rewritten after release.
 
 The next migration adds the singleton email configuration and project
 recipient snapshot decided in ADR 0007.
+The following migration adds durable notification deliveries and their due-work
+index and logical uniqueness boundary.
 
 Add a migration from the repository root after changing the context model:
 
@@ -82,6 +84,34 @@ request secrets. The database and host administrator remain trusted. Project
 rows contain an independent `text[]` recipient list copied from the defaults
 at creation; replacement uses the project concurrency version. Existing
 projects never track later default changes.
+
+## Email delivery schema
+
+`notification_delivery` represents one alert or recovery intent for one
+incident and normalized recipient. A unique `(incident_id, kind, recipient_key)`
+index prevents intentional duplicates even when two evaluators race. The row
+stores only the facts needed to render a message when attempted: project and
+monitor identity and display names, stable reason, event time, and recipient.
+It stores no rendered body or SMTP password. Its state, attempt count, next
+attempt, lease token and expiry, acceptance time, terminal time, and sanitized
+last failure code are durable. Message-ID derives from the logical identity.
+
+A worker claims due rows with `FOR UPDATE SKIP LOCKED` and a two-minute lease.
+An expired lease can be reclaimed after a crash; completion requires the latest
+lease token. Each claim counts as an attempt before SMTP work begins, so repeated
+crashes cannot bypass the five-attempt cap. If the fifth claim expires without a
+recorded result, its outcome is marked unknown and terminal. The first transient
+failure retries after one minute, then after
+two, four, and eight minutes. Five attempts is the maximum. Permanent failure
+or the fifth transient failure is terminal. SMTP acceptance is recorded only
+after the relay returns success. A crash between that success and committing
+acceptance can cause a second SMTP submission; the row cannot prove inbox
+delivery or guarantee exactly-once email.
+
+The worker logs a fixed failure message without SMTP exception text. Status
+surfaces only a short failure code. Delivery records for open incidents remain
+authoritative for future recovery eligibility; later retention must preserve
+them until the incident resolves.
 
 ## HTTP monitoring schema
 

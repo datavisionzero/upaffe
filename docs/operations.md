@@ -121,6 +121,14 @@ failure returns a sanitized problem code. This test creates no incident and
 does not retry on its own. Keep SMTP credentials in the authenticated write
 request and out of shell history, logs, and ordinary status output.
 
+Incident email uses durable work. Transient failures retry up to five total
+attempts with one, two, four, and eight minute delays; permanent failures stop.
+The worker recovers an expired two-minute claim after a restart. SMTP may have
+accepted a message just before a crash without upaffe recording that fact, so
+the retry can produce a duplicate even though no second logical notification
+is created. `EmailDelivery__Enabled=false` disables draining for controlled
+tests; leaving it disabled on a running instance accumulates pending work.
+
 ## Simple push reporting
 
 Credential issuance for a push monitor explicitly returns an instance-relative

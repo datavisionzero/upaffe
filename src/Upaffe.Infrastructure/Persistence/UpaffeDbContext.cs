@@ -16,6 +16,7 @@ public sealed class UpaffeDbContext(DbContextOptions<UpaffeDbContext> options) :
     public DbSet<ManagementCredentialSecret> ManagementCredentialSecrets => Set<ManagementCredentialSecret>();
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<EmailConfiguration> EmailConfigurations => Set<EmailConfiguration>();
+    public DbSet<NotificationDelivery> NotificationDeliveries => Set<NotificationDelivery>();
     public DbSet<HttpMonitor> HttpMonitors => Set<HttpMonitor>();
     public DbSet<HttpMonitorSecret> HttpMonitorSecrets => Set<HttpMonitorSecret>();
     public DbSet<HttpMonitorHeader> HttpMonitorHeaders => Set<HttpMonitorHeader>();
