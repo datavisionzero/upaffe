@@ -27,6 +27,12 @@ an execution token with a two-minute lease. The database transaction ends
 before the worker crosses the HTTP execution boundary. Missed intervals are not
 replayed as a burst.
 
+An operator-requested immediate test takes the same monitor row lock before
+reading and incrementing its monitor-local check sequence. It commits the new
+check before network I/O and leaves `next_check_at` unchanged. This serializes
+requested and scheduled allocation, including requests made immediately after
+a monitor resumes, without holding a database lock across the HTTP call.
+
 The worker completes the check in a second short transaction that locks the
 check row. Only the token currently stored on an incomplete check may add its
 immutable result. A worker may finish after its nominal expiry while no other

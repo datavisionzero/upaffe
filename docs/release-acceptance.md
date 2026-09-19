@@ -28,4 +28,11 @@ The rehearsal and CLI candidate use local fixtures and generated credentials. Th
 - `scripts/check-production-workflow.sh` passed with previous published image `sha-b7eae47af4bd77451c631c6428db6af03402161a` (index digest `sha256:a6bdc71817eb5f290bccc8a25a4bed836d086e9e016020561401e2fc3c9a230f`) and current published image `sha-0623fd0d8cba41f267dcbff3761b09a18c95368d`. It observed empty bootstrap, persisted identity and work after recreation, a failed-pull rollback, successful update, rejection of an incompatible future schema by the older image, and isolated backup restore. Its HTTPS fixture observed sends while healthy, no sends while workers were stalled despite live and ready HTTP, and sends after progress resumed.
 - An earlier main CI smoke attempt on the previous image revision returned one unlocated HTTP 500 after an application restart. Its retry, the later PR smoke test, the current main CI smoke test, and local smoke runs passed. Treat any recurrence on the final candidate as a release blocker and capture the failing operation before sign-off.
 
+The failure recurred on a later main CI run during a requested HTTP recovery
+check. Its sanitized diagnostic showed PostgreSQL `23505`: a requested check and
+scheduled work could allocate the same monitor-local sequence. Requested starts
+now take the scheduler's monitor row lock before reading that sequence. A
+concurrent-start integration test reproduced the unique-key failure before the
+fix and passed after it. The final candidate must still pass the full gate.
+
 This record establishes the matrix before release automation and final documentation land. Repeat the gate against the final candidate commit; a passing earlier revision does not sign off a later one.
