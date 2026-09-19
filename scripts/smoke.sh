@@ -281,6 +281,7 @@ UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
 
 # Restart while the next scheduled run is pending. PostgreSQL retains both its
 # due time and healthy state.
+smoke_phase='HTTP monitor planned restart'
 UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
   "$ua" monitor get system-project public-homepage --json \
   >"$system_dir/monitor-before-planning-restart.json"
@@ -549,6 +550,7 @@ node -e '
 # The generated CLI creates both push modes and explicitly issues their
 # monitor-scoped reporting credentials. These two files are secret handoff
 # artifacts and are deliberately excluded from the ordinary-output scan below.
+smoke_phase='push monitoring'
 echo "testing composed push monitoring"
 node -e '
   process.stdout.write(JSON.stringify({
@@ -1004,6 +1006,7 @@ echo "push credential rotation and revocation passed"
 
 # One push monitor exercises permanent relay refusal, a retry surviving restart,
 # and a queued alert made obsolete by a prompt recovery.
+smoke_phase='email retry and obsolete alert'
 echo '{"key":"mail-push","name":"Mail proof","mode":"job_completion","interval_seconds":3600,"tolerance_seconds":0,"instruction":"Inspect the fictional job","runbook_url":"https://docs.example.test/runbooks/mail-proof"}' >"$system_dir/mail-push-create-input.json"
 UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
   "$ua" push create system-project --file "$system_dir/mail-push-create-input.json" --json \
@@ -1119,6 +1122,7 @@ curl --fail --silent --show-error --request POST "$smtp_fixture/mode/accept" >"$
 # Project maintenance and direct monitor maintenance overlap. Reports and an
 # HTTP check continue during suppression; a closed episode stays silent while
 # a still-open episode becomes eligible once both scopes have ended.
+smoke_phase='timed maintenance'
 echo '{"key":"quiet-push","name":"Quiet maintenance","mode":"job_completion","interval_seconds":3600,"tolerance_seconds":0,"instruction":"Inspect the fictional job","runbook_url":"https://docs.example.test/runbooks/quiet-proof"}' >"$system_dir/quiet-push-create-input.json"
 UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
   "$ua" push create system-project --file "$system_dir/quiet-push-create-input.json" --json >"$system_dir/quiet-push-create.json"
