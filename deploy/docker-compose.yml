@@ -1,0 +1,57 @@
+name: upaffe
+
+services:
+  db:
+    image: ${UPAFFE_POSTGRES_IMAGE:-postgres:18}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: upaffe
+      POSTGRES_USER: upaffe
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    networks:
+      - database
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U upaffe -d upaffe"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+
+  app:
+    image: ${UPAFFE_IMAGE:?Set UPAFFE_IMAGE to a published revision tag or digest}
+    restart: unless-stopped
+    environment:
+      UPAFFE_POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    ports:
+      - "127.0.0.1:${UPAFFE_PORT:-8080}:8080"
+    networks:
+      - database
+      - edge
+    depends_on:
+      db:
+        condition: service_healthy
+        restart: true
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8080/api/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 60s
+
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password
+
+volumes:
+  postgres-data:
+
+networks:
+  database:
+    internal: true
+  edge:

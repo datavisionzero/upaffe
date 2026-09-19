@@ -16,6 +16,7 @@ deliberately departs from a product commitment or an adopted reference.
 - [0008 — One-call project report](./0008-one-call-project-report.md)
 - [0009 — Project and instance health overview](./0009-project-instance-health-overview.md)
 - [0010 — Read production secrets from mounted files](./0010-read-production-secrets-from-mounted-files.md)
+- [0011 — Keep production state in PostgreSQL behind a local application port](./0011-compose-state-and-network-boundaries.md)
 
 ## Decisions adopted from planaffe
 

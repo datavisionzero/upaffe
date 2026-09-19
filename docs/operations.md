@@ -4,7 +4,8 @@
 
 The production application image is published from validated `main` commits as
 `ghcr.io/datavisionzero/upaffe:sha-<full-commit-sha>`. Pin that full revision tag
-or its registry digest in a deployment. The image contains the compiled React
+or its registry digest in a deployment. The published image supports Linux
+amd64 and arm64 hosts. It contains the compiled React
 application, .NET API, and embedded forward migrations. It listens on port
 `8080` as a non-root user and reports `0.0.0-rev.<full-commit-sha>` in the
 `Upaffe-Version` response header. A local build uses `0.0.0-dev` unless an
@@ -12,8 +13,8 @@ application, .NET API, and embedded forward migrations. It listens on port
 the scoped GitHub Actions package token; deployment secrets are supplied at
 runtime and never enter the image build.
 
-The production Compose installation procedure is specified below after the
-remaining deployment components are available.
+The production Compose installation procedure is below. Pin a published image
+from the same source revision as the Compose files.
 
 ## Production secret inputs
 
@@ -43,10 +44,53 @@ available for local development. Each direct setting conflicts with its file
 form; startup reports setting names only. No database connection string or
 proof belongs in production Compose environment values.
 
-The production image and file-backed inputs above are available. A supported
-production Compose lifecycle, reverse-proxy configuration, upgrades, backup,
-restore, and failed-upgrade recovery are still in progress and are not implied
-by the development commands below.
+## Production Compose startup
+
+Copy `docker-compose.yml`, `docker-compose.bootstrap.yml`, and
+`production.env.example` from `deploy/` at the chosen source revision into one
+deployment directory. No source checkout or application runtime is needed on
+the host. Copy `production.env.example` to `.env` and replace
+`REPLACE_WITH_FULL_COMMIT_SHA` with the full commit used by the published GHCR
+image. Keep this directory and its `.env` for the lifetime of the installation.
+
+Create a `secrets` directory in the same directory as the Compose files with
+mode `0700`. Put a generated password in `secrets/postgres_password` and a
+separate generated proof in `secrets/bootstrap_proof`, each on one line. The
+file sources need mode `0644` inside this operator-only directory so the
+non-root application and PostgreSQL containers can read their mounts. The
+directory prevents other host users from traversing to them. Keep both files
+out of source control and backups that are not access controlled. For example,
+from the deployment directory:
+
+```sh
+mkdir -m 0700 secrets
+openssl rand -base64 48 > secrets/postgres_password
+openssl rand -base64 48 > secrets/bootstrap_proof
+chmod 0644 secrets/postgres_password secrets/bootstrap_proof
+docker compose -f docker-compose.yml -f docker-compose.bootstrap.yml up -d --wait
+```
+
+The first start waits for PostgreSQL and applies forward migrations. The app
+listens at `http://127.0.0.1:8080` unless `UPAFFE_PORT` changes the local host
+port. Use the browser bootstrap form over this loopback address or an SSH
+tunnel, then remove the one-time proof mount and source file:
+
+```sh
+docker compose -f docker-compose.yml up -d --wait
+rm secrets/bootstrap_proof
+```
+
+The first command recreates the application without the bootstrap overlay;
+the database volume remains. `docker compose ps` shows container health.
+`/api/health/live` proves that the process answers, and `/api/health/ready`
+proves PostgreSQL and schema readiness. These do not prove that monitoring
+workers are progressing. The database has no host port; the only host binding
+is the application's loopback HTTP port for a trusted reverse proxy.
+
+Routine updates, backup, restore, failed-upgrade recovery, and the HTTPS proxy
+configuration are documented in later sections as their contracts are
+implemented. See [ADR 0011](./adr/0011-compose-state-and-network-boundaries.md)
+for the state and network boundaries.
 
 ## Local Compose environment
 
