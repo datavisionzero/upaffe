@@ -6,10 +6,11 @@ public sealed record DatabaseSettings(string ConnectionString)
     public const string ConnectionStringName = "Postgres";
     public const string Variable = "ConnectionStrings__" + ConnectionStringName;
 
-    private static readonly string[] Secret =
-        ["password", "pwd", "sslpassword", "ssl password", "ssl key password"];
+    // A connection string can quote semicolons inside passwords. Do not attempt
+    // partial parsing when producing ordinary diagnostic text.
+    public string Redacted => "PostgreSQL connection configured;Password=***";
 
-    public string Redacted { get; } = Redact(ConnectionString);
+    public override string ToString() => Redacted;
 
     public static DatabaseSettings FromConnectionString(string? connectionString)
     {
@@ -31,22 +32,6 @@ public sealed record DatabaseSettings(string ConnectionString)
 
     private static bool IsHost(string keyword) =>
         keyword is "host" or "server" or "data source" or "datasource";
-
-    private static string Redact(string connectionString) =>
-        string.Join(
-            ';',
-            connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries).Select(part =>
-            {
-                var separator = part.IndexOf('=');
-                if (separator < 0)
-                {
-                    return part;
-                }
-
-                return Secret.Contains(Normalized(part[..separator]))
-                    ? $"{part[..separator].Trim()}=***"
-                    : part.Trim();
-            }));
 
     private static IEnumerable<(string Key, string Value)> Pairs(string connectionString) =>
         connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries).Select(part =>

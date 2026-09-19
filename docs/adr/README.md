@@ -14,6 +14,8 @@ deliberately departs from a product commitment or an adopted reference.
 - [0006 — Receive and order push reports](./0006-receive-and-order-push-reports.md)
 - [0007 — Deliver incident email around timed maintenance](./0007-deliver-incident-email-around-timed-maintenance.md)
 - [0008 — One-call project report](./0008-one-call-project-report.md)
+- [0009 — Project and instance health overview](./0009-project-instance-health-overview.md)
+- [0010 — Read production secrets from mounted files](./0010-read-production-secrets-from-mounted-files.md)
 
 ## Decisions adopted from planaffe
 

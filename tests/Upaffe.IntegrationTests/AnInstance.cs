@@ -16,7 +16,8 @@ internal sealed class AnInstance(
     IReadOnlyDictionary<string, string?>? settings = null,
     TimeProvider? clock = null,
     ILoggerProvider? logProvider = null,
-    IHttpCheckExecutor? checkExecutor = null) : WebApplicationFactory<Program>
+    IHttpCheckExecutor? checkExecutor = null,
+    bool fileBackedDatabase = false) : WebApplicationFactory<Program>
 {
     public static async Task<AnInstance> StartedAsync(
         PostgresFixture postgres,
@@ -34,7 +35,14 @@ internal sealed class AnInstance(
         IHttpCheckExecutor? checkExecutor = null) =>
         new(connectionString, settings, clock, logProvider, checkExecutor);
 
-    public AnInstance StartedAgain() => new(connectionString, settings, clock, logProvider, checkExecutor);
+    public static AnInstance AgainstFileBackedDatabase(
+        string connectionString,
+        IReadOnlyDictionary<string, string?> settings,
+        ILoggerProvider? logProvider = null) =>
+        new(connectionString, settings, logProvider: logProvider, fileBackedDatabase: true);
+
+    public AnInstance StartedAgain() =>
+        new(connectionString, settings, clock, logProvider, checkExecutor, fileBackedDatabase);
 
     public static UpaffeDbContext ContextFor(string connectionString) =>
         new(new DbContextOptionsBuilder<UpaffeDbContext>().UseNpgsql(connectionString).Options);
@@ -48,11 +56,14 @@ internal sealed class AnInstance(
         {
             var values = new Dictionary<string, string?>
             {
-                ["ConnectionStrings:Postgres"] = connectionString,
                 ["Monitoring:Enabled"] = "false",
                 ["HistoryRetention:Enabled"] = "false",
                 ["EmailDelivery:Enabled"] = "false",
             };
+            if (!fileBackedDatabase)
+            {
+                values["ConnectionStrings:Postgres"] = connectionString;
+            }
             if (settings is not null)
             {
                 foreach (var (key, value) in settings)

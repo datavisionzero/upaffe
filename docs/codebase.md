@@ -20,8 +20,10 @@ checks, and incident lifecycles. A shared bounded executor performs one
 public-internet observation. Authenticated operations manage and immediately
 test HTTP monitors; recurring scheduling, threshold evaluation, incident
 lifecycle, and retained history complete the first monitoring path. Local
-Compose builds and runs the delivered slices; production delivery remains
-planned.
+Compose builds and runs the delivered slices. A revision-tagged production
+image is published from `main`; the API can read deployment secrets from
+mounted files. The supported production Compose stack and runbooks are still
+being implemented.
 
 ## Provenance and maintenance boundary
 
@@ -40,7 +42,7 @@ they demonstrate a general mechanism.
 ```text
 upaffe/
 ├─ .github/workflows/        build, test, contract, and Compose validation
-├─ deploy/                   local Compose and development image
+├─ deploy/                   development Compose and production image build
 ├─ docs/
 │  ├─ adr/                   local and adopted architecture decisions
 │  ├─ api/openapi.json       checked-in HTTP contract
