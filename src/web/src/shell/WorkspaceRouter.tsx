@@ -6,6 +6,7 @@ import { problemMessage } from "@/api/problems";
 import { DashboardView } from "@/shell/DashboardView";
 import { InstanceEmailView, ProjectEmailView } from "@/shell/EmailSettingsView";
 import { MonitorsView } from "@/shell/MonitorsView";
+import { ProjectOverviewView } from "@/shell/ProjectOverviewView";
 import { ProjectsView } from "@/shell/ProjectsView";
 import { PushMonitorsView } from "@/shell/PushMonitorsView";
 import { monitorPath, projectPath, useAppRoute } from "@/shell/routes";
@@ -103,12 +104,15 @@ export function WorkspaceRouter({ session, onSignedOut }: {
     } else if (route.section === "email") {
       content = <ProjectEmailView project={project} onBack={() => navigate(projectPath(project.key))}
         onSignedOut={onSignedOut} />;
+    } else if (route.section === "overview") {
+      content = <ProjectOverviewView key={project.key} project={project} onNavigate={navigate}
+        onSignedOut={onSignedOut} />;
     } else if (route.section === "push") {
       content = <PushMonitorsView key={`${project.key}:push:${route.monitorKey ? path : ""}`} project={project}
         routeMonitorKey={route.monitorKey}
         onBack={() => navigate("/projects")}
         onBackToList={() => navigate(`${projectPath(project.key)}/push-monitors`)}
-        onOpenHttp={() => navigate(projectPath(project.key))}
+        onOpenHttp={() => navigate(`${projectPath(project.key)}/http-monitors`)}
         onOpenMonitor={(key) => navigate(monitorPath(project.key, "push", key))}
         onSignedOut={onSignedOut} />;
     } else {
@@ -132,7 +136,9 @@ export function WorkspaceRouter({ session, onSignedOut }: {
     {route.kind === "project" && <nav aria-label="Breadcrumb" className="breadcrumbs">
       {link("/projects", "Projects", false)}<span aria-hidden="true">/</span>
       {link(projectPath(route.projectKey), projectLoad?.project?.name ?? route.projectKey,
-        route.section === "http" && !route.monitorKey)}
+        route.section === "overview")}
+      {route.section === "http" && <><span aria-hidden="true">/</span>
+        {link(`${projectPath(route.projectKey)}/http-monitors`, "HTTP monitors", !route.monitorKey)}</>}
       {route.section === "email" && <><span aria-hidden="true">/</span><span aria-current="page">Settings</span></>}
       {route.section === "push" && <><span aria-hidden="true">/</span>
         {link(`${projectPath(route.projectKey)}/push-monitors`, "Push monitors", !route.monitorKey)}</>}

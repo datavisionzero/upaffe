@@ -4,7 +4,7 @@ export type AppRoute =
   | { kind: "projects" }
   | { kind: "dashboard" }
   | { kind: "settings" }
-  | { kind: "project"; projectKey: string; section: "http" | "push" | "email"; monitorKey?: string }
+  | { kind: "project"; projectKey: string; section: "overview" | "http" | "push" | "email"; monitorKey?: string }
   | { kind: "missing" };
 
 const validKey = /^[a-z][a-z0-9-]{1,39}$/;
@@ -24,7 +24,7 @@ export function parseRoute(pathname: string): AppRoute {
   if (parts[1] !== "projects" || !parts[2]) return { kind: "missing" };
   const projectKey = key(parts[2]);
   if (!projectKey) return { kind: "missing" };
-  if (parts.length === 3) return { kind: "project", projectKey, section: "http" };
+  if (parts.length === 3) return { kind: "project", projectKey, section: "overview" };
   if (parts.length === 4 && parts[3] === "http-monitors")
     return { kind: "project", projectKey, section: "http" };
   if (parts.length === 4 && parts[3] === "push-monitors")
