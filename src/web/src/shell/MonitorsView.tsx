@@ -4,6 +4,7 @@ import type { components } from "@/api/schema";
 import { api } from "@/api/client";
 import { csrfHeaders, problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
+import { DeliveryHistoryPanel, IncidentEmailPanel, MaintenancePanel } from "@/shell/EmailPanels";
 
 type Project = components["schemas"]["ProjectResponse"];
 type Monitor = components["schemas"]["HttpMonitorResponse"];
@@ -299,6 +300,7 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
   const [notice, setNotice] = useState<string>();
   const [testResult, setTestResult] = useState<TestResult>();
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [emailIncidentId, setEmailIncidentId] = useState<string>();
 
   const paths = useMemo(() => ({ projectKey: project.key, monitorKey }), [monitorKey, project.key]);
 
@@ -518,6 +520,7 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
 
       {error && <div className="error" role="alert">{error}</div>}
       {notice && <div className="notice" role="status">{notice}</div>}
+      <MaintenancePanel projectKey={project.key} monitorType="http" monitorKey={monitorKey} onSignedOut={onSignedOut} />
       {testResult && (
         <div className="notice test-result" role="status">
           Immediate check: {testResult.succeeded ? "success" : "failure"}; status {testResult.status_code ?? "none"}; {testResult.response_time_milliseconds} ms; reason {testResult.reason_code ?? "none"}; {testResult.applied_to_current_state ? "applied" : "history only"}.
@@ -589,12 +592,16 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
               <li key={incident.id}>
                 <strong>{incident.resolved_at ? "Resolved incident" : "Open incident"}</strong> · opened {formatDate(incident.opened_at)}
                 <span>Original reason {incident.original_reason}; latest reason {incident.latest_reason}{incident.resolved_at ? `; resolved ${formatDate(incident.resolved_at)}` : ""}</span>
+                <Button onClick={() => setEmailIncidentId(incident.id)} type="button">Email status for incident</Button>
               </li>
             ))}
           </ol>
         )}
         {nextIncidentCursor !== null && <Button disabled={busy !== undefined} onClick={() => void moreIncidents()} type="button">Load older incidents</Button>}
       </section>
+
+      {emailIncidentId && <IncidentEmailPanel key={emailIncidentId} incidentId={emailIncidentId} monitorType="http" onSignedOut={onSignedOut} />}
+      <DeliveryHistoryPanel projectKey={project.key} monitorType="http" monitorKey={monitorKey} onSignedOut={onSignedOut} />
 
       <section aria-labelledby="remove-title" className="panel danger-zone">
         <h2 id="remove-title">Remove monitor</h2>

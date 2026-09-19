@@ -243,6 +243,16 @@ controls keep the slice keyboard accessible. The production build lands in
 `src/Upaffe.Api/wwwroot`, which the API process serves, so no second application
 server is required in an installation.
 
+The instance email screen reads safe SMTP settings and default recipients,
+updates them at the read version, replaces or clears the password explicitly,
+and sends a single test email with relay-acceptance feedback. Project email
+administration edits live recipients and shows timed project maintenance and
+delivery counts/history. HTTP and push detail screens reuse the maintenance
+and delivery panels for their own scope and offer per-incident announcement
+status. Effective maintenance and its expiry are shown apart from monitor
+health and pause. The browser reads only the generated safe status responses;
+it never renders SMTP diagnostics or a saved password.
+
 The CLI is an independent Go module whose executable is `ua`. It is designed for
 unattended use: machine-readable output, data on stdout, diagnostics on stderr,
 stable exit categories, and no implicit prompt, editor, or pager. `ua version`
@@ -310,6 +320,11 @@ history. Structured monitor definitions come only from the shared bounded
 file/stdin reader. Ordinary output is built from secret-free monitor, history,
 and credential-metadata responses; only explicit credential issue and rotate
 commands render the one-time token and secret reporting URL.
+
+`ua email` and `ua maintenance` use the same generated client for all email
+settings, recipients, explicit test submission, delivery states, and timed
+project/HTTP/push maintenance. SMTP password input comes only from bounded
+JSON file/stdin input; ordinary output shows presence without the value.
 
 HTTP monitor entities validate the durable limits from ADR 0004 and retain the
 state and observation ordering from ADR 0003 without taking a dependency on EF

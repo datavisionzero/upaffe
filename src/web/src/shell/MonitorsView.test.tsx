@@ -76,7 +76,14 @@ function json(body: unknown, status = 200) {
 }
 
 function answering(answer: (request: Request) => Promise<Response> | Response) {
-  const fetch = vi.fn<typeof globalThis.fetch>(async (input) => answer(input as Request));
+  const fetch = vi.fn<typeof globalThis.fetch>(async (input) => {
+    const request = input as Request;
+    const path = new URL(request.url).pathname;
+    if (request.method === "GET" && path.endsWith("/maintenance")) return json({ project_key: project.key, scope_type: "http", version: 0, direct_active: false, effective_active: false, active_scopes: [] });
+    if (request.method === "GET" && path === "/api/email/deliveries") return json({ items: [], total: 0, limit: 20, offset: 0, has_more: false });
+    if (request.method === "GET" && path.endsWith("/email-summary")) return json({ project_key: project.key, pending_count: 0, retrying_count: 0, terminal_failure_count: 0, smtp_accepted_count: 0 });
+    return answer(request);
+  });
   vi.stubGlobal("fetch", fetch);
   return fetch;
 }
