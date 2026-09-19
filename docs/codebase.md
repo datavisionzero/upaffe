@@ -222,10 +222,11 @@ failure therefore fails the build rather than leaving a stale checked-in copy.
 both generation paths.
 
 Every API endpoint lives below `/api`; every other route is available to the
-SPA. `GET /api/health/live` is the technical health path established by the
-foundation. It says only that the process can answer and is not a promise of
-functioning monitoring. The operational health contract required by the MVP
-arrives with the monitoring loop.
+SPA. `GET /api/health/live` proves only that the process can answer;
+`GET /api/health/ready` checks PostgreSQL and schema readiness. The separate
+`GET /api/health/progress` endpoint requires recent successful iterations of
+both scheduled HTTP and push deadline workers, including idle database polls.
+It carries no project data. See [ADR 0013](adr/0013-report-worker-progress-separately-from-readiness.md).
 
 ## Web and CLI
 

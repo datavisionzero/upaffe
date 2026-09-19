@@ -1,8 +1,9 @@
+using Upaffe.Api.Hosting;
 using Upaffe.Infrastructure.Persistence;
 
 namespace Upaffe.Api.Http;
 
-/// <summary>The foundation's process-only liveness endpoint.</summary>
+/// <summary>Separate process, database, and monitoring progress signals.</summary>
 public static class HealthEndpoints
 {
     public static IEndpointRouteBuilder MapHealth(this IEndpointRouteBuilder endpoints)
@@ -38,6 +39,21 @@ public static class HealthEndpoints
             .PublicAccess()
             .WithName("ReadReadiness")
             .WithSummary("Whether PostgreSQL answers with the expected schema.")
+            .Produces<LivenessResponse>()
+            .Produces<LivenessResponse>(StatusCodes.Status503ServiceUnavailable);
+
+        endpoints.MapGet("/health/progress", (HttpContext context, MonitoringProgress progress) =>
+            {
+                context.Response.Headers.CacheControl = "no-store";
+                return progress.BothFresh()
+                    ? Results.Ok(new LivenessResponse("progressing"))
+                    : Results.Json(
+                        new LivenessResponse("stalled"),
+                        statusCode: StatusCodes.Status503ServiceUnavailable);
+            })
+            .PublicAccess()
+            .WithName("ReadMonitoringProgress")
+            .WithSummary("Whether both monitoring workers recently completed database-backed work or an idle poll.")
             .Produces<LivenessResponse>()
             .Produces<LivenessResponse>(StatusCodes.Status503ServiceUnavailable);
 

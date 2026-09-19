@@ -87,6 +87,18 @@ proves PostgreSQL and schema readiness. These do not prove that monitoring
 workers are progressing. The database has no host port; the only host binding
 is the application's loopback HTTP port for a trusted reverse proxy.
 
+`/api/health/progress` is the separate public signal for independent checking.
+It returns `200 {"status":"progressing"}` only after both the scheduled HTTP
+and push-deadline workers have completed a successful database claim or
+completion within two minutes. An idle poll counts, so an installation with no
+due work can be healthy. Startup, disabled monitoring, a stalled worker, or a
+sustained database failure return `503 {"status":"stalled"}` no later than two
+minutes after the last successful iteration. A fresh successful iteration is
+required for recovery. Point an external checker at the HTTPS proxy URL and
+poll at least once per minute from outside this host's failure domain; a
+missing HTTP response is also a failure. The response contains no monitor or
+project data. See [ADR 0013](./adr/0013-report-worker-progress-separately-from-readiness.md).
+
 See [ADR 0011](./adr/0011-compose-state-and-network-boundaries.md) for the
 state and network boundaries. Routine updates, backup, restore, and
 failed-upgrade recovery are documented in later sections as their contracts

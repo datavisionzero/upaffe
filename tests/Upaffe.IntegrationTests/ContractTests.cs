@@ -35,6 +35,7 @@ public sealed class ContractTests(PostgresFixture postgres)
                 "/api/email/settings",
                 "/api/email/test",
                 "/api/health/live",
+                "/api/health/progress",
                 "/api/health/ready",
                 "/api/management-credentials",
                 "/api/management-credentials/{id}",

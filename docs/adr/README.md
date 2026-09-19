@@ -18,6 +18,7 @@ deliberately departs from a product commitment or an adopted reference.
 - [0010 — Read production secrets from mounted files](./0010-read-production-secrets-from-mounted-files.md)
 - [0011 — Keep production state in PostgreSQL behind a local application port](./0011-compose-state-and-network-boundaries.md)
 - [0012 — Trust forwarded identity only from named HTTPS proxies](./0012-trust-only-named-https-proxies.md)
+- [0013 — Report monitoring progress separately from process readiness](./0013-report-worker-progress-separately-from-readiness.md)
 
 ## Decisions adopted from planaffe
 
