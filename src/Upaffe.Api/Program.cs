@@ -37,6 +37,8 @@ builder.Services.AddScoped<EmailConfigurationActs>();
 builder.Services.AddScoped<TestEmail>();
 builder.Services.AddScoped<RunEmailDelivery>();
 builder.Services.AddScoped<MaintenanceActs>();
+builder.Services.AddScoped<EmailStatusActs>();
+builder.Services.AddScoped<PruneEmailHistory>();
 builder.Services.AddScoped<CreateHttpMonitor>();
 builder.Services.AddScoped<ReadHttpMonitor>();
 builder.Services.AddScoped<ListHttpMonitors>();
@@ -75,6 +77,7 @@ builder.Services.AddHostedService<PushMonitoringService>();
 builder.Services.AddHostedService<EmailDeliveryService>();
 builder.Services.AddHostedService<HttpHistoryRetentionService>();
 builder.Services.AddHostedService<PushHistoryRetentionService>();
+builder.Services.AddHostedService<EmailHistoryRetentionService>();
 builder.Services.AddUpaffeOpenApi();
 builder.Services.AddBrowserAuthentication();
 

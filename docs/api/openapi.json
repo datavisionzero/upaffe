@@ -253,6 +253,37 @@
         }
       }
     },
+    "/api/projects/{key}/email-summary": {
+      "get": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Read one project's pending and failed email counts.",
+        "operationId": "ReadProjectEmailSummary",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailDeliverySummary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/report/{secret}": {
       "get": {
         "tags": [
@@ -1316,6 +1347,143 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/email/deliveries": {
+      "get": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Page safe notification delivery states; accepted means accepted by SMTP.",
+        "operationId": "ListEmailDeliveries",
+        "parameters": [
+          {
+            "name": "project_key",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "monitor_type",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "monitor_key",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "incident_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailDeliveryPage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/email/deliveries/summary": {
+      "get": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Read instance pending and failed email counts.",
+        "operationId": "ReadEmailDeliverySummary",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailDeliverySummary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/email/incidents/{incidentId}": {
+      "get": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Read an HTTP or push incident's announcement and delivery status.",
+        "operationId": "ReadIncidentEmailStatus",
+        "parameters": [
+          {
+            "name": "incidentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "monitor_type",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentEmailStatus"
                 }
               }
             }
@@ -4140,6 +4308,178 @@
           }
         }
       },
+      "EmailDeliveryPage": {
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset",
+          "has_more"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EmailDeliveryStatus"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "limit": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "offset": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        }
+      },
+      "EmailDeliveryStatus": {
+        "required": [
+          "id",
+          "incident_id",
+          "kind",
+          "recipient",
+          "project_key",
+          "monitor_type",
+          "monitor_key",
+          "state",
+          "suppression_reason",
+          "attempt_count",
+          "last_attempt_at",
+          "next_attempt_at",
+          "accepted_at",
+          "terminal_at",
+          "last_error_code",
+          "created_at"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "incident_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "recipient": {
+            "type": "string"
+          },
+          "project_key": {
+            "type": "string"
+          },
+          "monitor_type": {
+            "type": "string"
+          },
+          "monitor_key": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "suppression_reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "attempt_count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "last_attempt_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "next_attempt_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "accepted_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "terminal_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "last_error_code": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EmailDeliverySummary": {
+        "required": [
+          "project_key",
+          "pending_count",
+          "retrying_count",
+          "terminal_failure_count",
+          "smtp_accepted_count",
+          "oldest_pending_at"
+        ],
+        "type": "object",
+        "properties": {
+          "project_key": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "pending_count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "retrying_count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "terminal_failure_count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "smtp_accepted_count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "oldest_pending_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
       "HttpCheckHistoryPageResponse": {
         "required": [
           "items",
@@ -4499,6 +4839,52 @@
           "version": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "IncidentEmailStatus": {
+        "required": [
+          "incident_id",
+          "project_key",
+          "monitor_type",
+          "monitor_key",
+          "open",
+          "announcement_state",
+          "suppression_reason",
+          "deliveries"
+        ],
+        "type": "object",
+        "properties": {
+          "incident_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "project_key": {
+            "type": "string"
+          },
+          "monitor_type": {
+            "type": "string"
+          },
+          "monitor_key": {
+            "type": "string"
+          },
+          "open": {
+            "type": "boolean"
+          },
+          "announcement_state": {
+            "type": "string"
+          },
+          "suppression_reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "deliveries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EmailDeliveryStatus"
+            }
           }
         }
       },

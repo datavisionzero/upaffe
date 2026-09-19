@@ -73,6 +73,28 @@ public static class EmailConfigurationEndpoints
             .Produces<ProblemResponse>(409, "application/problem+json")
             .Produces<ProblemResponse>(502, "application/problem+json");
 
+        email.MapGet("/deliveries", async (HttpContext http, EmailStatusActs acts,
+                CancellationToken ct, string? project_key = null,
+                string? monitor_type = null, string? monitor_key = null,
+                Guid? incident_id = null, string? state = null,
+                int limit = 20, int offset = 0) =>
+            await acts.ListAsync(http.ActingIdentity(), project_key, monitor_type,
+                monitor_key, incident_id, state, limit, offset, ct))
+            .WithName("ListEmailDeliveries").WithSummary("Page safe notification delivery states; accepted means accepted by SMTP.")
+            .Produces<EmailDeliveryPage>();
+        email.MapGet("/deliveries/summary", async (HttpContext http,
+                EmailStatusActs acts, CancellationToken ct) =>
+            await acts.SummaryAsync(http.ActingIdentity(), null, ct))
+            .WithName("ReadEmailDeliverySummary").WithSummary("Read instance pending and failed email counts.")
+            .Produces<EmailDeliverySummary>();
+        email.MapGet("/incidents/{incidentId:guid}", async (Guid incidentId,
+                HttpContext http, EmailStatusActs acts, CancellationToken ct,
+                string? monitor_type = null) =>
+            await acts.ReadIncidentAsync(http.ActingIdentity(), incidentId,
+                monitor_type, ct))
+            .WithName("ReadIncidentEmailStatus").WithSummary("Read an HTTP or push incident's announcement and delivery status.")
+            .Produces<IncidentEmailStatus>();
+
         var projects = endpoints.MapGroup("/projects/{key}/recipients").ManagementAccess();
         projects.MapGet(string.Empty, async (string key, HttpContext http,
                 EmailConfigurationActs acts, CancellationToken cancellationToken) =>
@@ -89,6 +111,13 @@ public static class EmailConfigurationEndpoints
             .Produces<ProjectRecipientsResponse>().Produces<ProblemResponse>(400, "application/problem+json")
             .Produces<ProblemResponse>(404, "application/problem+json")
             .Produces<ProblemResponse>(409, "application/problem+json");
+
+        endpoints.MapGet("/projects/{key}/email-summary", async (string key,
+                HttpContext http, EmailStatusActs acts, CancellationToken ct) =>
+            await acts.SummaryAsync(http.ActingIdentity(), key, ct))
+            .ManagementAccess()
+            .WithName("ReadProjectEmailSummary").WithSummary("Read one project's pending and failed email counts.")
+            .Produces<EmailDeliverySummary>();
         return endpoints;
     }
 

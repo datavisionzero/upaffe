@@ -28,6 +28,9 @@ public sealed class ContractTests(PostgresFixture postgres)
             [
                 "/api/bootstrap",
                 "/api/email/default-recipients",
+                "/api/email/deliveries",
+                "/api/email/deliveries/summary",
+                "/api/email/incidents/{incidentId}",
                 "/api/email/password",
                 "/api/email/settings",
                 "/api/email/test",
@@ -38,6 +41,7 @@ public sealed class ContractTests(PostgresFixture postgres)
                 "/api/management-credentials/{id}/rotate",
                 "/api/projects",
                 "/api/projects/{key}",
+                "/api/projects/{key}/email-summary",
                 "/api/projects/{key}/recipients",
                 "/api/projects/{key}/restore",
                 "/api/projects/{projectKey}/http-monitors",

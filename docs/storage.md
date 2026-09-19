@@ -111,9 +111,9 @@ acceptance can cause a second SMTP submission; the row cannot prove inbox
 delivery or guarantee exactly-once email.
 
 The worker logs a fixed failure message without SMTP exception text. Status
-surfaces only a short failure code. Delivery records for open incidents remain
-authoritative for future recovery eligibility; later retention must preserve
-them until the incident resolves.
+surfaces only a short failure code. Daily retention removes final deliveries
+older than 90 days, except records tied to open incidents and accepted alerts
+still awaiting a recovery decision. Pending work has no retention cutoff.
 
 HTTP threshold openings and push explicit or missing-report openings add alert
 intents in the incident transaction. Later failures and late observations do
@@ -136,6 +136,9 @@ or early end appends another row and preserves history. Expiry is derived from
 window active forever. Project and monitor windows compose by union, with the
 later active end as the effective expiry. Neither monitoring observations nor
 incident lifecycle rows are changed by maintenance mutations.
+Daily retention removes windows whose effective end is older than 90 days only
+when a newer window exists for the scope; the latest version remains for
+optimistic concurrency.
 
 HTTP and push incidents each persist `notification_decision_at`. An opening
 outside maintenance records that decision even when the project has no

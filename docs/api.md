@@ -36,6 +36,10 @@ secret supplied in the request body.
 | `DELETE /api/email/password?version={version}` | Clear the SMTP password explicitly. |
 | `PUT /api/email/default-recipients` | Replace recipients copied to new projects. |
 | `POST /api/email/test` | Submit one explicit test message to SMTP without creating an incident. |
+| `GET /api/email/deliveries` | Page safe per-recipient alert and recovery delivery states. |
+| `GET /api/email/deliveries/summary` | Read instance pending, retrying, failed, and SMTP-accepted counts. |
+| `GET /api/email/incidents/{incidentId}?monitor_type=http\|push` | Read an incident's announcement state and per-recipient deliveries. |
+| `GET /api/projects/{key}/email-summary` | Read one project's delivery counts. |
 | `GET`, `POST`, `DELETE /api/projects/{projectKey}/maintenance` | Inspect, start or extend, and end a project maintenance window. |
 | `GET`, `POST`, `DELETE /api/projects/{projectKey}/http-monitors/{monitorKey}/maintenance` | Manage direct HTTP monitor maintenance and inspect inherited project maintenance. |
 | `GET`, `POST`, `DELETE /api/projects/{projectKey}/push-monitors/{monitorKey}/maintenance` | Manage direct push monitor maintenance and inspect inherited project maintenance. |
@@ -189,6 +193,35 @@ acceptance, not inbox arrival. It creates no incident or retry intent. Missing
 sender settings return `409 email_not_configured`; a relay failure returns
 `502 smtp_rejected` with a short failure code. Raw SMTP diagnostics and
 credential values are not returned.
+
+## Email delivery status
+
+The four status operations require management authentication. The delivery
+list accepts `project_key`, `monitor_type` (`http` or `push`), `monitor_key`,
+`incident_id`, and a stored `state` (`queued`, `claimed`, `retrying`, `accepted`,
+`terminal_failure`, or `obsolete`). `monitor_key` requires the project and
+monitor type. Results are newest first, with `limit` 1–100 (default 20),
+`offset` 0–10,000, `total`, and `has_more`. Filtering by state uses the stored
+state; a pending row may instead display derived `suppressed` while maintenance
+or pause is active or its scope is removed.
+
+Each delivery contains the recipient, incident and scope identifiers, kind,
+state, attempt count, last and next attempt times, SMTP acceptance or terminal
+time, and a short sanitized failure code. It contains no SMTP response text,
+message body, password, or monitor secret. `accepted` means the relay accepted
+submission, not that an inbox received the message. The incident view
+distinguishes `pending`, `suppressed`, `announced`, `failed`,
+`awaiting_reconciliation`, `no_recipients`, and `silent`. Its suppression reason
+is separate from a monitor's health state. Summaries expose pending, retrying,
+terminal-failure, and SMTP-accepted counts with the oldest pending time.
+Unknown incidents or projects return `404`; invalid filters or pagination
+return `400`.
+
+Final delivery rows older than 90 days and superseded maintenance windows older
+than 90 days are removed daily. Open incidents and accepted alerts awaiting a
+recovery decision retain their delivery rows. The latest maintenance version
+for each scope remains available for optimistic writes. Older absence is not
+evidence that no mail was attempted.
 
 ## Timed maintenance
 

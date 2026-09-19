@@ -25,9 +25,10 @@ recovery, so a normal application restart does not require a separate queue.
 test hosts; leaving it disabled stops new checks and missing-report detection
 and must not be treated as a healthy monitoring deployment.
 
-HTTP check/incident detail and push report/incident detail are pruned at startup
+HTTP check/incident detail, push report/incident detail, final email deliveries,
+and superseded maintenance windows are pruned at startup
 and every 24 hours under the 90-day product limit.
-`HistoryRetention__Enabled=false` disables both workers for controlled
+`HistoryRetention__Enabled=false` disables the retention workers for controlled
 maintenance or tests. Leaving it disabled allows unbounded database growth and
 is not a supported steady-state configuration. Cleanup reports only deleted
 row counts and never logs retained result data or secrets.
@@ -138,6 +139,17 @@ current-recipient alert, while an incident that opened and resolved entirely
 inside maintenance remains in history without delayed mail. A recovery for an
 alert accepted before maintenance waits until the window ends. Pause remains a
 separate control that suspends monitoring rather than just email.
+
+Use `GET /api/email/deliveries/summary` for instance counts,
+`GET /api/projects/{key}/email-summary` for project counts, and
+`GET /api/email/deliveries` to inspect bounded per-recipient history. Filter by
+project, monitor, incident, or stored delivery state. The incident status
+operation adds the announcement decision and any active suppression reason.
+`accepted` is relay acceptance, while `terminal_failure` needs operator review
+of SMTP settings and a new test send. Raw relay diagnostics are deliberately
+absent; only stable failure codes appear. History older than 90 days may have
+been pruned, but delivery records for open incidents remain available for a
+future recovery decision.
 
 ## Simple push reporting
 
