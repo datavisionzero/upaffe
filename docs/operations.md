@@ -15,10 +15,38 @@ runtime and never enter the image build.
 The production Compose installation procedure is specified below after the
 remaining deployment components are available.
 
-Only the local development lifecycle is supported by the current foundation.
-Production images, reverse-proxy configuration, upgrades, backup, restore, and
-failed-upgrade recovery arrive in the operations epic and are not implied by
-the commands below.
+## Production secret inputs
+
+The application accepts these mounted secret files at startup. Paths are
+passed as environment values; secret contents are not. See
+[ADR 0010](./adr/0010-read-production-secrets-from-mounted-files.md) for the
+conflict and validation rules.
+
+| Application setting | File contents | When needed |
+| --- | --- | --- |
+| `UPAFFE_POSTGRES_PASSWORD_FILE` | PostgreSQL password shared with `POSTGRES_PASSWORD_FILE` in the database container | Every start |
+| `UPAFFE_BOOTSTRAP_SECRET_FILE` | One-time random proof, 32–1024 characters | Only until the operator is established |
+| `UPAFFE_HEARTBEAT_URL_FILE` | Optional HTTPS URL for an independent receiver | When the outbound sender is enabled in a later deployment step |
+
+Files contain one UTF-8 line with an optional trailing newline. Keep their
+source files outside the public checkout and readable only by the operator and
+the containers that need them. An unset bootstrap proof leaves a fresh instance
+unavailable for establishment. Once the operator exists, remove the bootstrap
+mount and setting from Compose before deleting its source file; the application
+will then start without it. The database password file remains required.
+
+The file-backed database configuration defaults to host `db`, port `5432`,
+database `upaffe`, and user `upaffe`. Override these nonsecret fields with
+`UPAFFE_DB_HOST`, `UPAFFE_DB_PORT`, `UPAFFE_DB_NAME`, and `UPAFFE_DB_USER` when
+needed. `ConnectionStrings__Postgres` and `UPAFFE_BOOTSTRAP_SECRET` remain
+available for local development. Each direct setting conflicts with its file
+form; startup reports setting names only. No database connection string or
+proof belongs in production Compose environment values.
+
+The production image and file-backed inputs above are available. A supported
+production Compose lifecycle, reverse-proxy configuration, upgrades, backup,
+restore, and failed-upgrade recovery are still in progress and are not implied
+by the development commands below.
 
 ## Local Compose environment
 

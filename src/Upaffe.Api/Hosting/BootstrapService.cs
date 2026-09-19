@@ -10,27 +10,30 @@ public sealed class BootstrapService(
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        DeploymentSecrets.ValidateBootstrapSource(configuration);
         await using var scope = scopeFactory.CreateAsyncScope();
         var arm = scope.ServiceProvider.GetRequiredService<ArmBootstrap>();
         var read = scope.ServiceProvider.GetRequiredService<ReadBootstrapState>();
-        await arm.ExecuteAsync(
-            new BootstrapSettings(configuration[BootstrapSettings.Variable]),
-            cancellationToken);
         var state = await read.ExecuteAsync(cancellationToken);
 
         if (!state.Required)
         {
             logger.LogInformation("Bootstrap is closed; the instance already has its operator.");
+            return;
         }
-        else if (state.Available)
+
+        await arm.ExecuteAsync(
+            new BootstrapSettings(DeploymentSecrets.BootstrapProof(configuration)),
+            cancellationToken);
+        state = await read.ExecuteAsync(cancellationToken);
+        if (state.Available)
         {
             logger.LogInformation("Bootstrap is armed for a bounded one-time exchange.");
         }
         else
         {
             logger.LogWarning(
-                "The instance needs bootstrap, but {Variable} is not configured.",
-                BootstrapSettings.Variable);
+                "The instance needs bootstrap, but no bootstrap proof is configured.");
         }
     }
 

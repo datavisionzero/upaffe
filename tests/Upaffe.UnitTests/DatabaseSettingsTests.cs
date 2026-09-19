@@ -24,5 +24,6 @@ public sealed class DatabaseSettingsTests
             "Host=db;Database=upaffe;Username=upaffe;Password=not-for-output");
         Assert.DoesNotContain("not-for-output", settings.Redacted, StringComparison.Ordinal);
         Assert.Contains("Password=***", settings.Redacted, StringComparison.Ordinal);
+        Assert.DoesNotContain("not-for-output", settings.ToString(), StringComparison.Ordinal);
     }
 }

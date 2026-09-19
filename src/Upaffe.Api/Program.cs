@@ -14,8 +14,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Secret reporting URLs must not be emitted by the framework's request-start log.
 builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
 
-var database = DatabaseSettings.FromConnectionString(
-    builder.Configuration.GetConnectionString(DatabaseSettings.ConnectionStringName));
+var database = DeploymentSecrets.Database(builder.Configuration);
 builder.Services.AddUpaffeInfrastructure(database);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<ArmBootstrap>();
