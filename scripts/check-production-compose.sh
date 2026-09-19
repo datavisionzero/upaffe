@@ -1,19 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+sh -n deploy/backup-production.sh deploy/restore-production.sh
+
 export UPAFFE_IMAGE="${UPAFFE_IMAGE:-ghcr.io/datavisionzero/upaffe:sha-validation-only}"
 base_config=$(mktemp)
 bootstrap_config=$(mktemp)
 heartbeat_config=$(mktemp)
-trap 'rm -f "$base_config" "$bootstrap_config" "$heartbeat_config"' EXIT
+restore_config=$(mktemp)
+trap 'rm -f "$base_config" "$bootstrap_config" "$heartbeat_config" "$restore_config"' EXIT
 
 docker compose -f deploy/docker-compose.yml config --format json > "$base_config"
 docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.bootstrap.yml \
   config --format json > "$bootstrap_config"
 docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.heartbeat.yml \
   config --format json > "$heartbeat_config"
+docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.verify-restore.yml \
+  config --format json > "$restore_config"
 
-python3 - "$base_config" "$bootstrap_config" "$heartbeat_config" <<'PY'
+python3 - "$base_config" "$bootstrap_config" "$heartbeat_config" "$restore_config" <<'PY'
 import json
 import os
 import sys
@@ -24,6 +29,8 @@ with open(sys.argv[2], encoding="utf-8") as source:
     bootstrap = json.load(source)
 with open(sys.argv[3], encoding="utf-8") as source:
     heartbeat = json.load(source)
+with open(sys.argv[4], encoding="utf-8") as source:
+    restore = json.load(source)
 
 app = base["services"]["app"]
 database = base["services"]["db"]
@@ -61,4 +68,9 @@ assert {secret["source"] for secret in heartbeat_app["secrets"]} == {
     "postgres_password", "heartbeat_url"
 }
 assert "heartbeat_url" not in base["secrets"]
+
+verify_environment = restore["services"]["app"]["environment"]
+assert verify_environment["Monitoring__Enabled"] == "false"
+assert verify_environment["EmailDelivery__Enabled"] == "false"
+assert verify_environment["HistoryRetention__Enabled"] == "false"
 PY

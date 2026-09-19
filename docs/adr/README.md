@@ -20,6 +20,7 @@ deliberately departs from a product commitment or an adopted reference.
 - [0012 — Trust forwarded identity only from named HTTPS proxies](./0012-trust-only-named-https-proxies.md)
 - [0013 — Report monitoring progress separately from process readiness](./0013-report-worker-progress-separately-from-readiness.md)
 - [0014 — Send only empty healthy heartbeats](./0014-send-only-empty-healthy-heartbeats.md)
+- [0015 — Restore a complete deployment into a new project](./0015-restore-complete-deployment-into-a-new-project.md)
 
 ## Decisions adopted from planaffe
 

@@ -1,0 +1,7 @@
+# Use only while inspecting an isolated restored copy before cutover.
+services:
+  app:
+    environment:
+      Monitoring__Enabled: "false"
+      EmailDelivery__Enabled: "false"
+      HistoryRetention__Enabled: "false"
