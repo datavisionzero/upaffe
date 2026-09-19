@@ -19,6 +19,7 @@ public sealed record ProjectRecipientsResponse(
     string ProjectKey,
     [property: JsonNumberHandling(JsonNumberHandling.Strict)] long Version,
     IReadOnlyList<string> Recipients);
+public sealed record TestEmailRequest(string? Recipient);
 
 public static class EmailConfigurationEndpoints
 {
@@ -63,6 +64,14 @@ public static class EmailConfigurationEndpoints
             .WithName("ReplaceDefaultRecipients").WithSummary("Replace recipients copied into future projects.")
             .Produces<EmailConfigurationSnapshot>().Produces<ProblemResponse>(400, "application/problem+json")
             .Produces<ProblemResponse>(409, "application/problem+json");
+
+        email.MapPost("/test", async (TestEmailRequest request, HttpContext http,
+                TestEmail test, CancellationToken cancellationToken) =>
+            await test.ExecuteAsync(http.ActingIdentity(), request.Recipient, cancellationToken))
+            .WithName("SendTestEmail").WithSummary("Send one explicit SMTP test message without an incident or retry.")
+            .Produces<TestEmailResult>().Produces<ProblemResponse>(400, "application/problem+json")
+            .Produces<ProblemResponse>(409, "application/problem+json")
+            .Produces<ProblemResponse>(502, "application/problem+json");
 
         var projects = endpoints.MapGroup("/projects/{key}/recipients").ManagementAccess();
         projects.MapGet(string.Empty, async (string key, HttpContext http,

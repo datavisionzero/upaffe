@@ -102,6 +102,25 @@ do not widen the API and `ua` contracts or replace the technical health paths.
 The same workspace switches to push monitors for both reporting modes,
 deadlines, reports, incidents, pause/resume, and one-time credential handoff.
 
+## SMTP setup and test send
+
+Configure one relay and sender through the authenticated email settings API.
+The security mode is `starttls` for a relay that upgrades a plain connection,
+`tls` for TLS from connection start, or `none` for an explicitly trusted local
+relay. Set its host, port, sender address, and a public base URL such as
+`https://status.example.test` for incident links. Configure an authentication
+username and replace the write-only password only if the relay requires it.
+Set instance default recipients before creating projects, then inspect or
+replace each project's own list. Existing projects do not follow later default
+changes.
+
+Use `POST /api/email/test` with an explicit `recipient` after configuration.
+The `accepted_by_smtp` result means the relay accepted the message for
+processing; it cannot establish inbox delivery. A configuration or relay
+failure returns a sanitized problem code. This test creates no incident and
+does not retry on its own. Keep SMTP credentials in the authenticated write
+request and out of shell history, logs, and ordinary status output.
+
 ## Simple push reporting
 
 Credential issuance for a push monitor explicitly returns an instance-relative

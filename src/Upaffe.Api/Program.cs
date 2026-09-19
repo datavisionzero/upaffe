@@ -34,6 +34,7 @@ builder.Services.AddScoped<RenameProject>();
 builder.Services.AddScoped<DeleteProject>();
 builder.Services.AddScoped<RestoreProject>();
 builder.Services.AddScoped<EmailConfigurationActs>();
+builder.Services.AddScoped<TestEmail>();
 builder.Services.AddScoped<CreateHttpMonitor>();
 builder.Services.AddScoped<ReadHttpMonitor>();
 builder.Services.AddScoped<ListHttpMonitors>();

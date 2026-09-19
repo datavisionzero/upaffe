@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Upaffe.Application.Ports;
 using Upaffe.Infrastructure.Monitoring;
+using Upaffe.Infrastructure.Notifications;
 using Upaffe.Infrastructure.Persistence;
 using Upaffe.Infrastructure.Security;
 
@@ -37,6 +38,7 @@ public static class InfrastructureServices
         services.AddSingleton<IHostResolver, SystemHostResolver>();
         services.AddSingleton<IPinnedConnectionFactory, SocketPinnedConnectionFactory>();
         services.AddSingleton<IHttpCheckExecutor, HttpCheckExecutor>();
+        services.AddSingleton<IEmailSender, SmtpEmailSender>();
         services.AddSingleton<IPasswordHasher, Argon2idPasswordHasher>();
         return services;
     }

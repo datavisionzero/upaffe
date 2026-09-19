@@ -35,6 +35,7 @@ secret supplied in the request body.
 | `PUT /api/email/password` | Replace the write-only SMTP password explicitly. |
 | `DELETE /api/email/password?version={version}` | Clear the SMTP password explicitly. |
 | `PUT /api/email/default-recipients` | Replace recipients copied to new projects. |
+| `POST /api/email/test` | Submit one explicit test message to SMTP without creating an incident. |
 | `GET /api/projects/{key}/recipients` | Read a project's recipients and version. |
 | `PUT /api/projects/{key}/recipients` | Replace recipients on a live project at the version last read. |
 | `POST /api/projects/{projectKey}/http-monitors` | Create an HTTP monitor idempotently within a project. |
@@ -176,6 +177,15 @@ Inputs are trimmed, domains are lowercased, and case-insensitive duplicates
 or malformed addresses return `400 validation`. An empty list opts a project
 out of incident email. All operations require browser or management-credential
 authentication; browser mutations also require CSRF protection.
+
+`POST /api/email/test` accepts a plain `recipient` address. It uses the same
+configured relay, sender, security, and optional authentication as incident
+email, with a 30-second total deadline. A successful response says
+`accepted_by_smtp` and records the acceptance time. That is evidence of relay
+acceptance, not inbox arrival. It creates no incident or retry intent. Missing
+sender settings return `409 email_not_configured`; a relay failure returns
+`502 smtp_rejected` with a short failure code. Raw SMTP diagnostics and
+credential values are not returned.
 
 ## HTTP monitors
 
