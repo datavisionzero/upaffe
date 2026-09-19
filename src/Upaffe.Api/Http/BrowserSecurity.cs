@@ -145,6 +145,10 @@ public static class CsrfProtection
         }
 
         return request.Host.HasValue
+            && string.Equals(origin.Scheme, request.Scheme, StringComparison.OrdinalIgnoreCase)
+            && origin.AbsolutePath == "/"
+            && origin.Query.Length == 0
+            && origin.Fragment.Length == 0
             && string.Equals(origin.Authority, request.Host.Value, StringComparison.OrdinalIgnoreCase);
     }
 }

@@ -26,6 +26,8 @@ services:
     restart: unless-stopped
     environment:
       UPAFFE_POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      UPAFFE_TRUSTED_PROXY_IPS: ${UPAFFE_TRUSTED_PROXY_IPS:-}
+      UPAFFE_PUBLIC_ORIGIN: ${UPAFFE_PUBLIC_ORIGIN:-}
     secrets:
       - postgres_password
     ports:

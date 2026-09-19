@@ -17,6 +17,7 @@ deliberately departs from a product commitment or an adopted reference.
 - [0009 — Project and instance health overview](./0009-project-instance-health-overview.md)
 - [0010 — Read production secrets from mounted files](./0010-read-production-secrets-from-mounted-files.md)
 - [0011 — Keep production state in PostgreSQL behind a local application port](./0011-compose-state-and-network-boundaries.md)
+- [0012 — Trust forwarded identity only from named HTTPS proxies](./0012-trust-only-named-https-proxies.md)
 
 ## Decisions adopted from planaffe
 

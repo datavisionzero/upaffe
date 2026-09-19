@@ -15,6 +15,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
 
 var database = DeploymentSecrets.Database(builder.Configuration);
+var trustedProxy = TrustedProxySettings.Read(builder.Configuration);
 builder.Services.AddUpaffeInfrastructure(database);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<ArmBootstrap>();
@@ -94,6 +95,11 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 });
 
 var app = builder.Build();
+
+if (trustedProxy is not null)
+{
+    app.UseForwardedHeaders(trustedProxy.ForwardedHeadersOptions());
+}
 
 app.UseUpaffeVersion();
 app.UseMiddleware<SecretPathRedactionMiddleware>();

@@ -87,10 +87,49 @@ proves PostgreSQL and schema readiness. These do not prove that monitoring
 workers are progressing. The database has no host port; the only host binding
 is the application's loopback HTTP port for a trusted reverse proxy.
 
-Routine updates, backup, restore, failed-upgrade recovery, and the HTTPS proxy
-configuration are documented in later sections as their contracts are
-implemented. See [ADR 0011](./adr/0011-compose-state-and-network-boundaries.md)
-for the state and network boundaries.
+See [ADR 0011](./adr/0011-compose-state-and-network-boundaries.md) for the
+state and network boundaries. Routine updates, backup, restore, and
+failed-upgrade recovery are documented in later sections as their contracts
+are implemented.
+
+## HTTPS reverse proxy
+
+The production Compose port is bound to host loopback so a reverse proxy on
+that host can terminate HTTPS. Use the
+[Nginx example](../deploy/nginx-upaffe.conf.example) as a starting point;
+replace its fictional hostname and certificate files. Keep the application
+port and PostgreSQL port off public interfaces. The proxy must replace
+`X-Forwarded-For`, `X-Forwarded-Proto`, and `X-Forwarded-Host` with the actual
+client address, `https`, and the public host. It must not pass client-supplied
+values for those headers. The example limits the request path in access logs
+to a redacted marker for `/api/report/*`, omits query strings, and disables
+request-bearing proxy error logs. Apply equivalent redaction to any other
+proxy, load balancer, or ingress logs; simple reporting paths contain secrets.
+
+After the first Compose start has created `upaffe_edge`, find the gateway IP
+that the application sees for connections through the host port:
+
+```sh
+docker network inspect upaffe_edge --format '{{(index .IPAM.Config 0).Gateway}}'
+```
+
+Put that exact address in `UPAFFE_TRUSTED_PROXY_IPS` in the deployment `.env`
+and set `UPAFFE_PUBLIC_ORIGIN` to the external HTTPS origin, for example
+`https://status.example.test`. The setting accepts up to eight comma-separated
+IP addresses, not hostnames or broad network ranges. Restart the application
+with `docker compose -f docker-compose.yml up -d --wait`. If the Docker network
+is recreated, inspect its gateway again and update the setting. The app
+accepts forwarded identity only from those addresses, considers at most one
+proxy hop, and accepts a forwarded host only for the configured public origin.
+Both settings must be supplied together. With neither set, direct local HTTP
+continues to work without forwarded headers.
+
+Under HTTPS, sign-in issues a `Secure`, host-scoped `__Host-upaffe_session`
+cookie, and browser writes must carry an Origin matching the public HTTPS
+scheme and host.
+Check this through the public URL after configuring the proxy. Set the SMTP
+public base URL to the same HTTPS origin when configuring incident links;
+that saved email setting is separate from `UPAFFE_PUBLIC_ORIGIN`.
 
 ## Local Compose environment
 

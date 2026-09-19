@@ -1,3 +1,6 @@
+using System.Net;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -17,7 +20,8 @@ internal sealed class AnInstance(
     TimeProvider? clock = null,
     ILoggerProvider? logProvider = null,
     IHttpCheckExecutor? checkExecutor = null,
-    bool fileBackedDatabase = false) : WebApplicationFactory<Program>
+    bool fileBackedDatabase = false,
+    IPAddress? remoteAddress = null) : WebApplicationFactory<Program>
 {
     public static async Task<AnInstance> StartedAsync(
         PostgresFixture postgres,
@@ -32,8 +36,10 @@ internal sealed class AnInstance(
         IReadOnlyDictionary<string, string?>? settings = null,
         TimeProvider? clock = null,
         ILoggerProvider? logProvider = null,
-        IHttpCheckExecutor? checkExecutor = null) =>
-        new(connectionString, settings, clock, logProvider, checkExecutor);
+        IHttpCheckExecutor? checkExecutor = null,
+        IPAddress? remoteAddress = null) =>
+        new(connectionString, settings, clock, logProvider, checkExecutor,
+            remoteAddress: remoteAddress);
 
     public static AnInstance AgainstFileBackedDatabase(
         string connectionString,
@@ -42,7 +48,8 @@ internal sealed class AnInstance(
         new(connectionString, settings, logProvider: logProvider, fileBackedDatabase: true);
 
     public AnInstance StartedAgain() =>
-        new(connectionString, settings, clock, logProvider, checkExecutor, fileBackedDatabase);
+        new(connectionString, settings, clock, logProvider, checkExecutor,
+            fileBackedDatabase, remoteAddress);
 
     public static UpaffeDbContext ContextFor(string connectionString) =>
         new(new DbContextOptionsBuilder<UpaffeDbContext>().UseNpgsql(connectionString).Options);
@@ -76,6 +83,11 @@ internal sealed class AnInstance(
         });
         builder.ConfigureServices(services =>
         {
+            if (remoteAddress is not null)
+            {
+                services.AddSingleton<IStartupFilter>(new RemoteAddressStartupFilter(remoteAddress));
+            }
+
             if (clock is not null)
             {
                 services.AddSingleton(clock);
@@ -94,4 +106,17 @@ internal sealed class AnInstance(
 
         return base.CreateHost(builder);
     }
+}
+
+internal sealed class RemoteAddressStartupFilter(IPAddress address) : IStartupFilter
+{
+    public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
+    {
+        app.Use((context, following) =>
+        {
+            context.Connection.RemoteIpAddress = address;
+            return following();
+        });
+        next(app);
+    };
 }
