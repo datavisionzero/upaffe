@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/datavisionzero/upaffe/src/cli/internal/api"
@@ -21,6 +23,7 @@ func newProject(output io.Writer, getenv environment) *cobra.Command {
 	bindManagementFlags(command, flags)
 	command.AddCommand(newProjectCreate(output, getenv, flags))
 	command.AddCommand(newProjectGet(output, getenv, flags))
+	command.AddCommand(newProjectReport(output, getenv, flags))
 	command.AddCommand(newProjectList(output, getenv, flags))
 	command.AddCommand(newProjectRename(output, getenv, flags))
 	command.AddCommand(newProjectDelete(output, getenv, flags))
@@ -90,6 +93,158 @@ func newProjectGet(output io.Writer, getenv environment, flags *managementFlags)
 			return writeProject(output, response.JSON200, flags.asJSON)
 		},
 	}
+}
+
+func newProjectReport(output io.Writer, getenv environment, flags *managementFlags) *cobra.Command {
+	return &cobra.Command{
+		Use:   "report <key>",
+		Short: "Read one safe project investigation report",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(command *cobra.Command, arguments []string) error {
+			client, ctx, cancel, err := managementClient(command, flags, getenv)
+			if err != nil {
+				return err
+			}
+			defer cancel()
+			response, err := client.ReadProjectReportWithResponse(ctx, arguments[0])
+			if err != nil {
+				return responseOrTransportError(err)
+			}
+			if response.StatusCode() != http.StatusOK || response.JSON200 == nil {
+				return responseProblem(response.StatusCode(), response.Body)
+			}
+			report := response.JSON200
+			if report.Project.Key == "" || report.GeneratedAt.IsZero() ||
+				report.Counts.Total != report.Counts.Http+report.Counts.Push ||
+				int(report.Counts.Total) != len(report.Attention)+len(report.Healthy) {
+				return process.New(process.Unexpected, "unexpected_response")
+			}
+			if flags.asJSON {
+				return writeJSON(output, report)
+			}
+			return writeProjectReportText(output, report)
+		},
+	}
+}
+
+func writeProjectReportText(output io.Writer, report *api.ProjectReport) error {
+	var body strings.Builder
+	fmt.Fprintf(&body, "project\tkey=%s\tname=%s\tat=%s\n",
+		strconv.Quote(report.Project.Key), strconv.Quote(report.Project.Name),
+		report.GeneratedAt.Format(time.RFC3339Nano))
+	fmt.Fprintf(&body, "counts\ttotal=%d\thealthy=%d\tfailing=%d\tuntested=%d\tpaused=%d\n",
+		report.Counts.Total, report.Counts.Healthy, report.Counts.Failing,
+		report.Counts.Untested, report.Counts.Paused)
+	if report.ProjectMaintenance != nil {
+		fmt.Fprintf(&body, "project_maintenance\tuntil=%s\n",
+			report.ProjectMaintenance.EndsAt.Format(time.RFC3339Nano))
+	}
+	fmt.Fprintf(&body, "email\tconfigured=%t\trecipients=%d\tpending=%d\tretrying=%d\tterminal_failure=%d\taccepted_by_smtp=%d\n",
+		report.Email.Configured, len(report.Email.Recipients),
+		report.Email.Delivery.PendingCount, report.Email.Delivery.RetryingCount,
+		report.Email.Delivery.TerminalFailureCount,
+		report.Email.Delivery.SmtpAcceptedCount)
+	for _, recipient := range report.Email.Recipients {
+		fmt.Fprintf(&body, "recipient\taddress=%s\n", strconv.Quote(recipient))
+	}
+	attention := append([]api.ReportMonitor(nil), report.Attention...)
+	sort.SliceStable(attention, func(left, right int) bool {
+		return reportTextPriority(attention[left]) < reportTextPriority(attention[right])
+	})
+	for _, monitor := range attention {
+		fmt.Fprintf(&body, "monitor\ttype=%s\tkey=%s\tname=%s\tstate=%s\tmode=%s\toverdue=%t\tnext_due=%s\tlast_received=%s\tlast_success=%s\n",
+			strconv.Quote(monitor.Type), strconv.Quote(monitor.Key),
+			strconv.Quote(monitor.Name), strconv.Quote(monitor.State),
+			quoteOptional(monitor.Mode),
+			monitor.Overdue, formatTime(monitor.NextDueAt),
+			formatTime(monitor.LastReceivedAt), formatResult(monitor.LastSuccess))
+		fmt.Fprintf(&body, "settings\tkey=%s\ttarget=%s\texpected_status=%s\ttext_condition=%s\tinterval_seconds=%d\ttimeout_seconds=%s\tfailure_threshold=%s\tfailure_count=%s\ttolerance_seconds=%s\n",
+			strconv.Quote(monitor.Key), quoteOptional(monitor.TargetUrl),
+			formatInt(monitor.ExpectedStatusCode), quoteOptional(monitor.TextCondition),
+			monitor.IntervalSeconds,
+			formatInt(monitor.TimeoutSeconds), formatInt(monitor.FailureThreshold),
+			formatInt(monitor.FailureCount), formatInt(monitor.ToleranceSeconds))
+		if monitor.LatestResult != nil {
+			fmt.Fprintf(&body, "diagnostic\tkey=%s\tresult=%s\n",
+				strconv.Quote(monitor.Key), formatResult(monitor.LatestResult))
+		}
+		if monitor.Incident != nil {
+			fmt.Fprintf(&body, "incident\tkey=%s\tid=%s\tage_seconds=%d\topened=%s\tcause=%s\tlatest_reason=%s\n",
+				strconv.Quote(monitor.Key), monitor.Incident.Id,
+				monitor.Incident.AgeSeconds,
+				monitor.Incident.OpenedAt.Format(time.RFC3339Nano),
+				strconv.Quote(monitor.Incident.OriginalReason),
+				strconv.Quote(monitor.Incident.LatestReason))
+		}
+		if monitor.EffectiveMaintenanceUntil != nil {
+			fmt.Fprintf(&body, "maintenance\tkey=%s\tdirect=%t\tuntil=%s\n",
+				strconv.Quote(monitor.Key), monitor.DirectMaintenance != nil,
+				formatTime(monitor.EffectiveMaintenanceUntil))
+		}
+		if monitor.Instruction != nil || monitor.RunbookUrl != nil {
+			fmt.Fprintf(&body, "operator_guidance\tkey=%s\tinstruction=%s\trunbook_url=%s\n",
+				strconv.Quote(monitor.Key), quoteOptional(monitor.Instruction),
+				quoteOptional(monitor.RunbookUrl))
+		}
+	}
+	for _, monitor := range report.Healthy {
+		fmt.Fprintf(&body, "healthy\ttype=%s\tkey=%s\tname=%s\tlast_success=%s\tnext_due=%s\n",
+			strconv.Quote(monitor.Type), strconv.Quote(monitor.Key),
+			strconv.Quote(monitor.Name), formatTime(monitor.LastSuccessAt),
+			formatTime(monitor.NextDueAt))
+	}
+	_, err := io.WriteString(output, body.String())
+	return err
+}
+
+func formatResult(result *api.ReportResult) string {
+	if result == nil {
+		return "-"
+	}
+	reason := "-"
+	if result.Reason != nil {
+		reason = strconv.Quote(*result.Reason)
+	}
+	return fmt.Sprintf("%s,%s,%s,%s", result.Id,
+		strconv.Quote(result.Outcome), reason,
+		result.ObservedAt.Format(time.RFC3339Nano))
+}
+
+func formatTime(value *time.Time) string {
+	if value == nil {
+		return "-"
+	}
+	return value.Format(time.RFC3339Nano)
+}
+
+func quoteOptional(value *string) string {
+	if value == nil {
+		return "-"
+	}
+	return strconv.Quote(*value)
+}
+
+func formatInt(value *int32) string {
+	if value == nil {
+		return "-"
+	}
+	return strconv.FormatInt(int64(*value), 10)
+}
+
+func reportTextPriority(monitor api.ReportMonitor) int {
+	if monitor.State == "failing" {
+		return 0
+	}
+	if monitor.Overdue {
+		return 1
+	}
+	if monitor.State == "untested" {
+		return 2
+	}
+	if monitor.State == "paused" {
+		return 3
+	}
+	return 4
 }
 
 func newProjectList(output io.Writer, getenv environment, flags *managementFlags) *cobra.Command {

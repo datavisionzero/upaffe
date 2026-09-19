@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/datavisionzero/upaffe/src/cli/internal/api"
@@ -142,6 +143,14 @@ func responseProblem(status int, body []byte) error {
 		}
 	}
 	return responseError(status)
+}
+
+func responseOrTransportError(err error) error {
+	var address *url.Error
+	if errors.As(err, &address) || errors.Is(err, context.DeadlineExceeded) {
+		return process.New(process.Unreachable, "instance_unreachable")
+	}
+	return process.New(process.Unexpected, "unexpected_response")
 }
 
 func writeJSON(output io.Writer, value any) error {

@@ -73,6 +73,7 @@ ua credential rotate ID [--url ADDRESS] [--credential TOKEN] [--json]
 ua credential revoke ID [--url ADDRESS] [--credential TOKEN] [--json]
 ua project create --key KEY --name NAME [--url ADDRESS] [--credential TOKEN] [--json]
 ua project get KEY [--url ADDRESS] [--credential TOKEN] [--json]
+ua project report KEY [--url ADDRESS] [--credential TOKEN] [--json]
 ua project list [--deleted] [--url ADDRESS] [--credential TOKEN] [--json]
 ua project rename KEY --name NAME --version VERSION [--url ADDRESS] [--credential TOKEN] [--json]
 ua project delete KEY --version VERSION [--url ADDRESS] [--credential TOKEN] [--json]
@@ -171,6 +172,30 @@ API `validation` and `conflict` problems exit with code 4, `not_found` with
 code 3, and authentication problems with code 7. Diagnostics include only the
 stable problem code and HTTP status, never the remote title, response body, or
 management credential.
+
+### One-call project report
+
+`ua project report KEY --json` makes one authenticated GET to
+`/api/projects/{key}/report` and writes the typed project report as one JSON
+value. It is the starting point for an unattended investigation. The report
+timestamp, state counts, attention list, compact healthy summaries, maintenance,
+and email delivery summary are defined in [ADR 0008](adr/0008-one-call-project-report.md)
+and [the API guide](api.md). Use the existing history commands for individual
+checks, reports, incidents, or deliveries. The report reads current facts; it
+does not trigger checks or acknowledge an incident.
+
+Text mode begins with the project and report time, state counts, project
+maintenance, and email summary. It then prints attention monitors in urgency
+order, followed by healthy summaries. Each attention monitor has labeled
+`settings`, `diagnostic`, optional `incident`, `maintenance`, and
+`operator_guidance` lines. The latest result, last success, last receipt, and
+next deadline are distinct. `operator_guidance` contains only operator-written
+instruction and runbook data; `diagnostic` contains stable system reason codes.
+Display strings are quoted so control characters cannot create forged lines.
+Target queries, header values, reporting URLs, submitted push reasons, and
+credentials do not appear in either mode. Unknown or deleted projects exit 3;
+authentication exits 7, unreachable instances exit 10, and malformed success
+responses exit 1 with empty stdout.
 
 ### HTTP monitors
 
