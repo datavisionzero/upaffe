@@ -4,6 +4,7 @@ set -eu
 
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 smoke_project="upaffe-smoke-$$"
+smoke_phase=setup
 smoke_app_port=${UPAFFE_SMOKE_APP_PORT:-18080}
 smoke_db_port=${UPAFFE_SMOKE_DB_PORT:-15432}
 smoke_smtp_port=${UPAFFE_SMOKE_SMTP_PORT:-18025}
@@ -22,6 +23,15 @@ cookie_jar="$system_dir/browser.cookies"
 ua="$system_dir/ua"
 
 cleanup() {
+  result=$?
+  if [ "$result" -ne 0 ]; then
+    printf 'Smoke failed during %s (exit %s).\n' "$smoke_phase" "$result" >&2
+    UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
+      docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" \
+      logs --no-color --tail=200 app 2>/dev/null | \
+      sed -nE 's/.*(System\.[A-Za-z0-9_.]*Exception|Microsoft\.EntityFrameworkCore\.[A-Za-z0-9_.]*Exception|Npgsql\.[A-Za-z0-9_.]*Exception):.*/\1/p; s/.*SqlState: ([0-9A-Z]+).*/SqlState \1/p; s/.*at (Upaffe\.[A-Za-z0-9_.]+).*/\1/p' | \
+      sort -u >&2 || true
+  fi
   UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
     docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" down --volumes >/dev/null 2>&1 || true
   rm -rf "$system_dir"
@@ -383,6 +393,7 @@ node -e '
 
 # Restart with that incident open and prove both current state and incident
 # identity survive.
+smoke_phase='HTTP incident restart'
 UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
   docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" restart app >/dev/null
 UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
@@ -419,6 +430,7 @@ UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
 # Resume through the browser-session path used by the web application. Wait for
 # its fresh scheduled failure, then pause through that same path.
 monitor_version=$(json_value version <"$system_dir/monitor-header-remove.json")
+smoke_phase='HTTP monitor browser resume'
 curl --fail --silent --show-error \
   --cookie "$cookie_jar" \
   --request POST \
@@ -451,6 +463,7 @@ UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
   "$ua" monitor get system-project public-homepage --json \
   >"$system_dir/monitor-before-browser-pause.json"
 monitor_version=$(json_value version <"$system_dir/monitor-before-browser-pause.json")
+smoke_phase='HTTP monitor browser pause'
 curl --fail --silent --show-error \
   --cookie "$cookie_jar" \
   --request POST \
@@ -489,6 +502,7 @@ monitor_version=$(json_value version <"$system_dir/monitor-recovery-update.json"
 UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
   "$ua" monitor resume system-project public-homepage --version "$monitor_version" --json \
   >"$system_dir/monitor-cli-resume.json"
+smoke_phase='HTTP monitor browser recovery test'
 curl --fail --silent --show-error \
   --cookie "$cookie_jar" \
   --request POST \
@@ -522,6 +536,7 @@ while [ "$attempt" -lt 30 ]; do
   sleep 1
 done
 [ "$http_recovery_accepted" = "true" ]
+smoke_phase='HTTP recovery SMTP fixture read'
 curl --fail --silent --show-error "$smtp_fixture/messages" >"$system_dir/smtp-after-http-recovery.json"
 node -e '
   const result = require(process.argv[1]);
