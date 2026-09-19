@@ -634,7 +634,7 @@ this explicit response reveals the token once:
 ```js
 const response = await fetch('/api/management-credentials', {
   method: 'POST',
-  headers: {'Content-Type': 'application/json'},
+  headers: {'Content-Type': 'application/json', 'X-Upaffe-CSRF': '1'},
   body: JSON.stringify({name: 'automation'})
 });
 if (!response.ok) throw new Error(`Credential issuance failed: ${response.status}`);
