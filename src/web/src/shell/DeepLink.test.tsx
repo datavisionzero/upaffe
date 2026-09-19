@@ -36,5 +36,5 @@ it("opens the monitor and incident from an email detail link after sign-in", asy
   expect(await screen.findByText("Announcement: announced")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Back to monitors" }));
   await user.click(screen.getByRole("button", { name: "Back to projects" }));
-  expect(window.location.pathname).toBe("/");
+  expect(window.location.pathname).toBe("/projects");
 });

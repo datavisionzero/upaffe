@@ -20,11 +20,16 @@ type Props = {
   onBack: () => void;
   onOpenPush: () => void;
   onSignedOut: () => void;
+  routeMonitorKey?: string;
+  onOpenMonitor?: (key: string) => void;
+  onBackToList?: () => void;
 };
 
-export function MonitorsView({ project, onBack, onOpenPush, onSignedOut }: Props) {
+export function MonitorsView({ project, onBack, onOpenPush, onSignedOut,
+  routeMonitorKey, onOpenMonitor, onBackToList }: Props) {
   const [monitors, setMonitors] = useState<Monitor[]>([]);
   const [selectedKey, setSelectedKey] = useState<string | undefined>(() => {
+    if (onOpenMonitor) return undefined;
     const link = monitorLink();
     return link?.projectKey === project.key && link.monitorType === "http" ? link.monitorKey : undefined;
   });
@@ -65,7 +70,8 @@ export function MonitorsView({ project, onBack, onOpenPush, onSignedOut }: Props
       });
       if (result.data) {
         await load();
-        setSelectedKey(result.data.key);
+        if (onOpenMonitor) onOpenMonitor(result.data.key);
+        else setSelectedKey(result.data.key);
       } else if (result.response.status === 401) onSignedOut();
       else setError(problemMessage(result.error, result.response.status));
     } catch {
@@ -75,17 +81,18 @@ export function MonitorsView({ project, onBack, onOpenPush, onSignedOut }: Props
     }
   }
 
-  if (selectedKey) {
+  const activeKey = routeMonitorKey ?? selectedKey;
+  if (activeKey) {
     return (
       <MonitorDetail
-        monitorKey={selectedKey}
+        monitorKey={activeKey}
         onBack={() => {
-          setSelectedKey(undefined);
-          void load();
+          if (onBackToList) onBackToList();
+          else { setSelectedKey(undefined); void load(); }
         }}
         onRemoved={() => {
-          setSelectedKey(undefined);
-          void load();
+          if (onBackToList) onBackToList();
+          else { setSelectedKey(undefined); void load(); }
         }}
         onSignedOut={onSignedOut}
         project={project}
@@ -135,7 +142,7 @@ export function MonitorsView({ project, onBack, onOpenPush, onSignedOut }: Props
                 </div>
                 <div className="monitor-card-actions">
                   <span className="version">version {monitor.version}</span>
-                  <Button onClick={() => setSelectedKey(monitor.key)} type="button">Open details</Button>
+                  <Button onClick={() => onOpenMonitor ? onOpenMonitor(monitor.key) : setSelectedKey(monitor.key)} type="button">Open details</Button>
                 </div>
               </article>
             ))}
@@ -502,6 +509,7 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
   if (!monitor) {
     return (
       <div className="workspace panel">
+        <h1>Monitor unavailable</h1>
         <div className="error" role="alert">{error ?? "The monitor is unavailable."}</div>
         <div className="actions">
           <Button onClick={() => void load()} type="button">Try again</Button>

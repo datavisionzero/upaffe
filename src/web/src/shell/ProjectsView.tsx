@@ -4,10 +4,7 @@ import type { components } from "@/api/schema";
 import { api } from "@/api/client";
 import { csrfHeaders, problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
-import { InstanceEmailView, ProjectEmailView } from "@/shell/EmailSettingsView";
-import { MonitorsView } from "@/shell/MonitorsView";
-import { PushMonitorsView } from "@/shell/PushMonitorsView";
-import { monitorLink } from "@/shell/deepLink";
+import { projectPath } from "@/shell/routes";
 
 type Project = components["schemas"]["ProjectResponse"];
 type Session = components["schemas"]["CurrentSessionResponse"];
@@ -15,9 +12,11 @@ type Session = components["schemas"]["CurrentSessionResponse"];
 type Props = {
   session: Session;
   onSignedOut: () => void;
+  onNavigate: (path: string) => void;
+  heading?: string;
 };
 
-export function ProjectsView({ session, onSignedOut }: Props) {
+export function ProjectsView({ session, onSignedOut, onNavigate, heading = "Projects" }: Props) {
   const [deleted, setDeleted] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,10 +24,6 @@ export function ProjectsView({ session, onSignedOut }: Props) {
   const [error, setError] = useState<string>();
   const [key, setKey] = useState("");
   const [name, setName] = useState("");
-  const [selectedProject, setSelectedProject] = useState<Project>();
-  const [emailProject, setEmailProject] = useState<Project>();
-  const [instanceEmail, setInstanceEmail] = useState(false);
-  const [monitorKind, setMonitorKind] = useState<"http" | "push">("http");
 
   const load = useCallback(async () => {
     try {
@@ -37,9 +32,6 @@ export function ProjectsView({ session, onSignedOut }: Props) {
       });
       if (data) {
         setProjects(data);
-        const link = monitorLink();
-        const linkedProject = link && data.find((item) => item.key === link.projectKey);
-        if (linkedProject) { setMonitorKind(link.monitorType); setSelectedProject(linkedProject); }
       }
       else if (response.status === 401) onSignedOut();
       else setError(problemMessage(problem, response.status));
@@ -131,38 +123,15 @@ export function ProjectsView({ session, onSignedOut }: Props) {
     }
   }
 
-  if (instanceEmail) return <InstanceEmailView onBack={() => setInstanceEmail(false)} onSignedOut={onSignedOut} />;
-  if (emailProject) return <ProjectEmailView project={emailProject} onBack={() => setEmailProject(undefined)} onSignedOut={onSignedOut} />;
-  if (selectedProject) {
-    if (monitorKind === "push") {
-      return (
-        <PushMonitorsView
-          onBack={() => { setSelectedProject(undefined); if (monitorLink()) window.history.replaceState({}, "", "/"); }}
-          onOpenHttp={() => setMonitorKind("http")}
-          onSignedOut={onSignedOut}
-          project={selectedProject}
-        />
-      );
-    }
-    return (
-      <MonitorsView
-        onBack={() => { setSelectedProject(undefined); if (monitorLink()) window.history.replaceState({}, "", "/"); }}
-        onOpenPush={() => setMonitorKind("push")}
-        onSignedOut={onSignedOut}
-        project={selectedProject}
-      />
-    );
-  }
-
   return (
     <div className="workspace">
       <header className="workspace-header">
         <div>
           <p className="eyebrow">upaffe</p>
-          <h1>Projects</h1>
+          <h1>{heading}</h1>
           <p className="muted">Signed in as {session.email}</p>
         </div>
-        <div className="actions"><Button onClick={() => setInstanceEmail(true)} type="button">Instance email</Button><Button disabled={busy === "signout"} onClick={signOut} type="button">Sign out</Button></div>
+        <div className="actions"><Button onClick={() => onNavigate("/settings/email")} type="button">Instance email</Button><Button disabled={busy === "signout"} onClick={signOut} type="button">Sign out</Button></div>
       </header>
 
       <section aria-labelledby="create-title" className="panel">
@@ -208,8 +177,8 @@ export function ProjectsView({ session, onSignedOut }: Props) {
               <ProjectRow
                 key={project.id}
                 busy={busy}
-                onManage={() => setSelectedProject(project)}
-                onManageEmail={() => setEmailProject(project)}
+                onManage={() => onNavigate(projectPath(project.key))}
+                onManageEmail={() => onNavigate(`${projectPath(project.key)}/settings/email`)}
                 onMutate={mutate}
                 project={project}
               />

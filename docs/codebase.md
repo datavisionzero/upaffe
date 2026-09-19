@@ -245,6 +245,18 @@ controls keep the slice keyboard accessible. The production build lands in
 `src/Upaffe.Api/wwwroot`, which the API process serves, so no second application
 server is required in an installation.
 
+The signed-in shell keeps location in the browser URL. `/dashboard` and
+`/projects` are instance entries; `/projects/{key}` opens the current HTTP
+workspace, `/projects/{key}/push-monitors` opens push administration, and
+`/projects/{key}/{type}-monitors/{monitorKey}` opens a stable detail URL.
+Incident email links retain their `incident` query. `/settings/email` and
+`/projects/{key}/settings/email` expose instance and project email settings.
+The router handles history and reloads, shows a path back for unknown or
+deleted resources, names the active location in semantic navigation, and
+focuses the new page heading. A URL carries stable keys only, never a
+credential or reporting secret. The dashboard route initially shares the
+project registry until its health view is implemented.
+
 The instance email screen reads safe SMTP settings and default recipients,
 updates them at the read version, replaces or clears the password explicitly,
 and sends a single test email with relay-acceptance feedback. Project email
