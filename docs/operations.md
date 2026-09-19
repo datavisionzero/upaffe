@@ -5,19 +5,23 @@ of this guide. Local development procedures follow them.
 
 ## Production image identity
 
-The production application image is published from validated `main` commits as
-`ghcr.io/datavisionzero/upaffe:sha-<full-commit-sha>`. Pin that full revision tag
-or its registry digest in a deployment. The published image supports Linux
-amd64 and arm64 hosts. It contains the compiled React
-application, .NET API, and embedded forward migrations. It listens on port
-`8080` as a non-root user and reports `0.0.0-rev.<full-commit-sha>` in the
-`Upaffe-Version` response header. A local build uses `0.0.0-dev` unless an
+The v0.1.0 application image is published as
+`ghcr.io/datavisionzero/upaffe:v0.1.0`; its release asset
+`image-digest.txt` gives the complete immutable image reference to pin in
+`.env`. Validated `main` commits also publish
+`ghcr.io/datavisionzero/upaffe:sha-<full-commit-sha>` for candidate rehearsal.
+The published images support Linux amd64 and arm64 hosts. Each contains the
+compiled React application, .NET API, and embedded forward migrations. It
+listens on port `8080` as a non-root user and reports `0.1.0` for the release or
+`0.0.0-rev.<full-commit-sha>` for a revision image in the `Upaffe-Version`
+response header. A local build uses `0.0.0-dev` unless an
 `APP_VERSION` build argument is supplied. The publication workflow needs only
 the scoped GitHub Actions package token; deployment secrets are supplied at
 runtime and never enter the image build.
 
-The production Compose installation procedure is below. Pin a published image
-from the same source revision as the Compose files.
+The production Compose installation procedure is below. Use deployment files
+from the same release tag as the image. The release's `source-revision.txt`
+identifies the exact source commit.
 
 ## Production secret inputs
 
@@ -49,31 +53,37 @@ proof belongs in production Compose environment values.
 
 ## Production Compose startup
 
-Choose a validated `main` revision whose image tag has been published. Download
-the deployment files from that same revision into one directory. This uses no
-source checkout or application runtime on the host. Replace the revision
-placeholder in the first line with its full 40-character commit SHA:
+Choose the published v0.1.0 release. Download its digest and the deployment
+files from the matching tag into one directory. This uses no source checkout or
+application runtime on the host. Docker Compose, `curl`, and `openssl` are
+required. The release page provides `source-revision.txt` for provenance and
+`SHA256SUMS` for CLI archives; the image is pinned by its registry digest:
 
 ```sh
 set -eu
-UPAFFE_REV=REPLACE_WITH_FULL_COMMIT_SHA
+UPAFFE_TAG=v0.1.0
 mkdir -m 0700 upaffe-deploy
 cd upaffe-deploy
+curl --fail --location --silent --show-error \
+  "https://github.com/datavisionzero/upaffe/releases/download/$UPAFFE_TAG/image-digest.txt" \
+  --output image-digest.txt
+grep -Eq '^ghcr\.io/datavisionzero/upaffe@sha256:[0-9a-f]{64}$' image-digest.txt
 for file in docker-compose.yml docker-compose.bootstrap.yml \
   docker-compose.heartbeat.yml docker-compose.verify-restore.yml \
   backup-production.sh restore-production.sh production.env.example \
   nginx-upaffe.conf.example; do
   curl --fail --location --silent --show-error \
-    "https://raw.githubusercontent.com/datavisionzero/upaffe/$UPAFFE_REV/deploy/$file" \
+    "https://raw.githubusercontent.com/datavisionzero/upaffe/$UPAFFE_TAG/deploy/$file" \
     --output "$file"
 done
 chmod 0700 backup-production.sh restore-production.sh
-cp production.env.example .env
+sed "s|ghcr.io/datavisionzero/upaffe@sha256:REPLACE_WITH_RELEASE_IMAGE_DIGEST|$(cat image-digest.txt)|" \
+  production.env.example > .env
 ```
 
-Edit `.env`: replace `REPLACE_WITH_FULL_COMMIT_SHA` with the same revision,
-leaving `UPAFFE_IMAGE` pinned to its full GHCR revision tag. Keep the deployment
-directory, `.env`, and these exact Compose files for the installation's lifetime.
+Check that `.env` contains the expected `UPAFFE_IMAGE` digest reference. Keep
+the deployment directory, `.env`, and these exact Compose files for the
+installation's lifetime.
 The optional overlays are used only for their named procedures.
 
 Create a `secrets` directory in the same directory as the Compose files with
@@ -96,8 +106,11 @@ docker compose -f docker-compose.yml -f docker-compose.bootstrap.yml up -d --wai
 
 The first start waits for PostgreSQL and applies forward migrations. The app
 listens at `http://127.0.0.1:8080` unless `UPAFFE_PORT` changes the local host
-port. Use the browser bootstrap form over this loopback address or an SSH
-tunnel, then remove the one-time proof mount and source file:
+port. Use the [browser bootstrap form](#browser-workflow) over this loopback
+address or an SSH tunnel. Read the one-time proof from
+`secrets/bootstrap_proof` within 30 minutes of startup, enter the operator
+email and a strong password, and confirm that `GET /api/bootstrap` reports
+`required:false`. Then remove the one-time proof mount and source file:
 
 ```sh
 docker compose -f docker-compose.yml up -d --wait
@@ -375,19 +388,24 @@ stops PostgreSQL and is unnecessary for routine app restarts. Never use
 
 ## Update the production image
 
-Choose a new validated `main` revision with a published image. Review its
-changes and download the matching deployment files into a separate
-staging directory. Replace the placeholder with its full commit SHA:
+Choose a published release tag and review its notes. Download its image digest
+and matching deployment files into a separate staging directory. For an
+upgrade to v0.1.0, use:
 
 ```sh
 set -eu
-UPAFFE_NEXT_REV=REPLACE_WITH_FULL_COMMIT_SHA
+UPAFFE_NEXT_TAG=v0.1.0
 mkdir -m 0700 ../upaffe-next
+curl --fail --location --silent --show-error \
+  "https://github.com/datavisionzero/upaffe/releases/download/$UPAFFE_NEXT_TAG/image-digest.txt" \
+  --output ../upaffe-next/image-digest.txt
+grep -Eq '^ghcr\.io/datavisionzero/upaffe@sha256:[0-9a-f]{64}$' \
+  ../upaffe-next/image-digest.txt
 for file in docker-compose.yml docker-compose.bootstrap.yml \
   docker-compose.heartbeat.yml docker-compose.verify-restore.yml \
   backup-production.sh restore-production.sh; do
   curl --fail --location --silent --show-error \
-    "https://raw.githubusercontent.com/datavisionzero/upaffe/$UPAFFE_NEXT_REV/deploy/$file" \
+    "https://raw.githubusercontent.com/datavisionzero/upaffe/$UPAFFE_NEXT_TAG/deploy/$file" \
     --output "../upaffe-next/$file"
 done
 ```
@@ -417,11 +435,11 @@ cp ../upaffe-next/docker-compose.yml ../upaffe-next/docker-compose.bootstrap.yml
 chmod 0700 backup-production.sh restore-production.sh
 ```
 
-Edit only `UPAFFE_IMAGE` in `.env` to the new full `sha-<commit>` tag or a
-registry digest. Keep `UPAFFE_POSTGRES_IMAGE` on its saved major version;
-changing PostgreSQL major versions is a separate migration. Then validate,
-pull, and start the new app. `up --wait` fails if readiness does not become
-healthy:
+Set only `UPAFFE_IMAGE` in `.env` to the complete reference in
+`../upaffe-next/image-digest.txt`. Keep `UPAFFE_POSTGRES_IMAGE` on its saved
+major version; changing PostgreSQL major versions is a separate migration.
+Then validate, pull, and start the new app. `up --wait` fails if readiness does
+not become healthy:
 
 ```sh
 docker compose -f docker-compose.yml config --quiet
@@ -608,6 +626,26 @@ do not widen the API and `ua` contracts or replace the technical health paths.
 The same workspace switches to push monitors for both reporting modes,
 deadlines, reports, incidents, pause/resume, and one-time credential handoff.
 
+To hand administration to `ua` after signing in, open the browser's developer
+console on the upaffe page and deliberately issue the first named management
+credential. The browser sends its session cookie and same-origin write header;
+this explicit response reveals the token once:
+
+```js
+const response = await fetch('/api/management-credentials', {
+  method: 'POST',
+  headers: {'Content-Type': 'application/json'},
+  body: JSON.stringify({name: 'automation'})
+});
+if (!response.ok) throw new Error(`Credential issuance failed: ${response.status}`);
+console.log((await response.json()).token);
+```
+
+Copy the returned token into a protected secret store and clear the console.
+Do not put it in a URL or shell history. Set `UPAFFE_CREDENTIAL` from that store
+for the [noninteractive CLI workflow](./agent-workflow.md). Later credential
+creation and rotation can use `ua credential` without a browser session.
+
 ## SMTP setup and test send
 
 The complete email and maintenance workflow is in
@@ -714,7 +752,7 @@ For the noninteractive administration path and a mapping from every current
 web management action to a CLI command, see the
 [unattended administration workflow](./agent-workflow.md).
 
-Run the complete implemented vertical slice from the repository root:
+Run the complete composed monitoring system test from the repository root:
 
 ```sh
 scripts/smoke.sh

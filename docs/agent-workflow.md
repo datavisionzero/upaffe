@@ -7,6 +7,48 @@ editor, browser, or pager. Give the CLI `UPAFFE_URL` and
 `UPAFFE_CREDENTIAL` from a secret store, then use immutable project and monitor
 keys and the versions returned by reads.
 
+## Create a job monitor and report completion
+
+This example uses the installed release binary, `curl`, `jq`, `uuidgen`, and a
+protected directory outside the checkout. Bootstrap and the first management
+credential are completed through the [production bootstrap](./operations.md#production-compose-startup)
+and [browser workflow](./operations.md#browser-workflow). Set `UPAFFE_URL` to
+the trusted HTTPS origin, load `UPAFFE_CREDENTIAL` from a secret store, and set
+`UPAFFE_SECRET_DIR` to an existing directory readable only by the sender and
+operator. Do not enable shell tracing while handling credentials.
+
+```sh
+umask 077
+ua status --json
+ua project create --key backup-jobs --name 'Backup jobs' --json
+cat > "$UPAFFE_SECRET_DIR/nightly-backup-create.json" <<'JSON'
+{"key":"nightly-backup","name":"Nightly backup","mode":"job_completion","interval_seconds":86400,"tolerance_seconds":3600,"instruction":"Inspect the backup job log","runbook_url":"https://docs.example.test/runbooks/nightly-backup"}
+JSON
+ua push create backup-jobs --file "$UPAFFE_SECRET_DIR/nightly-backup-create.json" --json
+ua push credential issue backup-jobs nightly-backup --json \
+  > "$UPAFFE_SECRET_DIR/nightly-backup-credential.json"
+UPAFFE_REPORTING_TOKEN=$(jq -r .token "$UPAFFE_SECRET_DIR/nightly-backup-credential.json")
+report_id=$(uuidgen)
+observed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+jq -n --arg id "$report_id" --arg at "$observed_at" \
+  '{report_id:$id,observed_at:$at,outcome:"success",reason:null}' |
+  curl --fail-with-body --silent --show-error \
+    --header "Authorization: Bearer $UPAFFE_REPORTING_TOKEN" \
+    --header 'Content-Type: application/json' --data-binary @- \
+    "$UPAFFE_URL/api/reports"
+unset UPAFFE_REPORTING_TOKEN
+ua project report backup-jobs --json
+ua push reports backup-jobs nightly-backup --json
+```
+
+`nightly-backup-credential.json` contains the one-time reporting token and
+secret URL. Transfer it to the sender's secret store and protect or remove the
+staging copy. Reuse the same `report_id` and `observed_at` when retrying an
+uncertain send; a later job run must generate a new ID and observation time.
+The reporting token cannot administer the instance. The management credential
+is never included in the reporting request. See the
+[push monitoring guide](./push-monitoring.md) for failure and state reports.
+
 ## Start an investigation
 
 ```sh

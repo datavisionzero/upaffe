@@ -20,11 +20,12 @@ checks, and incident lifecycles. A shared bounded executor performs one
 public-internet observation. Authenticated operations manage and immediately
 test HTTP monitors; recurring scheduling, threshold evaluation, incident
 lifecycle, and retained history complete the first monitoring path. Local
-Compose builds and runs the delivered slices. A revision-tagged production
-image is published from `main`; the API can read deployment secrets from
-mounted files. The production Compose stack declares persistent PostgreSQL
-storage and a local reverse-proxy target. Update, backup, and restore runbooks
-are still being implemented.
+Compose builds and runs the development stack. Validated `main` commits publish
+revision images, and a stable release tag publishes a versioned image and four
+native CLI archives. The API reads deployment secrets from mounted files. The
+production Compose stack declares persistent PostgreSQL storage and a local
+reverse-proxy target; [operations.md](./operations.md) covers installation,
+update, backup, and isolated restore.
 
 ## Provenance and maintenance boundary
 
@@ -48,11 +49,11 @@ upaffe/
 │  ├─ adr/                   local and adopted architecture decisions
 │  ├─ api/openapi.json       checked-in HTTP contract
 │  ├─ codebase.md            this map
-│  ├─ api.md                 HTTP conventions and surface, when implemented
-│  ├─ cli.md                 CLI contract, when implemented
-│  ├─ storage.md             schema and retention rules, when implemented
-│  ├─ install.md             supported installation, when implemented
-│  └─ operations.md          supported local operating procedures
+│  ├─ api.md                 HTTP conventions and surface
+│  ├─ cli.md                 CLI contract and binary installation
+│  ├─ storage.md             schema and retention rules
+│  ├─ operations.md          production and local procedures
+│  └─ releasing.md           candidate and publication procedure
 ├─ src/
 │  ├─ Upaffe.Domain/         domain rules
 │  ├─ Upaffe.Application/    use cases and required ports
@@ -387,12 +388,14 @@ one development image and starts it beside PostgreSQL 18. Database readiness
 gates application startup, application readiness verifies the migrated
 database, and a named volume preserves local state across ordinary restarts.
 Production images, reverse proxying, upgrades, backup, restore, and
-failed-upgrade recovery belong to the later operations epic. GitHub Actions
-reproduces the documented local build, test, generation, Compose validation,
-and disposable access/project/monitoring system test without requiring private secrets
-from contributors. Only the setup actions' package-manager caches persist
-between jobs; generated clients and distributable build outputs are rebuilt and
-are not uploaded.
+failed-upgrade recovery are covered by the operations guide. GitHub Actions
+runs build, test, contract generation, Compose validation, and the disposable
+system test without private contributor secrets. Passing `main` commits publish
+two-architecture revision images. Separate native runners validate four CLI
+archives, and the release workflow assembles a candidate bundle before a
+stable tag can publish the versioned image and GitHub release. Generated
+clients are rebuilt; distributable archives are uploaded only by the artifact
+and release workflows.
 
 ## Development and verification commands
 
@@ -431,10 +434,6 @@ runtime behavior against a real PostgreSQL-backed Compose application.
   suppression across the operator surfaces and runtime.
 - `docs/storage.md` changes with schema, migrations, retention, and backup
   boundaries.
-- `docs/install.md` exists when there is a supported installation procedure.
-- `docs/operations.md` currently owns the local Compose lifecycle and grows
-  with supported production procedures later.
-
-Those files are created with the behavior they describe. Until then, this map
-names their future responsibility without pretending that the interface or
-procedure is already available.
+- `docs/operations.md` owns production installation, update, backup, isolated
+  restore, health, and the local Compose lifecycle.
+- `docs/releasing.md` owns the candidate and versioned publication procedure.

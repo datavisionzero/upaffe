@@ -1,10 +1,11 @@
 # HTTP monitoring
 
 This is the operator and automation guide for upaffe's first complete product
-slice. It connects the public API contract, `ua` commands, web workflow,
+path. It connects the public API contract, `ua` commands, web workflow,
 persistence, scheduling, and bounded network behavior. HTTP monitors observe
-publicly routable HTTP or HTTPS endpoints; private targets and email
-notifications are not part of this slice.
+publicly routable HTTP or HTTPS endpoints; private targets are rejected.
+Incident and recovery email follow the rules in the
+[email and maintenance guide](./email-maintenance.md).
 
 ## Complete fictional example
 
@@ -193,6 +194,7 @@ restricted egress policy may set `UPAFFE_SMOKE_HTTP_TARGET` to another stable,
 public HTTPS endpoint that returns status 200. The target is external by design:
 a local fixture must be rejected by the product's private-network boundary.
 
-This slice does not send incident or recovery mail. Notification delivery is a
-later epic and its absence must not be confused with scheduler or monitor
-failure.
+Incident and recovery mail is delivered through the durable email worker.
+SMTP acceptance, retry status, and maintenance suppression are documented in
+the [email and maintenance guide](./email-maintenance.md). Delivery failure
+must not be confused with scheduler or monitor failure.
