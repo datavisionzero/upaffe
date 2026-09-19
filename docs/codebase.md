@@ -246,16 +246,30 @@ controls keep the slice keyboard accessible. The production build lands in
 server is required in an installation.
 
 The signed-in shell keeps location in the browser URL. `/dashboard` and
-`/projects` are instance entries; `/projects/{key}` opens the current HTTP
-workspace, `/projects/{key}/push-monitors` opens push administration, and
+`/projects` are instance entries; `/projects/{key}` opens the combined project
+health report, `/projects/{key}/http-monitors` and
+`/projects/{key}/push-monitors` open the respective administration screens, and
 `/projects/{key}/{type}-monitors/{monitorKey}` opens a stable detail URL.
 Incident email links retain their `incident` query. `/settings/email` and
 `/projects/{key}/settings/email` expose instance and project email settings.
 The router handles history and reloads, shows a path back for unknown or
 deleted resources, names the active location in semantic navigation, and
 focuses the new page heading. A URL carries stable keys only, never a
-credential or reporting secret. The dashboard route initially shares the
-project registry until its health view is implemented.
+credential or reporting secret. The first signed-in screen reads the
+authenticated instance overview and puts open incidents, failed results, and
+overdue work before healthy and empty project summaries. It uses the response's
+generation time for incident age and shows delivery failures, retries, overdue
+attempts, and SMTP acceptance with a path to email status. Project creation
+remains on the project registry route.
+
+The project health page reads `GET /api/projects/{key}/report` once per refresh.
+Its ordered attention group distinguishes incidents, subthreshold failures,
+overdue checks, reporting gaps, untested and paused monitors; its separate
+healthy group remains scannable. Latest applicable result and last success
+have separate timestamps. Project and monitor maintenance, delivery trouble,
+operator instructions, and safe runbook links appear alongside health without
+changing its state. Both monitor types link to their stable detail routes;
+project actions link to the existing creation and management screens.
 
 The instance email screen reads safe SMTP settings and default recipients,
 updates them at the read version, replaces or clears the password explicitly,

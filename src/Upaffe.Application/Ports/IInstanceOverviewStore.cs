@@ -2,8 +2,8 @@ namespace Upaffe.Application.Ports;
 
 public sealed record OverviewCounts(int Total, int Healthy, int Failing, int Untested,
     int Paused, int Overdue);
-public sealed record OverviewDelivery(int Pending, int Retrying, int TerminalFailure,
-    int Accepted, DateTimeOffset? OldestPendingAt);
+public sealed record OverviewDelivery(int Pending, int Overdue, int Retrying,
+    int TerminalFailure, int Accepted, DateTimeOffset? OldestPendingAt);
 public sealed record OverviewMonitor(string ProjectKey, string Type, string Key,
     string Name, string State, string? Mode, bool Overdue,
     DateTimeOffset? NextDueAt, DateTimeOffset? LastSuccessAt,

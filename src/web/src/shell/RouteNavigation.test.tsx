@@ -24,6 +24,12 @@ function json(body: unknown, status = 200) {
 afterEach(() => { vi.unstubAllGlobals(); window.history.replaceState({}, "", "/"); });
 
 it("parses stable project and monitor paths without accepting extra or secret segments", () => {
+  expect(parseRoute("/projects/jobs")).toEqual({
+    kind: "project", projectKey: "jobs", section: "overview",
+  });
+  expect(parseRoute("/projects/jobs/http-monitors")).toEqual({
+    kind: "project", projectKey: "jobs", section: "http",
+  });
   expect(parseRoute("/projects/jobs/push-monitors/backup")).toEqual({
     kind: "project", projectKey: "jobs", section: "push", monitorKey: "backup",
   });

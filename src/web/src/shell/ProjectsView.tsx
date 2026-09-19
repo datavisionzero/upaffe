@@ -13,10 +13,9 @@ type Props = {
   session: Session;
   onSignedOut: () => void;
   onNavigate: (path: string) => void;
-  heading?: string;
 };
 
-export function ProjectsView({ session, onSignedOut, onNavigate, heading = "Projects" }: Props) {
+export function ProjectsView({ session, onSignedOut, onNavigate }: Props) {
   const [deleted, setDeleted] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -128,7 +127,7 @@ export function ProjectsView({ session, onSignedOut, onNavigate, heading = "Proj
       <header className="workspace-header">
         <div>
           <p className="eyebrow">upaffe</p>
-          <h1>{heading}</h1>
+          <h1>Projects</h1>
           <p className="muted">Signed in as {session.email}</p>
         </div>
         <div className="actions"><Button onClick={() => onNavigate("/settings/email")} type="button">Instance email</Button><Button disabled={busy === "signout"} onClick={signOut} type="button">Sign out</Button></div>

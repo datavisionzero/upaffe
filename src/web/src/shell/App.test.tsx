@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "@/shell/App";
 
@@ -23,6 +23,7 @@ const project = {
 };
 
 describe("the access and project application", () => {
+  beforeEach(() => window.history.replaceState({}, "", "/projects"));
   afterEach(() => vi.unstubAllGlobals());
 
   function answering(answer: (request: Request) => Promise<Response> | Response) {
