@@ -27,6 +27,9 @@ public sealed class ContractTests(PostgresFixture postgres)
         Assert.Equal(
             [
                 "/api/bootstrap",
+                "/api/email/default-recipients",
+                "/api/email/password",
+                "/api/email/settings",
                 "/api/health/live",
                 "/api/health/ready",
                 "/api/management-credentials",
@@ -34,6 +37,7 @@ public sealed class ContractTests(PostgresFixture postgres)
                 "/api/management-credentials/{id}/rotate",
                 "/api/projects",
                 "/api/projects/{key}",
+                "/api/projects/{key}/recipients",
                 "/api/projects/{key}/restore",
                 "/api/projects/{projectKey}/http-monitors",
                 "/api/projects/{projectKey}/http-monitors/{monitorKey}",

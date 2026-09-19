@@ -7,7 +7,8 @@ public sealed record ProjectSnapshot(
     long Version,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    DateTimeOffset? DeletedAt);
+    DateTimeOffset? DeletedAt,
+    IReadOnlyList<string> Recipients);
 
 public enum ProjectMutation
 {
@@ -52,6 +53,13 @@ public interface IProjectStore
 
     Task<ProjectMutationResult> RestoreAsync(
         string key,
+        long expectedVersion,
+        DateTimeOffset now,
+        CancellationToken cancellationToken);
+
+    Task<ProjectMutationResult> ReplaceRecipientsAsync(
+        string key,
+        string[] recipients,
         long expectedVersion,
         DateTimeOffset now,
         CancellationToken cancellationToken);

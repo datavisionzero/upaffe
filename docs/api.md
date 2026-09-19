@@ -30,6 +30,13 @@ secret supplied in the request body.
 | `PUT /api/projects/{key}` | Rename a live project at the version last read. |
 | `DELETE /api/projects/{key}?version={version}` | Soft-delete a project at the version last read. |
 | `POST /api/projects/{key}/restore` | Restore a project at the version last read. |
+| `GET /api/email/settings` | Read safe SMTP settings, credential presence, and default recipients. |
+| `PUT /api/email/settings` | Update SMTP sender, relay, security, authentication username, and public detail URL at the settings version last read. |
+| `PUT /api/email/password` | Replace the write-only SMTP password explicitly. |
+| `DELETE /api/email/password?version={version}` | Clear the SMTP password explicitly. |
+| `PUT /api/email/default-recipients` | Replace recipients copied to new projects. |
+| `GET /api/projects/{key}/recipients` | Read a project's recipients and version. |
+| `PUT /api/projects/{key}/recipients` | Replace recipients on a live project at the version last read. |
 | `POST /api/projects/{projectKey}/http-monitors` | Create an HTTP monitor idempotently within a project. |
 | `GET /api/projects/{projectKey}/http-monitors` | List live HTTP monitors in a project. |
 | `GET /api/projects/{projectKey}/http-monitors/{monitorKey}` | Read one HTTP monitor without secret values. |
@@ -147,6 +154,28 @@ existing key, or an attempted rename while deleted returns `409 conflict`.
 All project operations use the management boundary and therefore accept a
 browser session or management credential; anonymous requests return
 `401 authentication_required`.
+
+## Email configuration and recipients
+
+The instance has one versioned SMTP configuration. `GET /api/email/settings`
+returns relay host and port, transport security (`none`, `starttls`, or `tls`),
+sender address and display name, optional authentication username, public
+detail URL, `has_password`, and the instance default recipient list. An
+unconfigured instance has version `0`. `PUT /api/email/settings` accepts those
+non-secret settings and a version. Password replacement requires a separate
+`PUT /api/email/password` with `version` and `password`; clearing uses
+`DELETE /api/email/password?version=…`. Reads and mutation responses never
+return the password. Stale versions return `409 conflict`.
+
+`PUT /api/email/default-recipients` accepts `version` and `recipients`. The
+default is copied once to each newly created project. Changing the default
+does not edit existing projects. `GET` and `PUT /api/projects/{key}/recipients`
+use the project's version; changing recipients increments it, and a deleted
+project cannot be changed. The ordered list has at most 50 plain addresses.
+Inputs are trimmed, domains are lowercased, and case-insensitive duplicates
+or malformed addresses return `400 validation`. An empty list opts a project
+out of incident email. All operations require browser or management-credential
+authentication; browser mutations also require CSRF protection.
 
 ## HTTP monitors
 

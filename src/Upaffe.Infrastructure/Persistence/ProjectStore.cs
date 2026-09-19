@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Upaffe.Application.Ports;
 using Upaffe.Domain.Projects;
+using Upaffe.Domain.Notifications;
 
 namespace Upaffe.Infrastructure.Persistence;
 
@@ -14,7 +15,9 @@ public sealed class ProjectStore(UpaffeDbContext context) : IProjectStore
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var project = Project.Create(key, name, now);
+        var defaults = await context.EmailConfigurations.AsNoTracking()
+            .Select(value => value.DefaultRecipients).SingleOrDefaultAsync(cancellationToken) ?? [];
+        var project = Project.Create(key, name, now, defaults);
         context.Projects.Add(project);
         try
         {
@@ -127,6 +130,18 @@ public sealed class ProjectStore(UpaffeDbContext context) : IProjectStore
         return await SavedAsync(project, cancellationToken);
     }
 
+    public async Task<ProjectMutationResult> ReplaceRecipientsAsync(
+        string key, string[] recipients, long expectedVersion, DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var project = await FindAsync(key, cancellationToken);
+        if (project is null) return new(ProjectMutation.Missing);
+        if (project.Version != expectedVersion) return new(ProjectMutation.VersionConflict);
+        if (project.DeletedAt is not null) return new(ProjectMutation.Deleted);
+        project.ReplaceRecipients(recipients, now);
+        return await SavedAsync(project, cancellationToken);
+    }
+
     private Task<Project?> FindAsync(string key, CancellationToken cancellationToken) =>
         context.Projects.SingleOrDefaultAsync(value => value.Key == key, cancellationToken);
 
@@ -152,7 +167,8 @@ public sealed class ProjectStore(UpaffeDbContext context) : IProjectStore
         value.Version,
         value.CreatedAt,
         value.UpdatedAt,
-        value.DeletedAt);
+        value.DeletedAt,
+        value.Recipients);
 
     private static bool IsKeyConflict(DbUpdateException exception) =>
         exception.InnerException is PostgresException

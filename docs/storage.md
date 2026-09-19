@@ -38,6 +38,9 @@ ADR 0006. The seventh adds durable push-deadline leases and the unique
 synthetic-observation boundary. Later changes add new forward migrations; an
 existing migration is never rewritten after release.
 
+The next migration adds the singleton email configuration and project
+recipient snapshot decided in ADR 0007.
+
 Add a migration from the repository root after changing the context model:
 
 ```sh
@@ -70,6 +73,15 @@ replacement project. API writes compare the version last read before mutation,
 and EF's concurrency token rejects a second writer that races between that
 comparison and commit. Concurrent creation of the same accepted key and name is
 idempotent; a different name is a conflict.
+
+`email_configuration` is a single keyed row with a concurrency version,
+shared relay and sender settings, default recipients, and an optional SMTP
+password. The password must be readable by the sender and therefore cannot be
+hashed. It is excluded from ordinary API reads and logs, like HTTP monitor
+request secrets. The database and host administrator remain trusted. Project
+rows contain an independent `text[]` recipient list copied from the defaults
+at creation; replacement uses the project concurrency version. Existing
+projects never track later default changes.
 
 ## HTTP monitoring schema
 

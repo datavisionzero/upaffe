@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Upaffe.Domain.Access;
 using Upaffe.Domain.Monitoring;
+using Upaffe.Domain.Notifications;
 using Upaffe.Domain.Projects;
 
 namespace Upaffe.Infrastructure.Persistence;
@@ -14,6 +15,7 @@ public sealed class UpaffeDbContext(DbContextOptions<UpaffeDbContext> options) :
     public DbSet<ManagementCredential> ManagementCredentials => Set<ManagementCredential>();
     public DbSet<ManagementCredentialSecret> ManagementCredentialSecrets => Set<ManagementCredentialSecret>();
     public DbSet<Project> Projects => Set<Project>();
+    public DbSet<EmailConfiguration> EmailConfigurations => Set<EmailConfiguration>();
     public DbSet<HttpMonitor> HttpMonitors => Set<HttpMonitor>();
     public DbSet<HttpMonitorSecret> HttpMonitorSecrets => Set<HttpMonitorSecret>();
     public DbSet<HttpMonitorHeader> HttpMonitorHeaders => Set<HttpMonitorHeader>();
