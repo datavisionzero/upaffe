@@ -7,6 +7,7 @@ public sealed class PushMonitoringService(
     IServiceScopeFactory scopeFactory,
     IConfiguration configuration,
     TimeProvider clock,
+    MonitoringProgress progress,
     ILogger<PushMonitoringService> logger) : BackgroundService
 {
     internal static readonly TimeSpan IdleDelay = TimeSpan.FromSeconds(1);
@@ -25,7 +26,9 @@ public sealed class PushMonitoringService(
             {
                 await using var scope = scopeFactory.CreateAsyncScope();
                 var run = scope.ServiceProvider.GetRequiredService<RunPushDeadline>();
-                if (await run.ExecuteOnceAsync(stoppingToken))
+                var worked = await run.ExecuteOnceAsync(stoppingToken);
+                progress.PushSucceeded();
+                if (worked)
                 {
                     continue;
                 }
@@ -36,7 +39,9 @@ public sealed class PushMonitoringService(
             }
             catch (Exception exception)
             {
-                logger.LogError(exception, "The push deadline monitoring loop failed and will retry.");
+                logger.LogError(
+                    "The push deadline monitoring loop failed ({FailureType}) and will retry.",
+                    exception.GetType().Name);
             }
 
             await Task.Delay(IdleDelay, clock, stoppingToken);

@@ -14,6 +14,7 @@ secret supplied in the request body.
 | --- | --- |
 | `GET /api/version` | The instance version. This is the first operation exercised by both generated clients. |
 | `GET /api/health/live` | Whether the process can answer; it touches no dependency. |
+| `GET /api/health/progress` | Whether both monitoring workers completed a successful idle or active iteration within two minutes. |
 | `GET /api/health/ready` | Whether PostgreSQL answers with exactly the schema this binary knows. |
 | `GET /api/bootstrap` | Whether an operator is still required and whether a live bootstrap proof is available. |
 | `POST /api/bootstrap` | Establish the sole operator with the bootstrap proof, email, and password. |

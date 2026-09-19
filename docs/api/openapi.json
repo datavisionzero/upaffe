@@ -79,6 +79,37 @@
         }
       }
     },
+    "/api/health/progress": {
+      "get": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Whether both monitoring workers recently completed database-backed work or an idle poll.",
+        "operationId": "ReadMonitoringProgress",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LivenessResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LivenessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/bootstrap": {
       "get": {
         "tags": [

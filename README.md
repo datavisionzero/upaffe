@@ -42,7 +42,10 @@ ConnectionStrings__Postgres='Host=localhost;Port=5432;Database=upaffe;Username=u
 While the host is running, `GET /api/health/live` checks only that the process
 can answer. It is a technical liveness signal, not evidence that monitoring is
 working. `GET /api/health/ready` additionally verifies that PostgreSQL answers
-with exactly the migration set known to this build.
+with exactly the migration set known to this build. The separate
+`GET /api/health/progress` reports whether both monitoring workers have made
+recent successful progress, including idle database polls; see the
+[operations guide](./docs/operations.md#production-compose-startup).
 
 A fresh database needs a one-time operator bootstrap. Set a locally generated
 `UPAFFE_BOOTSTRAP_SECRET` for one startup and follow the request documented in

@@ -18,6 +18,7 @@ var database = DeploymentSecrets.Database(builder.Configuration);
 var trustedProxy = TrustedProxySettings.Read(builder.Configuration);
 builder.Services.AddUpaffeInfrastructure(database);
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<MonitoringProgress>();
 builder.Services.AddScoped<ArmBootstrap>();
 builder.Services.AddScoped<ReadBootstrapState>();
 builder.Services.AddScoped<EstablishOperator>();

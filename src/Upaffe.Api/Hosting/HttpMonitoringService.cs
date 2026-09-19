@@ -7,6 +7,7 @@ public sealed class HttpMonitoringService(
     IServiceScopeFactory scopeFactory,
     IConfiguration configuration,
     TimeProvider clock,
+    MonitoringProgress progress,
     ILogger<HttpMonitoringService> logger) : BackgroundService
 {
     internal static readonly TimeSpan IdleDelay = TimeSpan.FromSeconds(1);
@@ -25,7 +26,9 @@ public sealed class HttpMonitoringService(
             {
                 await using var scope = scopeFactory.CreateAsyncScope();
                 var run = scope.ServiceProvider.GetRequiredService<RunScheduledHttpCheck>();
-                if (await run.ExecuteOnceAsync(stoppingToken))
+                var worked = await run.ExecuteOnceAsync(stoppingToken);
+                progress.HttpSucceeded();
+                if (worked)
                 {
                     continue;
                 }
@@ -36,7 +39,9 @@ public sealed class HttpMonitoringService(
             }
             catch (Exception exception)
             {
-                logger.LogError(exception, "The scheduled HTTP monitoring loop failed and will retry.");
+                logger.LogError(
+                    "The scheduled HTTP monitoring loop failed ({FailureType}) and will retry.",
+                    exception.GetType().Name);
             }
 
             await Task.Delay(IdleDelay, clock, stoppingToken);

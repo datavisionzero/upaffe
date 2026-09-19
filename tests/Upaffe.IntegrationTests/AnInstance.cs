@@ -21,7 +21,8 @@ internal sealed class AnInstance(
     ILoggerProvider? logProvider = null,
     IHttpCheckExecutor? checkExecutor = null,
     bool fileBackedDatabase = false,
-    IPAddress? remoteAddress = null) : WebApplicationFactory<Program>
+    IPAddress? remoteAddress = null,
+    Action<IServiceCollection>? serviceOverrides = null) : WebApplicationFactory<Program>
 {
     public static async Task<AnInstance> StartedAsync(
         PostgresFixture postgres,
@@ -37,9 +38,10 @@ internal sealed class AnInstance(
         TimeProvider? clock = null,
         ILoggerProvider? logProvider = null,
         IHttpCheckExecutor? checkExecutor = null,
-        IPAddress? remoteAddress = null) =>
+        IPAddress? remoteAddress = null,
+        Action<IServiceCollection>? serviceOverrides = null) =>
         new(connectionString, settings, clock, logProvider, checkExecutor,
-            remoteAddress: remoteAddress);
+            remoteAddress: remoteAddress, serviceOverrides: serviceOverrides);
 
     public static AnInstance AgainstFileBackedDatabase(
         string connectionString,
@@ -49,7 +51,7 @@ internal sealed class AnInstance(
 
     public AnInstance StartedAgain() =>
         new(connectionString, settings, clock, logProvider, checkExecutor,
-            fileBackedDatabase, remoteAddress);
+            fileBackedDatabase, remoteAddress, serviceOverrides);
 
     public static UpaffeDbContext ContextFor(string connectionString) =>
         new(new DbContextOptionsBuilder<UpaffeDbContext>().UseNpgsql(connectionString).Options);
@@ -98,6 +100,8 @@ internal sealed class AnInstance(
                 services.RemoveAll<IHttpCheckExecutor>();
                 services.AddSingleton(checkExecutor);
             }
+
+            serviceOverrides?.Invoke(services);
         });
         if (logProvider is not null)
         {
