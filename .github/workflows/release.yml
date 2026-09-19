@@ -94,7 +94,7 @@ jobs:
       - run: |
           python3 scripts/check-release-bundle.py "$RELEASE_VERSION" "$SOURCE_REVISION" release-candidate
           cp "$NOTES" release-candidate/release-notes-preview.md
-          printf '%s  candidate OCI layout\n' "$LAYOUT_SHA256" > release-candidate/image-layout.sha256
+          printf 'sha256:%s\n' "$LAYOUT_SHA256" > release-candidate/image-layout-digest.txt
       - uses: actions/upload-artifact@v4
         with:
           name: release-candidate

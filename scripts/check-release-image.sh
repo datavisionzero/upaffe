@@ -22,13 +22,19 @@ for architecture in amd64 arm64; do
   [ "$actual" = "linux/$architecture $version $revision" ] || {
     echo "Wrong metadata for the $architecture release image." >&2; exit 1;
   }
-  if [ "$architecture" = amd64 ]; then
-    root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
-    "$root/scripts/check-image.sh" "$image" | grep -F "version: $version" >/dev/null || {
-      echo 'Release image did not report its embedded version.' >&2; exit 1;
-    }
-  fi
 done
+
+case "$(docker info --format '{{.Architecture}}')" in
+  x86_64|amd64) native=amd64 ;;
+  aarch64|arm64) native=arm64 ;;
+  *) echo 'Unsupported native Docker architecture.' >&2; exit 1 ;;
+esac
+docker pull --quiet --platform "linux/$native" "$image" >/dev/null
+root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+"$root/scripts/check-image.sh" "$image" | grep -F "version: $version" >/dev/null || {
+  echo 'Release image did not report its embedded version.' >&2; exit 1;
+}
+
 digest=$(docker buildx imagetools inspect "$image" | sed -n 's/^Digest:[[:space:]]*//p' | head -1)
 case "$digest" in
   sha256:????????????????????????????????????????????????????????????????) ;;
