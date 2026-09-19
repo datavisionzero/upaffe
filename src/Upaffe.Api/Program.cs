@@ -15,10 +15,19 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
 
 var database = DeploymentSecrets.Database(builder.Configuration);
+var heartbeat = DeploymentSecrets.Heartbeat(builder.Configuration);
 var trustedProxy = TrustedProxySettings.Read(builder.Configuration);
 builder.Services.AddUpaffeInfrastructure(database);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<MonitoringProgress>();
+builder.Services.AddSingleton(heartbeat);
+builder.Services.AddSingleton(_ => new HttpClient(new SocketsHttpHandler
+{
+    AllowAutoRedirect = false,
+    UseCookies = false,
+    UseProxy = false,
+}) { Timeout = HeartbeatSender.Timeout });
+builder.Services.AddSingleton<HeartbeatSender>();
 builder.Services.AddScoped<ArmBootstrap>();
 builder.Services.AddScoped<ReadBootstrapState>();
 builder.Services.AddScoped<EstablishOperator>();
@@ -81,6 +90,7 @@ builder.Services.AddHostedService<SchemaMigrationService>();
 builder.Services.AddHostedService<BootstrapService>();
 builder.Services.AddHostedService<HttpMonitoringService>();
 builder.Services.AddHostedService<PushMonitoringService>();
+builder.Services.AddHostedService<HeartbeatService>();
 builder.Services.AddHostedService<EmailDeliveryService>();
 builder.Services.AddHostedService<HttpHistoryRetentionService>();
 builder.Services.AddHostedService<PushHistoryRetentionService>();

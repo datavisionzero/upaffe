@@ -54,6 +54,31 @@ public static class DeploymentSecrets
         return path is null ? direct : ReadFile(BootstrapSecretFile, path, BootstrapSettings.MaximumLength);
     }
 
+    public static HeartbeatDestination Heartbeat(IConfiguration configuration)
+    {
+        var path = configuration[HeartbeatUrlFile];
+        if (path is null)
+        {
+            return HeartbeatDestination.Disabled;
+        }
+
+        var value = ReadFile(HeartbeatUrlFile, path, 2048);
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri)
+            || uri.Scheme != Uri.UriSchemeHttps
+            || uri.HostNameType != UriHostNameType.Dns
+            || !uri.Host.Contains('.', StringComparison.Ordinal)
+            || uri.IsLoopback
+            || uri.Host.EndsWith(".local", StringComparison.OrdinalIgnoreCase)
+            || uri.UserInfo.Length != 0
+            || uri.Fragment.Length != 0)
+        {
+            throw new InvalidOperationException(
+                $"{HeartbeatUrlFile} must contain an absolute HTTPS URL with a multi-label DNS name and no user info or fragment.");
+        }
+
+        return new HeartbeatDestination(uri);
+    }
+
     public static void ValidateBootstrapSource(IConfiguration configuration)
     {
         var direct = configuration[BootstrapSettings.Variable];

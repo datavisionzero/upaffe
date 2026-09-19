@@ -25,7 +25,7 @@ or worker timing, and uses `Cache-Control: no-store` so an intermediary cannot
 reuse an earlier healthy answer. Worker retry logs identify only the exception
 type, not its message or stack, so an unexpected store diagnostic cannot expose
 target data.
-An independent checker can poll it from outside the
-instance's failure domain. The optional outbound heartbeat uses this same
-freshness decision; it does not substitute for external observation of a
-missing HTTP response.
+An independent checker can poll it from outside the instance's failure domain.
+The optional outbound heartbeat in [ADR 0014](./0014-send-only-empty-healthy-heartbeats.md)
+uses this same freshness decision; it does not substitute for external
+observation of a missing HTTP response.

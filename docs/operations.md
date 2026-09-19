@@ -27,7 +27,7 @@ conflict and validation rules.
 | --- | --- | --- |
 | `UPAFFE_POSTGRES_PASSWORD_FILE` | PostgreSQL password shared with `POSTGRES_PASSWORD_FILE` in the database container | Every start |
 | `UPAFFE_BOOTSTRAP_SECRET_FILE` | One-time random proof, 32–1024 characters | Only until the operator is established |
-| `UPAFFE_HEARTBEAT_URL_FILE` | Optional HTTPS URL for an independent receiver | When the outbound sender is enabled in a later deployment step |
+| `UPAFFE_HEARTBEAT_URL_FILE` | Optional HTTPS URL for an independent receiver | Only when the outbound sender is enabled |
 
 Files contain one UTF-8 line with an optional trailing newline. Keep their
 source files outside the public checkout and readable only by the operator and
@@ -98,6 +98,33 @@ required for recovery. Point an external checker at the HTTPS proxy URL and
 poll at least once per minute from outside this host's failure domain; a
 missing HTTP response is also a failure. The response contains no monitor or
 project data. See [ADR 0013](./adr/0013-report-worker-progress-separately-from-readiness.md).
+
+## Optional outbound heartbeat
+
+The base Compose stack makes no outbound heartbeat request. To opt in, arrange
+an independent HTTPS receiver outside this host and its failure domain. Write
+its full URL, including any receiver token, to `secrets/heartbeat_url` in the
+deployment directory. The file must be a single UTF-8 line, at most 2048
+characters, and readable by the non-root application container. It must use
+a multi-label DNS name; loopback, IP literals, `.local`, URL user information,
+and fragments are rejected. Keep the source file in the protected `secrets`
+directory and out of source control. Copy `docker-compose.heartbeat.yml` from
+the same source revision and start with both Compose files:
+
+```sh
+chmod 0644 secrets/heartbeat_url
+docker compose -f docker-compose.yml -f docker-compose.heartbeat.yml up -d --wait
+```
+
+The sender makes an empty GET to that URL only while both monitoring workers
+have progressed within two minutes. It waits one minute between attempts, with
+a five-second timeout and no immediate retry. A receiver should alert after
+more than three minutes without a successful request. Check the public HTTPS
+`/api/health/progress` endpoint separately: its response distinguishes worker
+progress from a missing heartbeat caused by network or receiver failure. The
+sender does not log the destination, read the response body, or send project
+data. Removing the overlay and recreating the app disables the sender. See
+[ADR 0014](./adr/0014-send-only-empty-healthy-heartbeats.md).
 
 See [ADR 0011](./adr/0011-compose-state-and-network-boundaries.md) for the
 state and network boundaries. Routine updates, backup, restore, and

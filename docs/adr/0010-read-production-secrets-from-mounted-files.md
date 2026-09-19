@@ -33,8 +33,8 @@ bounded. Missing, unreadable, malformed, and conflicting inputs fail with
 short setting-name errors that omit the path and secret. File contents never
 enter ordinary logs, health responses, or status output.
 
-An optional outbound heartbeat will use `UPAFFE_HEARTBEAT_URL_FILE` with an
-HTTPS destination URL stored as a secret, since provider URLs commonly embed
-a token. The sender, URL validation, timeout, and retry policy are defined
-with the heartbeat implementation. There is no direct environment-variable
-form for that URL in the production contract.
+The optional outbound heartbeat uses `UPAFFE_HEARTBEAT_URL_FILE` with an HTTPS
+destination URL stored as a secret, since provider URLs commonly embed a token.
+Its sender, URL validation, timeout, and retry policy are defined in
+[ADR 0014](./0014-send-only-empty-healthy-heartbeats.md). There is no direct
+environment-variable form for that URL in the production contract.

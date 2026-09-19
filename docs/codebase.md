@@ -227,6 +227,8 @@ SPA. `GET /api/health/live` proves only that the process can answer;
 `GET /api/health/progress` endpoint requires recent successful iterations of
 both scheduled HTTP and push deadline workers, including idle database polls.
 It carries no project data. See [ADR 0013](adr/0013-report-worker-progress-separately-from-readiness.md).
+An optional independent HTTPS heartbeat sender uses the same progress tracker
+and a mounted destination URL; see [ADR 0014](adr/0014-send-only-empty-healthy-heartbeats.md).
 
 ## Web and CLI
 

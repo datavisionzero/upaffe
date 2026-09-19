@@ -1,0 +1,11 @@
+# Optional outbound signal to a receiver outside this installation's failure domain.
+services:
+  app:
+    environment:
+      UPAFFE_HEARTBEAT_URL_FILE: /run/secrets/heartbeat_url
+    secrets:
+      - heartbeat_url
+
+secrets:
+  heartbeat_url:
+    file: ./secrets/heartbeat_url
