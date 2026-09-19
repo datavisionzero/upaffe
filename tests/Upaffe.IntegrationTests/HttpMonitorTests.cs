@@ -387,6 +387,22 @@ public sealed class HttpMonitorTests(PostgresFixture postgres)
         Assert.Equal(new long[] { 2, 1 }, third.Items.Select(value => value.Sequence));
         Assert.Null(third.NextBeforeSequence);
 
+        using var evidenceResponse = await SendAsync(client, HttpMethod.Get,
+            $"/api/projects/public-services/http-monitors/public-site/checks/{third.Items[1].Id}", token);
+        var evidenceBody = await evidenceResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, evidenceResponse.StatusCode);
+        Assert.DoesNotContain(querySecret, evidenceBody, StringComparison.Ordinal);
+        Assert.DoesNotContain(headerSecret, evidenceBody, StringComparison.Ordinal);
+        Assert.DoesNotContain(responseSecret, evidenceBody, StringComparison.Ordinal);
+        var evidence = JsonSerializer.Deserialize<HttpCheckHistoryResponse>(evidenceBody, Json)!;
+        Assert.Equal(1, evidence.Sequence);
+        using var otherMonitor = await SendAsync(client, HttpMethod.Get,
+            $"/api/projects/public-services/http-monitors/other/checks/{third.Items[1].Id}", token);
+        Assert.Equal(HttpStatusCode.NotFound, otherMonitor.StatusCode);
+        using var anonymousEvidence = await SendAsync(client, HttpMethod.Get,
+            $"/api/projects/public-services/http-monitors/public-site/checks/{third.Items[1].Id}");
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymousEvidence.StatusCode);
+
         using var incidentsResponse = await SendAsync(
             client,
             HttpMethod.Get,
@@ -415,6 +431,13 @@ public sealed class HttpMonitorTests(PostgresFixture postgres)
         Assert.Equal("timeout", oldestIncident.LatestReason);
         Assert.NotNull(oldestIncident.ResolvedAt);
         Assert.Null(olderIncidents.NextBeforeOpeningSequence);
+
+        using var incidentEvidenceResponse = await SendAsync(client, HttpMethod.Get,
+            $"/api/projects/public-services/http-monitors/public-site/incidents/{oldestIncident.Id}", token);
+        Assert.Equal(HttpStatusCode.OK, incidentEvidenceResponse.StatusCode);
+        var incidentEvidence = (await incidentEvidenceResponse.Content.ReadFromJsonAsync<IncidentHistoryResponse>(
+            Json, TestContext.Current.CancellationToken))!;
+        Assert.Equal(1, incidentEvidence.OpeningSequence);
 
         using var invalidLimit = await SendAsync(
             client,

@@ -4,7 +4,7 @@ import type { components } from "@/api/schema";
 import { api } from "@/api/client";
 import { problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
-import { monitorPath, projectPath } from "@/shell/routes";
+import { monitorPath, projectPath, withReturn } from "@/shell/routes";
 
 type Overview = components["schemas"]["InstanceOverview"];
 type Monitor = components["schemas"]["OverviewMonitor"];
@@ -85,7 +85,7 @@ export function DashboardView({ onNavigate, onSignedOut }: {
             {overview.delivery.oldest_pending_at && ` Oldest pending: ${ageLabel(overview.generated_at, overview.delivery.oldest_pending_at)}.`}
           </p>
         </div>
-        {link("/settings/email", "Open email status and settings", "text-link")}
+        {link(withReturn("/settings/email", "/dashboard"), "Open email status and settings", "text-link")}
       </section>
 
       <div className="dashboard-columns">

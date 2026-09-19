@@ -12,7 +12,10 @@ internal static class HttpCheckEvaluator
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        if (!monitor.ApplyResult(check, now))
+        if (check.AppliedToCurrentState is not null) return false;
+        var applied = monitor.ApplyResult(check, now);
+        check.RecordApplicability(applied);
+        if (!applied)
         {
             return false;
         }

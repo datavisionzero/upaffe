@@ -40,11 +40,23 @@ public sealed record PushHistoryPruneResult(int IncidentsDeleted, int ReportsDel
 
 public interface IPushMonitorHistoryStore
 {
+    Task<PushReportHistoryItem?> ReadReportAsync(
+        string projectKey,
+        string monitorKey,
+        Guid reportId,
+        CancellationToken cancellationToken);
+
     Task<PushReportHistoryPage?> ListReportsAsync(
         string projectKey,
         string monitorKey,
         long? beforeSequence,
         int limit,
+        CancellationToken cancellationToken);
+
+    Task<PushIncidentHistoryItem?> ReadIncidentAsync(
+        string projectKey,
+        string monitorKey,
+        Guid incidentId,
         CancellationToken cancellationToken);
 
     Task<PushIncidentHistoryPage?> ListIncidentsAsync(

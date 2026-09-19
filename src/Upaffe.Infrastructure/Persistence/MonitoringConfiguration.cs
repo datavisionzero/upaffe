@@ -176,6 +176,7 @@ internal sealed class HttpCheckConfiguration : IEntityTypeConfiguration<HttpChec
         builder.Property(value => value.StatusCode).HasColumnName("status_code");
         builder.Property(value => value.ResponseTimeMilliseconds).HasColumnName("response_time_milliseconds");
         builder.Property(value => value.EffectiveUrl).HasColumnName("effective_url").HasMaxLength(HttpCheck.MaximumEffectiveUrlLength);
+        builder.Property(value => value.AppliedToCurrentState).HasColumnName("applied_to_current_state");
         builder.Property(value => value.ExecutionLeaseToken).HasColumnName("execution_lease_token");
         builder.Property(value => value.ExecutionLeaseUntil).HasColumnName("execution_lease_until");
         builder.Property(value => value.ExecutionAttempts).HasColumnName("execution_attempts");

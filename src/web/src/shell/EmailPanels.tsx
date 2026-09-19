@@ -4,12 +4,14 @@ import type { components } from "@/api/schema";
 import { api } from "@/api/client";
 import { csrfHeaders, problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
+import { monitorPath } from "@/shell/routes";
 
 type Maintenance = components["schemas"]["MaintenanceSnapshot"];
 type Delivery = components["schemas"]["EmailDeliveryStatus"];
 type Summary = components["schemas"]["EmailDeliverySummary"];
 type IncidentStatus = components["schemas"]["IncidentEmailStatus"];
 type Scope = { projectKey: string; monitorType?: "http" | "push"; monitorKey?: string };
+type DeliveryScope = { projectKey?: string; monitorType?: "http" | "push"; monitorKey?: string };
 
 function date(value: string | null | undefined): string {
   return value ? new Date(value).toLocaleString() : "—";
@@ -102,7 +104,7 @@ export function MaintenancePanel({ projectKey, monitorType, monitorKey, onSigned
   </section>;
 }
 
-export function DeliveryHistoryPanel({ projectKey, monitorType, monitorKey, onSignedOut }: Scope & { onSignedOut: () => void }) {
+export function DeliveryHistoryPanel({ projectKey, monitorType, monitorKey, onSignedOut }: DeliveryScope & { onSignedOut: () => void }) {
   const [items, setItems] = useState<Delivery[]>([]);
   const [summary, setSummary] = useState<Summary>();
   const [offset, setOffset] = useState(0);
@@ -115,7 +117,9 @@ export function DeliveryHistoryPanel({ projectKey, monitorType, monitorKey, onSi
     try {
       const [page, counts] = await Promise.all([
         api.GET("/api/email/deliveries", { params: { query: { project_key: projectKey, monitor_type: monitorType, monitor_key: monitorKey, limit: 20, offset: nextOffset } } }),
-        api.GET("/api/projects/{key}/email-summary", { params: { path: { key: projectKey } } }),
+        projectKey
+          ? api.GET("/api/projects/{key}/email-summary", { params: { path: { key: projectKey } } })
+          : api.GET("/api/email/deliveries/summary"),
       ]);
       if (page.response.status === 401 || counts.response.status === 401) { onSignedOut(); return; }
       if (!page.data) { setError(problemMessage(page.error, page.response.status)); return; }
@@ -134,8 +138,9 @@ export function DeliveryHistoryPanel({ projectKey, monitorType, monitorKey, onSi
     return () => window.clearTimeout(start);
   }, [load]);
 
-  return <section className="panel" aria-label="Email delivery">
-    <div className="section-heading"><div><h2>Email delivery</h2><p className="muted">SMTP acceptance confirms relay submission, not inbox delivery. History is retained for 90 days.</p></div><Button disabled={loading} onClick={() => void load()} type="button">Refresh delivery</Button></div>
+  const title = projectKey ? "Email delivery" : "Instance email delivery";
+  return <section className="panel" aria-label={title}>
+    <div className="section-heading"><div><h2>{title}</h2><p className="muted">SMTP acceptance confirms relay submission, not inbox delivery. History is retained for 90 days.</p></div><Button disabled={loading} onClick={() => void load()} type="button">Refresh delivery</Button></div>
     {summary && <p>Pending {summary.pending_count} · retrying {summary.retrying_count} · terminal failures {summary.terminal_failure_count} · SMTP accepted {summary.smtp_accepted_count}</p>}
     {error && <div className="error" role="alert">{error}</div>}
     {loading && items.length === 0 && <p role="status">Loading email deliveries…</p>}
@@ -145,6 +150,8 @@ export function DeliveryHistoryPanel({ projectKey, monitorType, monitorKey, onSi
       <span>{item.monitor_type}/{item.monitor_key} · incident {item.incident_id} · attempts {item.attempt_count} · created {date(item.created_at)}</span>
       {(item.last_error_code || item.suppression_reason) && <span>{item.last_error_code ? `Failure code ${item.last_error_code}` : ""}{item.suppression_reason ? ` · Suppressed by ${item.suppression_reason}` : ""}</span>}
       {item.next_attempt_at && <span>Next attempt {date(item.next_attempt_at)}</span>}
+      {(item.monitor_type === "http" || item.monitor_type === "push") &&
+        <a href={`${monitorPath(item.project_key, item.monitor_type, item.monitor_key)}?incident=${encodeURIComponent(item.incident_id)}`}>Inspect incident and recipient status →</a>}
     </li>)}</ol>}
     {hasMore && <Button disabled={loading} onClick={() => void load(offset)} type="button">Load older deliveries</Button>}
   </section>;

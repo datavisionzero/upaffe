@@ -5,6 +5,22 @@ namespace Upaffe.Infrastructure.Persistence;
 
 public sealed class HttpMonitorHistoryStore(UpaffeDbContext context) : IHttpMonitorHistoryStore
 {
+    public async Task<HttpCheckHistoryItem?> ReadCheckAsync(
+        string projectKey, string monitorKey, Guid checkId, CancellationToken cancellationToken)
+    {
+        var monitorId = await LiveMonitorIdAsync(projectKey, monitorKey, cancellationToken);
+        if (monitorId is null) return null;
+        return await context.HttpChecks.AsNoTracking()
+            .Where(value => value.MonitorId == monitorId && value.Id == checkId
+                && value.CompletedAt != null)
+            .Select(value => new HttpCheckHistoryItem(
+                value.Id, value.Sequence, value.Trigger, value.ScheduledFor,
+                value.StartedAt, value.CompletedAt!.Value, value.Outcome!.Value,
+                value.FailureReason, value.StatusCode, value.ResponseTimeMilliseconds,
+                value.EffectiveUrl, value.AppliedToCurrentState))
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
     public async Task<HttpCheckHistoryPage?> ListChecksAsync(
         string projectKey,
         string monitorKey,
@@ -39,7 +55,7 @@ public sealed class HttpMonitorHistoryStore(UpaffeDbContext context) : IHttpMoni
                 value.FailureReason,
                 value.StatusCode,
                 value.ResponseTimeMilliseconds,
-                value.EffectiveUrl))
+                value.EffectiveUrl, value.AppliedToCurrentState))
             .ToListAsync(cancellationToken);
         var hasMore = found.Count > limit;
         var items = found.Take(limit).ToArray();
@@ -88,6 +104,23 @@ public sealed class HttpMonitorHistoryStore(UpaffeDbContext context) : IHttpMoni
         var hasMore = found.Count > limit;
         var items = found.Take(limit).ToArray();
         return new(items, hasMore ? items[^1].OpeningSequence : null);
+    }
+
+    public async Task<IncidentHistoryItem?> ReadIncidentAsync(
+        string projectKey, string monitorKey, Guid incidentId, CancellationToken cancellationToken)
+    {
+        var monitorId = await LiveMonitorIdAsync(projectKey, monitorKey, cancellationToken);
+        if (monitorId is null) return null;
+        return await context.Incidents.AsNoTracking()
+            .Where(value => value.MonitorId == monitorId && value.Id == incidentId)
+            .Select(value => new IncidentHistoryItem(
+                value.Id, value.FirstFailureCheckId, value.OpeningCheckId,
+                value.LatestFailureCheckId, value.ResolutionCheckId,
+                value.FirstFailureSequence, value.OpeningSequence,
+                value.LatestFailureSequence, value.ResolutionSequence,
+                value.BeganAt, value.OpenedAt, value.LastObservedAt,
+                value.ResolvedAt, value.OriginalReason, value.LatestReason))
+            .SingleOrDefaultAsync(cancellationToken);
     }
 
     public async Task<HttpHistoryPruneResult> PruneAsync(

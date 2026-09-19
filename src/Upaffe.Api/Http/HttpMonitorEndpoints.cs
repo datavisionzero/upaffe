@@ -97,7 +97,8 @@ public sealed record HttpCheckHistoryResponse(
     string? FailureReason,
     int? StatusCode,
     int? ResponseTimeMilliseconds,
-    string? EffectiveUrl);
+    string? EffectiveUrl,
+    bool? AppliedToCurrentState);
 
 public sealed record HttpCheckHistoryPageResponse(
     IReadOnlyList<HttpCheckHistoryResponse> Items,
@@ -224,6 +225,22 @@ public static class HttpMonitorEndpoints
             .Produces<ProblemResponse>(StatusCodes.Status401Unauthorized, "application/problem+json")
             .Produces<ProblemResponse>(StatusCodes.Status404NotFound, "application/problem+json");
 
+        monitors.MapGet("/{monitorKey}/checks/{checkId:guid}", async (
+                string projectKey,
+                string monitorKey,
+                Guid checkId,
+                HttpContext http,
+                ReadHttpCheckEvidence read,
+                CancellationToken cancellationToken) =>
+            CheckHistoryResponse(await read.ExecuteAsync(
+                http.ActingIdentity(), projectKey, monitorKey, checkId, cancellationToken)))
+            .WithName("ReadHttpCheckEvidence")
+            .WithSummary("Read one completed HTTP check in this live monitor, including retained current evidence.")
+            .Produces<HttpCheckHistoryResponse>()
+            .Produces<ProblemResponse>(StatusCodes.Status400BadRequest, "application/problem+json")
+            .Produces<ProblemResponse>(StatusCodes.Status401Unauthorized, "application/problem+json")
+            .Produces<ProblemResponse>(StatusCodes.Status404NotFound, "application/problem+json");
+
         monitors.MapGet("/{monitorKey}/incidents", async (
                 string projectKey,
                 string monitorKey,
@@ -242,6 +259,22 @@ public static class HttpMonitorEndpoints
             .WithName("ListIncidentHistory")
             .WithSummary("List HTTP incidents newest first with cursor pagination.")
             .Produces<IncidentHistoryPageResponse>()
+            .Produces<ProblemResponse>(StatusCodes.Status400BadRequest, "application/problem+json")
+            .Produces<ProblemResponse>(StatusCodes.Status401Unauthorized, "application/problem+json")
+            .Produces<ProblemResponse>(StatusCodes.Status404NotFound, "application/problem+json");
+
+        monitors.MapGet("/{monitorKey}/incidents/{incidentId:guid}", async (
+                string projectKey,
+                string monitorKey,
+                Guid incidentId,
+                HttpContext http,
+                ReadHttpIncidentEvidence read,
+                CancellationToken cancellationToken) =>
+            IncidentHistoryResponse(await read.ExecuteAsync(
+                http.ActingIdentity(), projectKey, monitorKey, incidentId, cancellationToken)))
+            .WithName("ReadHttpIncidentEvidence")
+            .WithSummary("Read one retained HTTP incident in this live monitor.")
+            .Produces<IncidentHistoryResponse>()
             .Produces<ProblemResponse>(StatusCodes.Status400BadRequest, "application/problem+json")
             .Produces<ProblemResponse>(StatusCodes.Status401Unauthorized, "application/problem+json")
             .Produces<ProblemResponse>(StatusCodes.Status404NotFound, "application/problem+json");
@@ -441,8 +474,7 @@ public static class HttpMonitorEndpoints
         value.Result.EffectiveUrl,
         Response(value.Monitor));
 
-    private static HttpCheckHistoryPageResponse CheckHistoryResponse(HttpCheckHistoryPage value) => new(
-        value.Items.Select(item => new HttpCheckHistoryResponse(
+    private static HttpCheckHistoryResponse CheckHistoryResponse(HttpCheckHistoryItem item) => new(
             item.Id,
             item.Sequence,
             item.Trigger.ToString().ToLowerInvariant(),
@@ -453,11 +485,14 @@ public static class HttpMonitorEndpoints
             item.FailureReason,
             item.StatusCode,
             item.ResponseTimeMilliseconds,
-            item.EffectiveUrl)).ToArray(),
+            item.EffectiveUrl,
+            item.AppliedToCurrentState);
+
+    private static HttpCheckHistoryPageResponse CheckHistoryResponse(HttpCheckHistoryPage value) => new(
+        value.Items.Select(CheckHistoryResponse).ToArray(),
         value.NextBeforeSequence);
 
-    private static IncidentHistoryPageResponse IncidentHistoryResponse(IncidentHistoryPage value) => new(
-        value.Items.Select(item => new IncidentHistoryResponse(
+    private static IncidentHistoryResponse IncidentHistoryResponse(IncidentHistoryItem item) => new(
             item.Id,
             item.FirstFailureCheckId,
             item.OpeningCheckId,
@@ -472,7 +507,10 @@ public static class HttpMonitorEndpoints
             item.LastObservedAt,
             item.ResolvedAt,
             item.OriginalReason,
-            item.LatestReason)).ToArray(),
+            item.LatestReason);
+
+    private static IncidentHistoryPageResponse IncidentHistoryResponse(IncidentHistoryPage value) => new(
+        value.Items.Select(IncidentHistoryResponse).ToArray(),
         value.NextBeforeOpeningSequence);
 
     private static long? ParsedVersion(string value) =>

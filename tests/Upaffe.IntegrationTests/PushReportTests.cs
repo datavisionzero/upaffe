@@ -316,6 +316,21 @@ public sealed class PushReportTests(PostgresFixture postgres)
         Assert.Equal(new long[] { 2, 1 }, third.Items.Select(value => value.Sequence));
         Assert.Null(third.NextBeforeSequence);
 
+        using var evidenceResponse = await Send(client, HttpMethod.Get,
+            $"/api/projects/backups/push-monitors/nightly-backup/reports/{third.Items[1].Id}", setup.ManagementToken);
+        var evidenceBody = await evidenceResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, evidenceResponse.StatusCode);
+        Assert.DoesNotContain("private", evidenceBody, StringComparison.Ordinal);
+        Assert.DoesNotContain(setup.ReportingToken, evidenceBody, StringComparison.Ordinal);
+        var evidence = JsonSerializer.Deserialize<PushReportHistoryResponse>(evidenceBody, Json)!;
+        Assert.Equal(1, evidence.Sequence);
+        using var otherMonitor = await Send(client, HttpMethod.Get,
+            $"/api/projects/backups/push-monitors/other/reports/{third.Items[1].Id}", setup.ManagementToken);
+        Assert.Equal(HttpStatusCode.NotFound, otherMonitor.StatusCode);
+        using var anonymousEvidence = await Send(client, HttpMethod.Get,
+            $"/api/projects/backups/push-monitors/nightly-backup/reports/{third.Items[1].Id}");
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymousEvidence.StatusCode);
+
         using var incidentResponse = await Send(client, HttpMethod.Get,
             "/api/projects/backups/push-monitors/nightly-backup/incidents?limit=1", setup.ManagementToken);
         var incidents = (await incidentResponse.Content.ReadFromJsonAsync<PushIncidentHistoryPageResponse>(Json, TestContext.Current.CancellationToken))!;
@@ -329,6 +344,13 @@ public sealed class PushReportTests(PostgresFixture postgres)
         var olderIncidents = (await olderIncidentResponse.Content.ReadFromJsonAsync<PushIncidentHistoryPageResponse>(Json, TestContext.Current.CancellationToken))!;
         Assert.Equal(2, Assert.Single(olderIncidents.Items).OpeningSequence);
         Assert.Null(olderIncidents.NextBeforeOpeningSequence);
+
+        using var incidentEvidenceResponse = await Send(client, HttpMethod.Get,
+            $"/api/projects/backups/push-monitors/nightly-backup/incidents/{olderIncidents.Items[0].Id}", setup.ManagementToken);
+        Assert.Equal(HttpStatusCode.OK, incidentEvidenceResponse.StatusCode);
+        var incidentEvidence = (await incidentEvidenceResponse.Content.ReadFromJsonAsync<PushIncidentHistoryResponse>(
+            Json, TestContext.Current.CancellationToken))!;
+        Assert.Equal(2, incidentEvidence.OpeningSequence);
 
         using var invalidLimit = await Send(client, HttpMethod.Get,
             "/api/projects/backups/push-monitors/nightly-backup/reports?limit=101", setup.ManagementToken);

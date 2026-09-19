@@ -4,7 +4,7 @@ import type { components } from "@/api/schema";
 import { api } from "@/api/client";
 import { csrfHeaders, problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
-import { projectPath } from "@/shell/routes";
+import { projectPath, withReturn } from "@/shell/routes";
 
 type Project = components["schemas"]["ProjectResponse"];
 type Session = components["schemas"]["CurrentSessionResponse"];
@@ -130,7 +130,7 @@ export function ProjectsView({ session, onSignedOut, onNavigate }: Props) {
           <h1>Projects</h1>
           <p className="muted">Signed in as {session.email}</p>
         </div>
-        <div className="actions"><Button onClick={() => onNavigate("/settings/email")} type="button">Instance email</Button><Button disabled={busy === "signout"} onClick={signOut} type="button">Sign out</Button></div>
+        <div className="actions"><Button onClick={() => onNavigate(withReturn("/settings/email", "/projects"))} type="button">Instance email</Button><Button disabled={busy === "signout"} onClick={signOut} type="button">Sign out</Button></div>
       </header>
 
       <section aria-labelledby="create-title" className="panel">
@@ -177,7 +177,7 @@ export function ProjectsView({ session, onSignedOut, onNavigate }: Props) {
                 key={project.id}
                 busy={busy}
                 onManage={() => onNavigate(projectPath(project.key))}
-                onManageEmail={() => onNavigate(`${projectPath(project.key)}/settings/email`)}
+                onManageEmail={() => onNavigate(withReturn(`${projectPath(project.key)}/settings/email`, "/projects"))}
                 onMutate={mutate}
                 project={project}
               />

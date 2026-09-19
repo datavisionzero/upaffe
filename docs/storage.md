@@ -184,6 +184,9 @@ result supplies completion and diagnostic facts. A unique monitor/sequence
 index makes repeated allocation visible. Response content and target queries
 are not stored. The monitor's latest-result and latest-success references are
 independent so a current failure retains the earlier successful observation.
+The nullable `applied_to_current_state` fact records whether a completed check
+affected the monitor when evaluated. A null value belongs to older rows from
+before this fact was stored and is reported as unknown rather than inferred.
 
 Scheduled checks additionally retain the current execution token, lease end,
 last-attempt time, and attempt count. Claiming a due monitor and advancing its

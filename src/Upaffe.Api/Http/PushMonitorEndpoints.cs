@@ -102,6 +102,22 @@ public static class PushMonitorEndpoints
             .Produces<ProblemResponse>(401)
             .Produces<ProblemResponse>(404);
 
+        monitors.MapGet("/{monitorKey}/reports/{reportId:guid}", async (
+                string projectKey,
+                string monitorKey,
+                Guid reportId,
+                HttpContext http,
+                ReadPushReportEvidence read,
+                CancellationToken cancellationToken) =>
+            ReportHistoryResponse(await read.ExecuteAsync(
+                http.ActingIdentity(), projectKey, monitorKey, reportId, cancellationToken)))
+            .WithName("ReadPushReportEvidence")
+            .WithSummary("Read one push report in this live monitor, including retained current evidence.")
+            .Produces<PushReportHistoryResponse>()
+            .Produces<ProblemResponse>(400)
+            .Produces<ProblemResponse>(401)
+            .Produces<ProblemResponse>(404);
+
         monitors.MapGet("/{monitorKey}/incidents", async (
                 string projectKey,
                 string monitorKey,
@@ -115,6 +131,22 @@ public static class PushMonitorEndpoints
             .WithName("ListPushIncidentHistory")
             .WithSummary("List push incidents newest first with cursor pagination.")
             .Produces<PushIncidentHistoryPageResponse>()
+            .Produces<ProblemResponse>(400)
+            .Produces<ProblemResponse>(401)
+            .Produces<ProblemResponse>(404);
+
+        monitors.MapGet("/{monitorKey}/incidents/{incidentId:guid}", async (
+                string projectKey,
+                string monitorKey,
+                Guid incidentId,
+                HttpContext http,
+                ReadPushIncidentEvidence read,
+                CancellationToken cancellationToken) =>
+            IncidentHistoryResponse(await read.ExecuteAsync(
+                http.ActingIdentity(), projectKey, monitorKey, incidentId, cancellationToken)))
+            .WithName("ReadPushIncidentEvidence")
+            .WithSummary("Read one retained push incident in this live monitor.")
+            .Produces<PushIncidentHistoryResponse>()
             .Produces<ProblemResponse>(400)
             .Produces<ProblemResponse>(401)
             .Produces<ProblemResponse>(404);
@@ -176,8 +208,7 @@ public static class PushMonitorEndpoints
         new(value.Credential.Id, value.Token, $"/api/report/{value.Token}", value.Credential.CreatedAt,
             value.Credential.RotatedAt, value.PreviousValidUntil);
 
-    private static PushReportHistoryPageResponse ReportHistoryResponse(PushReportHistoryPage value) => new(
-        value.Items.Select(item => new PushReportHistoryResponse(
+    private static PushReportHistoryResponse ReportHistoryResponse(PushReportHistoryItem item) => new(
             item.Id,
             item.ReportId,
             item.EvaluationGeneration,
@@ -186,11 +217,13 @@ public static class PushMonitorEndpoints
             item.ReceivedAt,
             item.Outcome.ToString().ToLowerInvariant(),
             item.Reason,
-            item.Applicable)).ToArray(),
+            item.Applicable);
+
+    private static PushReportHistoryPageResponse ReportHistoryResponse(PushReportHistoryPage value) => new(
+        value.Items.Select(ReportHistoryResponse).ToArray(),
         value.NextBeforeSequence);
 
-    private static PushIncidentHistoryPageResponse IncidentHistoryResponse(PushIncidentHistoryPage value) => new(
-        value.Items.Select(item => new PushIncidentHistoryResponse(
+    private static PushIncidentHistoryResponse IncidentHistoryResponse(PushIncidentHistoryItem item) => new(
             item.Id,
             item.OpeningReportId,
             item.LatestFailureReportId,
@@ -203,6 +236,9 @@ public static class PushMonitorEndpoints
             item.LastObservedAt,
             item.ResolvedAt,
             item.OriginalReason,
-            item.LatestReason)).ToArray(),
+            item.LatestReason);
+
+    private static PushIncidentHistoryPageResponse IncidentHistoryResponse(PushIncidentHistoryPage value) => new(
+        value.Items.Select(IncidentHistoryResponse).ToArray(),
         value.NextBeforeOpeningSequence);
 }

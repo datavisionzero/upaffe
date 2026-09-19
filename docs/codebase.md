@@ -132,7 +132,9 @@ Both requested and scheduled completion lock the check and then its monitor
 before applying the result. The shared evaluator updates latest-result,
 latest-success, visible state, failure count, and persistent failure-streak
 start in the same transaction as completion. Repeated or older sequences are
-ignored. Reaching the configured threshold creates the first incident from the
+ignored. Each new completed check stores whether evaluation applied it to
+current state; older checks without that stored fact remain unknown in history.
+Reaching the configured threshold creates the first incident from the
 persisted beginning of that streak; PostgreSQL's unique open-incident index and
 the monitor lock keep competing completions from opening two. A later accepted
 failure updates that incident's latest observation and reason without changing
@@ -149,7 +151,11 @@ pages with exclusive sequence cursors. It also owns the daily 90-day cleanup:
 resolved incidents are removed before unreferenced old checks in one
 transaction, while monitor pointers and every remaining incident reference are
 protected. A small application act derives the exclusive cutoff from the
-injected clock; the API host runs it at startup and once per day.
+injected clock; the API host runs it at startup and once per day. Scoped evidence
+lookups retrieve retained checks and incidents by ID when a current pointer or
+deep link falls outside the first page. The push history store offers matching
+report and incident lookups. Detail pages show times from these persisted facts
+instead of displaying pointer IDs as a substitute for evidence.
 
 Push reports enter through either the bearer-authenticated JSON operation or
 the secret-path compatibility operation. Both resolve the credential digest
@@ -271,15 +277,18 @@ operator instructions, and safe runbook links appear alongside health without
 changing its state. Both monitor types link to their stable detail routes;
 project actions link to the existing creation and management screens.
 
-The instance email screen reads safe SMTP settings and default recipients,
-updates them at the read version, replaces or clears the password explicitly,
-and sends a single test email with relay-acceptance feedback. Project email
-administration edits live recipients and shows timed project maintenance and
-delivery counts/history. HTTP and push detail screens reuse the maintenance
-and delivery panels for their own scope and offer per-incident announcement
-status. Effective maintenance and its expiry are shown apart from monitor
-health and pause. The browser reads only the generated safe status responses;
-it never renders SMTP diagnostics or a saved password.
+The instance email screen leads with delivery counts and recent attempts across
+projects, then reads safe SMTP settings and default recipients, updates them at
+the read version, replaces or clears the password explicitly, and sends a
+single test email with relay-acceptance feedback. Project email administration
+leads with project delivery history, then edits live recipients and timed
+project maintenance. Each delivery links to its monitor and incident. Settings
+links carry the current health route so the operator can return to the same
+investigation. HTTP and push detail screens reuse the maintenance and delivery
+panels for their own scope and offer per-incident announcement status.
+Effective maintenance and its expiry are shown apart from monitor health and
+pause. The browser reads only the generated safe status responses; it never
+renders SMTP diagnostics or a saved password.
 
 The CLI is an independent Go module whose executable is `ua`. It is designed for
 unattended use: machine-readable output, data on stdout, diagnostics on stderr,

@@ -31,12 +31,12 @@ export function InstanceEmailView({ onBack, onSignedOut }: { onBack: () => void;
   }, [onSignedOut]);
   useEffect(() => { const start = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(start); }, [load]);
   return <div className="workspace">
-    <header className="workspace-header"><div><p className="eyebrow">upaffe</p><h1>Instance email</h1><p className="muted">One shared SMTP relay and defaults for new projects.</p></div><Button onClick={onBack} type="button">Back to projects</Button></header>
+    <header className="workspace-header"><div><p className="eyebrow">upaffe</p><h1>Instance email</h1><p className="muted">One shared SMTP relay and defaults for new projects.</p></div><Button onClick={onBack} type="button">Back to investigation</Button></header>
     {loading && !settings && <p role="status">Loading email settings…</p>}
     {error && <div className="error" role="alert">{error}</div>}
     {notice && <p className="notice" role="status">{notice}</p>}
+    <DeliveryHistoryPanel onSignedOut={onSignedOut} />
     {settings && <SettingsForms key={settings.version} settings={settings} onSaved={(value, message) => { setSettings(value); setError(undefined); setNotice(message); }} onConflict={setError} onRefresh={load} onSignedOut={onSignedOut} />}
-    <InstanceDeliverySummary onSignedOut={onSignedOut} />
   </div>;
 }
 
@@ -146,25 +146,6 @@ function SettingsForms({ settings, onSaved, onConflict, onRefresh, onSignedOut }
   </>;
 }
 
-function InstanceDeliverySummary({ onSignedOut }: { onSignedOut: () => void }) {
-  const [summary, setSummary] = useState<components["schemas"]["EmailDeliverySummary"]>();
-  const [error, setError] = useState<string>();
-  const load = useCallback(async () => {
-    try {
-      const result = await api.GET("/api/email/deliveries/summary");
-      if (result.data) { setSummary(result.data); setError(undefined); }
-      else if (result.response.status === 401) onSignedOut();
-      else setError(problemMessage(result.error, result.response.status));
-    } catch { setError("Delivery summary could not be reached."); }
-  }, [onSignedOut]);
-  useEffect(() => { const start = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(start); }, [load]);
-  return <section className="panel" aria-label="Instance email delivery"><div className="section-heading"><h2>Instance email delivery</h2><Button onClick={() => void load()} type="button">Refresh summary</Button></div>
-    {error && <p className="error" role="alert">{error}</p>}
-    {!summary && !error && <p role="status">Loading delivery summary…</p>}
-    {summary && <p>Pending {summary.pending_count} · retrying {summary.retrying_count} · terminal failures {summary.terminal_failure_count} · SMTP accepted {summary.smtp_accepted_count}</p>}
-  </section>;
-}
-
 export function ProjectEmailView({ project, onBack, onSignedOut }: { project: Project; onBack: () => void; onSignedOut: () => void }) {
   const [recipients, setRecipients] = useState<Recipients>();
   const [draft, setDraft] = useState("");
@@ -201,7 +182,8 @@ export function ProjectEmailView({ project, onBack, onSignedOut }: { project: Pr
   }
 
   return <div className="workspace">
-    <header className="workspace-header"><div><p className="eyebrow">Project · {project.key}</p><h1>Email and maintenance</h1><p className="muted">{project.name}</p></div><Button onClick={onBack} type="button">Back to projects</Button></header>
+    <header className="workspace-header"><div><p className="eyebrow">Project · {project.key}</p><h1>Email and maintenance</h1><p className="muted">{project.name}</p></div><Button onClick={onBack} type="button">Back to investigation</Button></header>
+    <DeliveryHistoryPanel projectKey={project.key} onSignedOut={onSignedOut} />
     <section className="panel" aria-labelledby="project-recipients-title"><h2 id="project-recipients-title">Project recipients</h2><p className="muted">Live list for future alerts. An empty list opts this project out.</p>
       {loading && !recipients && <p role="status">Loading recipients…</p>}
       {error && <div className="error" role="alert">{error}</div>}
@@ -209,6 +191,5 @@ export function ProjectEmailView({ project, onBack, onSignedOut }: { project: Pr
       {recipients && <form onSubmit={(event) => void save(event)}><p>Version {recipients.version}</p><label><span>One address per line</span><textarea value={draft} onChange={(event) => setDraft(event.target.value)} /></label><div className="actions"><Button disabled={busy} type="submit">Save project recipients</Button><Button disabled={loading} onClick={() => void load()} type="button">Refresh recipients</Button></div></form>}
     </section>
     <MaintenancePanel projectKey={project.key} onSignedOut={onSignedOut} />
-    <DeliveryHistoryPanel projectKey={project.key} onSignedOut={onSignedOut} />
   </div>;
 }

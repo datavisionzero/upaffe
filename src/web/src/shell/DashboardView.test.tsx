@@ -68,6 +68,16 @@ it("prioritizes distinct health problems and keeps healthy and empty projects vi
       email: "operator@example.test", access_path: "browser_session",
       session_id: "57691661-6c2a-4a46-87aa-551b1178fc0d", expires_at: "2026-09-23T12:00:00Z" });
     if (path === "/api/overview") return json(overview);
+    if (path === "/api/email/settings") return json({ version: 1, host: "mail.example.test", port: 587,
+      security: "starttls", sender_address: "notify@example.test", sender_name: "Monitor",
+      public_base_url: null, username: null, has_password: false, default_recipients: [] });
+    if (path === "/api/email/deliveries/summary") return json({ pending_count: 0, retrying_count: 0,
+      terminal_failure_count: 1, smtp_accepted_count: 0 });
+    if (path === "/api/email/deliveries") return json({ items: [{ id: "e9687622-7095-4369-93a9-2632b350e456",
+      incident_id: "dcf2cf4b-1070-45b7-bd39-dfd12f1fb901", kind: "alert", recipient: "ops@example.test",
+      project_key: "affected", monitor_type: "push", monitor_key: "missing", state: "terminal_failure",
+      attempt_count: 5, last_error_code: "smtp_timeout", created_at: generatedAt }],
+      total: 1, limit: 20, offset: 0, has_more: false });
     throw new Error(`Unexpected ${path}`);
   }));
   render(<App />);
@@ -88,6 +98,15 @@ it("prioritizes distinct health problems and keeps healthy and empty projects vi
   expect(screen.queryByText("secret-query-value")).not.toBeInTheDocument();
   expect(screen.queryByText("untrusted diagnostic")).not.toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: "Create a project" })).not.toBeInTheDocument();
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("link", { name: "Open email status and settings" }));
+  expect(window.location.pathname + window.location.search).toBe("/settings/email?return=%2Fdashboard");
+  expect(await screen.findByRole("region", { name: "Instance email delivery" })).toHaveTextContent("Failure code smtp_timeout");
+  expect(screen.getByRole("link", { name: /Inspect incident and recipient status/ })).toHaveAttribute("href",
+    "/projects/affected/push-monitors/missing?incident=dcf2cf4b-1070-45b7-bd39-dfd12f1fb901");
+  await user.click(screen.getByRole("button", { name: "Back to investigation" }));
+  expect(window.location.pathname).toBe("/dashboard");
+  expect(await screen.findByRole("heading", { name: "Health dashboard" })).toBeInTheDocument();
 });
 
 it("shows loading, a safe failure, and a working retry", async () => {
