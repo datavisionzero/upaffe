@@ -30,6 +30,7 @@ public sealed class EmailDeliveryPersistenceTests(PostgresFixture postgres)
             secondStore.ClaimAsync(now, TimeSpan.FromMinutes(2), ct));
         var first = Assert.Single(claims.OfType<EmailDeliveryLease>());
         Assert.Single(claims, value => value is null);
+        await BeginAsync(firstContext, first, now, ct);
 
         await using var restartedContext = AnInstance.ContextFor(connection);
         var restartedStore = new EmailDeliveryStore(restartedContext);
@@ -38,6 +39,7 @@ public sealed class EmailDeliveryPersistenceTests(PostgresFixture postgres)
         Assert.NotNull(recovered);
         Assert.Equal(first.DeliveryId, recovered.DeliveryId);
         Assert.NotEqual(first.Token, recovered.Token);
+        await BeginAsync(restartedContext, recovered, now.AddMinutes(3), ct);
         Assert.False(await firstStore.CompleteAsync(first.DeliveryId, first.Token,
             EmailSendResult.Accepted(), now.AddMinutes(3), ct));
         Assert.True(await restartedStore.CompleteAsync(recovered.DeliveryId, recovered.Token,
@@ -71,6 +73,7 @@ public sealed class EmailDeliveryPersistenceTests(PostgresFixture postgres)
             var store = new EmailDeliveryStore(context);
             var lease = await store.ClaimAsync(now, TimeSpan.FromMinutes(2), ct);
             Assert.NotNull(lease);
+            await BeginAsync(context, lease, now, ct);
             Assert.True(await store.CompleteAsync(lease.DeliveryId, lease.Token,
                 EmailSendResult.Failed("smtp_timeout", true), now, ct));
             if (attempt < 5)
@@ -92,4 +95,13 @@ public sealed class EmailDeliveryPersistenceTests(PostgresFixture postgres)
         NotificationDelivery.Queue(Guid.NewGuid(), NotificationKind.Alert,
             "ops@example.test", "project", "Project", "monitor", "Monitor",
             "http", "timeout", now, now);
+
+    private static async Task BeginAsync(UpaffeDbContext context,
+        EmailDeliveryLease lease, DateTimeOffset now, CancellationToken ct)
+    {
+        var delivery = await context.NotificationDeliveries.SingleAsync(
+            value => value.Id == lease.DeliveryId, ct);
+        delivery.BeginAttempt(lease.Token, now);
+        await context.SaveChangesAsync(ct);
+    }
 }

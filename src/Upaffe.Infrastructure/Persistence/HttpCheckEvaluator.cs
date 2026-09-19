@@ -25,6 +25,8 @@ internal static class HttpCheckEvaluator
             if (check.Outcome == CheckOutcome.Success)
             {
                 incident.Resolve(check);
+                await NotificationIntentFactory.ResolveHttpAsync(context, monitor,
+                    incident, now, cancellationToken);
             }
             else
             {
@@ -45,7 +47,10 @@ internal static class HttpCheckEvaluator
         var firstFailure = firstFailureId == check.Id
             ? check
             : await context.HttpChecks.SingleAsync(value => value.Id == firstFailureId, cancellationToken);
-        context.Incidents.Add(Incident.Open(firstFailure, check, now));
+        var opened = Incident.Open(firstFailure, check, now);
+        context.Incidents.Add(opened);
+        await NotificationIntentFactory.OpenHttpAsync(context, monitor, opened,
+            now, cancellationToken);
         return true;
     }
 }

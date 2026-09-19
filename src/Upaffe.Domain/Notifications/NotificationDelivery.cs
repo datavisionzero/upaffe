@@ -50,6 +50,7 @@ public sealed class NotificationDelivery
     public DateTimeOffset? TerminalAt { get; private set; }
     public DateTimeOffset? LeaseUntil { get; private set; }
     public Guid? LeaseToken { get; private set; }
+    public Guid? ActiveAttemptToken { get; private set; }
     public string? LastErrorCode { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
@@ -73,25 +74,48 @@ public sealed class NotificationDelivery
             LastErrorCode ??= "smtp_outcome_unknown";
             LeaseToken = null;
             LeaseUntil = null;
+            ActiveAttemptToken = null;
             UpdatedAt = now;
             return false;
         }
         State = DeliveryState.Claimed;
-        AttemptCount++;
-        LastAttemptAt = now;
         LeaseToken = token;
         LeaseUntil = now.Add(duration);
+        ActiveAttemptToken = null;
         UpdatedAt = now;
         return true;
     }
 
     public bool IsClaimedBy(Guid token) => State == DeliveryState.Claimed && LeaseToken == token;
 
+    public void BeginAttempt(Guid token, DateTimeOffset now)
+    {
+        if (!IsClaimedBy(token) || ActiveAttemptToken is not null || AttemptCount >= 5)
+            throw new InvalidOperationException("This delivery is not ready for an SMTP attempt.");
+        ActiveAttemptToken = token;
+        AttemptCount++;
+        LastAttemptAt = now;
+        UpdatedAt = now;
+    }
+
+    public void Defer(Guid token, DateTimeOffset now)
+    {
+        if (!IsClaimedBy(token) || ActiveAttemptToken is not null)
+            throw new InvalidOperationException("This delivery cannot be deferred.");
+        State = AttemptCount == 0 ? DeliveryState.Queued : DeliveryState.Retrying;
+        LeaseToken = null;
+        LeaseUntil = null;
+        NextAttemptAt = now.AddMinutes(1);
+        UpdatedAt = now;
+    }
+
     public void Complete(Guid token, bool accepted, bool transient, string? failureCode,
         DateTimeOffset now)
     {
-        if (!IsClaimedBy(token)) throw new InvalidOperationException("Delivery lease was lost.");
+        if (!IsClaimedBy(token) || ActiveAttemptToken != token)
+            throw new InvalidOperationException("Delivery lease was lost.");
         UpdatedAt = now;
+        ActiveAttemptToken = null;
         LeaseToken = null;
         LeaseUntil = null;
         if (accepted)
@@ -123,6 +147,7 @@ public sealed class NotificationDelivery
         State = DeliveryState.Obsolete;
         LeaseToken = null;
         LeaseUntil = null;
+        ActiveAttemptToken = null;
         TerminalAt = now;
         UpdatedAt = now;
     }

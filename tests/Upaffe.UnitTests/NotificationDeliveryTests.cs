@@ -13,6 +13,7 @@ public sealed class NotificationDeliveryTests
         {
             var token = Guid.NewGuid();
             delivery.Claim(token, now, TimeSpan.FromMinutes(2));
+            delivery.BeginAttempt(token, now);
             delivery.Complete(token, false, true, "smtp_timeout", now);
             Assert.Equal(attempt, delivery.AttemptCount);
             Assert.Equal(now, delivery.LastAttemptAt);
@@ -34,6 +35,7 @@ public sealed class NotificationDeliveryTests
         var accepted = New(now);
         var token = Guid.NewGuid();
         accepted.Claim(token, now, TimeSpan.FromMinutes(2));
+        accepted.BeginAttempt(token, now);
         accepted.Complete(token, true, false, null, now);
         Assert.Equal(DeliveryState.Accepted, accepted.State);
         Assert.Equal(now, accepted.AcceptedAt);
@@ -42,6 +44,7 @@ public sealed class NotificationDeliveryTests
         var failed = New(now);
         token = Guid.NewGuid();
         failed.Claim(token, now, TimeSpan.FromMinutes(2));
+        failed.BeginAttempt(token, now);
         failed.Complete(token, false, false, "private relay text", now);
         Assert.Equal(DeliveryState.TerminalFailure, failed.State);
         Assert.Equal("smtp_failed", failed.LastErrorCode);
@@ -58,6 +61,7 @@ public sealed class NotificationDeliveryTests
         for (var attempt = 1; attempt <= 5; attempt++)
         {
             Assert.True(delivery.Claim(Guid.NewGuid(), now, TimeSpan.FromMinutes(1)));
+            delivery.BeginAttempt(delivery.LeaseToken!.Value, now);
             Assert.Equal(attempt, delivery.AttemptCount);
             now = now.AddMinutes(2);
         }

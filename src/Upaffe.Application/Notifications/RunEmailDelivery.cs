@@ -12,6 +12,10 @@ public sealed class RunEmailDelivery(IEmailDeliveryStore deliveries,
         var lease = await deliveries.ClaimAsync(clock.GetUtcNow(), LeaseDuration, cancellationToken);
         if (lease is null) return false;
 
+        var preparation = await deliveries.PrepareAsync(lease.DeliveryId, lease.Token,
+            clock.GetUtcNow(), cancellationToken);
+        if (preparation != EmailPreparation.Send) return true;
+
         var connection = await settings.ReadConnectionAsync(cancellationToken);
         var rendered = IncidentEmailRenderer.Render(new(
             lease.IncidentId, lease.Kind, lease.ProjectKey, lease.ProjectName,

@@ -21,11 +21,19 @@ internal static class PushReportEvaluator
             cancellationToken);
         if (report.Outcome == ReportOutcome.Success)
         {
-            incident?.Resolve(report);
+            if (incident is not null)
+            {
+                incident.Resolve(report);
+                await NotificationIntentFactory.ResolvePushAsync(context, monitor,
+                    incident, report.ReceivedAt, cancellationToken);
+            }
         }
         else if (incident is null)
         {
-            context.PushIncidents.Add(PushIncident.Open(report, report.ReceivedAt));
+            var opened = PushIncident.Open(report, report.ReceivedAt);
+            context.PushIncidents.Add(opened);
+            await NotificationIntentFactory.OpenPushAsync(context, monitor, opened,
+                report.ReceivedAt, cancellationToken);
         }
         else
         {

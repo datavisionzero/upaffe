@@ -99,11 +99,12 @@ last failure code are durable. Message-ID derives from the logical identity.
 
 A worker claims due rows with `FOR UPDATE SKIP LOCKED` and a two-minute lease.
 An expired lease can be reclaimed after a crash; completion requires the latest
-lease token. Each claim counts as an attempt before SMTP work begins, so repeated
-crashes cannot bypass the five-attempt cap. If the fifth claim expires without a
-recorded result, its outcome is marked unknown and terminal. The first transient
-failure retries after one minute, then after
-two, four, and eight minutes. Five attempts is the maximum. Permanent failure
+lease token. After a final eligibility check, beginning SMTP submission counts
+as an attempt before network work starts; deferred claims do not consume an
+attempt. Repeated crashes therefore cannot bypass the five-attempt cap. If the
+fifth begun attempt expires without a recorded result, its outcome is marked
+unknown and terminal. The first transient failure retries after one minute,
+then after two, four, and eight minutes. Five attempts is the maximum. Permanent failure
 or the fifth transient failure is terminal. SMTP acceptance is recorded only
 after the relay returns success. A crash between that success and committing
 acceptance can cause a second SMTP submission; the row cannot prove inbox
@@ -113,6 +114,16 @@ The worker logs a fixed failure message without SMTP exception text. Status
 surfaces only a short failure code. Delivery records for open incidents remain
 authoritative for future recovery eligibility; later retention must preserve
 them until the incident resolves.
+
+HTTP threshold openings and push explicit or missing-report openings add alert
+intents in the incident transaction. Later failures and late observations do
+not add more. A fresh resolution obsoletes unsent alerts and adds recovery
+intents only for recipients whose alert was SMTP-accepted and who remain
+configured. Before submission the worker reloads incident, project, monitor,
+recipient, pause, and maintenance facts. A resolved alert or deleted/removed
+scope becomes obsolete; pause or maintenance defers without using a send
+attempt. A transition after that check can still race an SMTP submission, as
+ADR 0007 explains.
 
 ## Timed maintenance schema
 

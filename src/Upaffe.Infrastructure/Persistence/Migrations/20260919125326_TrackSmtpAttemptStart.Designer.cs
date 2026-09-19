@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Upaffe.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using Upaffe.Infrastructure.Persistence;
 namespace Upaffe.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(UpaffeDbContext))]
-    partial class UpaffeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260919125326_TrackSmtpAttemptStart")]
+    partial class TrackSmtpAttemptStart
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
