@@ -1,10 +1,18 @@
 # upaffe
 
 upaffe is a self-hosted monitoring tool for people who operate software and
-infrastructure with AI agents. It is under active development and has not been
-released.
+infrastructure with AI agents. The first release provides a web application,
+HTTP and push monitoring, incident email, and a noninteractive `ua` CLI.
 
-The repository currently contains the technical foundation, secure access and
+For an installation without a source build, follow the
+[production Compose guide](./docs/operations.md#production-compose-startup) and
+pin the image digest from the
+[v0.1.0 release](https://github.com/datavisionzero/upaffe/releases/tag/v0.1.0).
+Download a [supported CLI archive](./docs/cli.md#install-a-release-binary),
+verify its checksum, and use the [agent workflow](./docs/agent-workflow.md) for
+unattended administration. The release notes describe the shipped scope.
+
+The repository contains the technical foundation, secure access and
 project administration, complete HTTP- and push-monitoring paths, incident email,
 and timed maintenance. HTTP
 monitors perform bounded public-internet checks with threshold incidents. Push

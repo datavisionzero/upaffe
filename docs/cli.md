@@ -4,6 +4,39 @@
 Go binary and imports no .NET assembly. Commands never open a prompt, editor, or
 pager. A command reads stdin only when `--file -` explicitly says so.
 
+## Install a release binary
+
+The [v0.1.0 release](https://github.com/datavisionzero/upaffe/releases/tag/v0.1.0)
+provides standalone `ua` archives for Linux amd64/arm64 and macOS
+amd64/arm64. Each ZIP contains only `ua`. Choose the archive matching the host,
+download `SHA256SUMS` from the same release, and check the selected file before
+extracting it. For example, on Linux amd64:
+
+```sh
+set -eu
+UPAFFE_VERSION=0.1.0
+UPAFFE_PLATFORM=linux_amd64
+UPAFFE_ARCHIVE="ua_${UPAFFE_VERSION}_${UPAFFE_PLATFORM}.zip"
+UPAFFE_RELEASE="https://github.com/datavisionzero/upaffe/releases/download/v${UPAFFE_VERSION}"
+curl --fail --location --silent --show-error "$UPAFFE_RELEASE/SHA256SUMS" -o SHA256SUMS
+curl --fail --location --silent --show-error "$UPAFFE_RELEASE/$UPAFFE_ARCHIVE" -o "$UPAFFE_ARCHIVE"
+awk -v name="$UPAFFE_ARCHIVE" '$2 == name {print}' SHA256SUMS > selected.sha256
+test -s selected.sha256
+sha256sum -c selected.sha256
+unzip -p "$UPAFFE_ARCHIVE" ua > ua
+chmod 0755 ua
+./ua version --json
+```
+
+For another supported host, set `UPAFFE_PLATFORM` to `linux_arm64`,
+`darwin_amd64`, or `darwin_arm64`. On macOS, use
+`shasum -a 256 -c selected.sha256` for the checksum command.
+`source-revision.txt` in the release names the source commit, and
+`ua version --json` reports the embedded binary version.
+Move the checked binary to a directory on your `PATH`, or invoke it by its
+path. The [production Compose guide](./operations.md#production-compose-startup)
+installs the server without Go or .NET on the host.
+
 ## Build
 
 From `src/cli`:

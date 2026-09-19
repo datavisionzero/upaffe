@@ -2,8 +2,9 @@
 
 The API is the single application boundary used by the web application and CLI.
 Every operation is below `/api`; other paths are reserved for the SPA. There is
-no API-version segment. Each response carries `Upaffe-Version`, whose value is
-the release tag or `0.0.0-dev` for an untagged build.
+no API-version segment. Each response carries `Upaffe-Version`: `0.1.0` for a
+v0.1.0 image, `0.0.0-rev.<full-commit-sha>` for a revision image, or
+`0.0.0-dev` for a local build without an explicit version.
 
 The product-facing API covers bootstrap, browser sessions, management
 credentials, projects, and HTTP monitor administration. Bootstrap is public
