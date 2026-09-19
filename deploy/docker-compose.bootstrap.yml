@@ -1,0 +1,11 @@
+# Add only for initial operator establishment. Remove this overlay afterwards.
+services:
+  app:
+    environment:
+      UPAFFE_BOOTSTRAP_SECRET_FILE: /run/secrets/bootstrap_proof
+    secrets:
+      - bootstrap_proof
+
+secrets:
+  bootstrap_proof:
+    file: ./secrets/bootstrap_proof

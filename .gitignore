@@ -36,6 +36,7 @@ npm-debug.log*
 # Local Compose configuration and persistent state.
 .env
 /deploy/.env
+/deploy/secrets/
 /volume/
 
 # macOS

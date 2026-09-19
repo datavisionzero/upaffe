@@ -22,8 +22,9 @@ test HTTP monitors; recurring scheduling, threshold evaluation, incident
 lifecycle, and retained history complete the first monitoring path. Local
 Compose builds and runs the delivered slices. A revision-tagged production
 image is published from `main`; the API can read deployment secrets from
-mounted files. The supported production Compose stack and runbooks are still
-being implemented.
+mounted files. The production Compose stack declares persistent PostgreSQL
+storage and a local reverse-proxy target. Update, backup, and restore runbooks
+are still being implemented.
 
 ## Provenance and maintenance boundary
 
@@ -42,7 +43,7 @@ they demonstrate a general mechanism.
 ```text
 upaffe/
 ├─ .github/workflows/        build, test, contract, and Compose validation
-├─ deploy/                   development Compose and production image build
+├─ deploy/                   development and production Compose, image builds
 ├─ docs/
 │  ├─ adr/                   local and adopted architecture decisions
 │  ├─ api/openapi.json       checked-in HTTP contract

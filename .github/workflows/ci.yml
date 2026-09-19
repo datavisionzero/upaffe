@@ -90,6 +90,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: docker compose -f deploy/docker-compose.dev.yml config --quiet
+      - run: scripts/check-production-compose.sh
 
   image:
     name: Production image
