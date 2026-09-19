@@ -155,6 +155,37 @@ The transition caused by a fresh successful result that resolves an open
 incident and makes an active monitor healthy.
 _Avoid_: Acknowledgement, reset, incident deletion
 
+**Incident announcement**:
+The first SMTP-accepted alert for an incident and recipient. It is evidence of
+SMTP acceptance, not inbox delivery.
+_Avoid_: Incident opening, successful delivery, acknowledgement
+
+**Notification intent**:
+The durable decision to send one alert or recovery for one incident and
+recipient. Its identity survives retries and worker restarts.
+_Avoid_: SMTP attempt, email message, incident
+
+**Delivery attempt**:
+One bounded attempt to submit a notification intent to the configured SMTP
+server. An attempt can fail or have an uncertain outcome without changing the
+intent's identity.
+_Avoid_: Notification intent, inbox delivery
+
+**Terminal delivery failure**:
+An intent whose retry policy is exhausted or whose failure cannot be retried.
+It stays visible until the notification record ages out.
+_Avoid_: Incident resolution, SMTP acceptance
+
+**Project recipients**:
+The addresses eligible for notifications about a project's incidents. A new
+project copies the instance default recipient set once, at creation.
+_Avoid_: Operator accounts, escalation chain
+
+**Timed maintenance**:
+A finite, server-timed suppression window for one project or monitor. It leaves
+checks, reports, health, and incident history running.
+_Avoid_: Pause, recurring schedule, incident resolution
+
 **Pause**:
 An operator-controlled suspension of checks and notifications that leaves
 history and any open incident intact.
