@@ -46,6 +46,8 @@ with exactly the migration set known to this build. The separate
 `GET /api/health/progress` reports whether both monitoring workers have made
 recent successful progress, including idle database polls; see the
 [operations guide](./docs/operations.md#production-compose-startup).
+The same progress rule gates an optional outbound HTTPS heartbeat configured
+through a mounted URL file.
 
 A fresh database needs a one-time operator bootstrap. Set a locally generated
 `UPAFFE_BOOTSTRAP_SECRET` for one startup and follow the request documented in
