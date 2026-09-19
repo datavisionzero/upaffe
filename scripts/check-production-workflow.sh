@@ -2,18 +2,26 @@
 # Rehearse installation, update, failure, backup, and restore with published images.
 set -eu
 umask 077
-if [ "$#" -ne 2 ] || [ "$1" = "$2" ]; then
-  echo 'Usage: scripts/check-production-workflow.sh PREVIOUS_IMAGE CURRENT_IMAGE' >&2
+if [ "$#" -lt 2 ] || [ "$#" -gt 3 ] || [ "$1" = "$2" ]; then
+  echo 'Usage: scripts/check-production-workflow.sh PREVIOUS_IMAGE CURRENT_IMAGE [EXPECTED_CURRENT_VERSION]' >&2
   exit 2
 fi
 for image in "$1" "$2"; do
   case "$image" in
-    ghcr.io/datavisionzero/upaffe:sha-*) ;;
-    *) echo 'Expected published full-revision GHCR image tags.' >&2; exit 2 ;;
+    ghcr.io/datavisionzero/upaffe:sha-*|ghcr.io/datavisionzero/upaffe:v*|ghcr.io/datavisionzero/upaffe@sha256:*) ;;
+    *) echo 'Expected a published upaffe GHCR revision, release tag, or digest.' >&2; exit 2 ;;
   esac
 done
 previous_image=$1
 current_image=$2
+expected_current_version=${3:-}
+if [ -z "$expected_current_version" ]; then
+  case "$current_image" in
+    ghcr.io/datavisionzero/upaffe:sha-*) expected_current_version="0.0.0-rev.${current_image##*:sha-}" ;;
+    ghcr.io/datavisionzero/upaffe:v*) expected_current_version=${current_image##*:v} ;;
+    *) echo 'A digest reference requires EXPECTED_CURRENT_VERSION.' >&2; exit 2 ;;
+  esac
+fi
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 "$root/scripts/check-production-heartbeat.sh" "$current_image"
 check_image=$previous_image
@@ -168,6 +176,11 @@ UPAFFE_PORT="$check_port" docker compose -p "$check_project" -f docker-compose.y
 UPAFFE_PORT="$check_port" docker compose -p "$check_project" -f docker-compose.yml -f docker-compose.test.yml pull app
 UPAFFE_PORT="$check_port" docker compose -p "$check_project" -f docker-compose.yml -f docker-compose.test.yml up -d --wait app
 curl --fail --silent --retry 6 --retry-delay 2 "$base_url/api/health/progress" > progress-after-update.json
+curl --fail --silent --show-error --dump-header version-after-update.headers \
+  "$base_url/api/version" > version-after-update.json
+[ "$(jq -r .version version-after-update.json)" = "$expected_current_version" ]
+[ "$(awk 'tolower($1) == "upaffe-version:" {gsub(/\r/, "", $2); print $2}' \
+  version-after-update.headers)" = "$expected_current_version" ]
 curl --fail --silent --cookie browser.cookies "$base_url/api/projects/fixture-project" > project-after-update.json
 [ "$(jq -r .id project-after-update.json)" = "$project_id" ]
 curl --fail --silent --cookie browser.cookies \

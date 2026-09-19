@@ -196,6 +196,11 @@ pending notification there. It also rejects reused restore destinations and
 tampered archives. The script prints each phase and exits nonzero on any
 failed assertion.
 
+After publication, pass the final `:v0.1.0` image or the release's complete
+`image-digest.txt` reference as the current image. For a digest reference, add
+`0.1.0` as the third argument. The rehearsal checks both `/api/version` and
+`Upaffe-Version` after the update.
+
 The PostgreSQL fault tests make the interruption boundaries repeatable:
 
 | Interruption point | Expected recovery | Check |

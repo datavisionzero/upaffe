@@ -9,8 +9,8 @@ if [ "$#" -ne 1 ]; then
 fi
 image=$1
 case "$image" in
-  ghcr.io/datavisionzero/upaffe:sha-*) ;;
-  *) echo 'Expected a published full-revision GHCR image tag.' >&2; exit 2 ;;
+  ghcr.io/datavisionzero/upaffe:sha-*|ghcr.io/datavisionzero/upaffe:v*|ghcr.io/datavisionzero/upaffe@sha256:*) ;;
+  *) echo 'Expected a published upaffe GHCR revision, release tag, or digest.' >&2; exit 2 ;;
 esac
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 mkdir -p "$root/scratchpad"
