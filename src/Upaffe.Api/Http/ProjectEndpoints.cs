@@ -80,6 +80,19 @@ public static class ProjectEndpoints
             .Produces<ProblemResponse>(StatusCodes.Status401Unauthorized, "application/problem+json")
             .Produces<ProblemResponse>(StatusCodes.Status404NotFound, "application/problem+json");
 
+        projects.MapGet("/{key}/report", async (
+                string key,
+                HttpContext http,
+                ReadProjectReport read,
+                CancellationToken cancellationToken) =>
+            await read.ExecuteAsync(http.ActingIdentity(), key, cancellationToken))
+            .WithName("ReadProjectReport")
+            .WithSummary("Read one safe, current investigation report for a live project.")
+            .Produces<ProjectReport>()
+            .Produces<ProblemResponse>(StatusCodes.Status400BadRequest, "application/problem+json")
+            .Produces<ProblemResponse>(StatusCodes.Status401Unauthorized, "application/problem+json")
+            .Produces<ProblemResponse>(StatusCodes.Status404NotFound, "application/problem+json");
+
         projects.MapPut("/{key}", async (
                 string key,
                 RenameProjectRequest request,
