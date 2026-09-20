@@ -4,6 +4,7 @@ import type { components } from "@/api/schema";
 import { api } from "@/api/client";
 import { problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
+import { MonitorPurpose } from "@/shell/MonitorPurpose";
 import { inventoryPath, monitorPath, projectPath, withReturn } from "@/shell/routes";
 
 type Project = components["schemas"]["ProjectResponse"];
@@ -136,6 +137,7 @@ function AttentionCard({ monitor, generatedAt, projectKey, link }: {
         {monitor.effective_maintenance_until && <span className="state state-maintenance">Maintenance</span>}
       </div>
       <h3>{link(path, monitor.name, "monitor-name-link")}</h3>
+      <MonitorPurpose purpose={monitor.purpose} />
       <p className="monitor-context">{monitor.type === "http" ? "HTTP check" : modeLabel(monitor.mode)} · {monitor.key}</p>
       <p className="monitor-reason">{attentionReason(monitor)}</p>
       {monitor.incident && <p className="muted">Incident open since {dateLabel(monitor.incident.began_at)} ({ageLabel(generatedAt, monitor.incident.began_at)}).</p>}
@@ -160,6 +162,7 @@ function HealthyCard({ monitor, projectKey, link }: {
     <div>
       <span className="state state-healthy">Healthy</span>
       <h3>{link(path, monitor.name, "monitor-name-link")}</h3>
+      <MonitorPurpose purpose={monitor.purpose} />
       <p className="monitor-context">{monitor.type === "http" ? "HTTP check" : modeLabel(monitor.mode)} · {monitor.key}</p>
       <p className="muted">Last success: {monitor.last_success_at ? dateLabel(monitor.last_success_at) : "No success recorded"}</p>
       {monitor.next_due_at && <p className="muted">Next expected {monitor.type === "http" ? "check" : "report"}: {dateLabel(monitor.next_due_at)}</p>}

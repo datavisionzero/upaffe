@@ -18,14 +18,16 @@ const base = { id: "99b7299d-3c28-44e6-963a-5034ac9f1432", version: 1, mode: nul
   effective_maintenance_until: null, instruction: null, runbook_url: null };
 const attention = [
   { ...base, type: "http", key: "threshold", name: "Below threshold", state: "failing",
+    purpose: "Checks the public status endpoint",
     failure_count: 1, failure_threshold: 3, latest_result: failure, last_success: success,
     instruction: "Contact the service owner", runbook_url: "https://docs.example.test/runbook" },
   { ...base, type: "push", key: "explicit", name: "Explicit failure", state: "failing",
+    purpose: "Confirms the nightly export",
     mode: "job_completion", latest_result: { ...failure, reason: "reported_failure" },
     incident: { id: "739e9223-dc11-4dfb-a8fb-73c84cc9c1d0", began_at: "2026-09-19T10:00:00Z",
       opened_at: "2026-09-19T10:01:00Z", age_seconds: 7200,
       original_reason: "reported_failure", latest_reason: "reported_failure" } },
-  { ...base, type: "push", key: "missing", name: "Missing report", state: "failing",
+  { ...base, type: "push", key: "missing", name: "Missing report", state: "failing", purpose: null,
     mode: "state_report", latest_result: { ...failure, reason: "report_missing" },
     incident: { id: "739e9223-dc11-4dfb-a8fb-73c84cc9c1d1", began_at: "2026-09-19T11:30:00Z",
       opened_at: "2026-09-19T11:31:00Z", age_seconds: 1800,
@@ -42,11 +44,16 @@ const attention = [
     effective_maintenance_until: "2026-09-19T14:00:00Z" },
 ];
 const report = { generated_at: "2026-09-19T12:00:00Z", project,
-  counts: { total: 7, http: 3, push: 4, healthy: 2, failing: 3, untested: 1, paused: 1 },
+  counts: { total: 8, http: 3, push: 5, healthy: 2, failing: 3, untested: 1, paused: 1 },
   attention, healthy: [{ type: "http", id: "6a137624-bb58-4e6c-9b9e-9a8c9ca72f44",
-    key: "good", name: "Healthy site", mode: null, last_success_at: success.observed_at,
+    key: "good", name: "Healthy site", purpose: "Checks <public> website availability",
+    mode: null, last_success_at: success.observed_at,
     next_due_at: "2026-09-19T12:05:00Z", direct_maintenance: null,
-    effective_maintenance_until: null }],
+    effective_maintenance_until: null },
+  { type: "push", id: "b516c48a-71d0-4f74-aa32-24cfb37bc30c",
+    key: "archive", name: "Healthy archive", purpose: null, mode: "job_completion",
+    last_success_at: success.observed_at, next_due_at: "2026-09-19T13:00:00Z",
+    direct_maintenance: null, effective_maintenance_until: null }],
   project_maintenance: { started_at: "2026-09-19T11:00:00Z", ends_at: "2026-09-19T14:00:00Z" },
   email: { configured: true, host: "mail.example.test", port: 587, security: "starttls",
     sender_address: "alerts@example.test", public_base_url: null, has_password: true, recipients: ["team@example.test"],
@@ -88,9 +95,12 @@ it("triages both monitor types without changing health for maintenance or delive
   expect(cards[0]).toHaveTextContent("Latest failure:");
   expect(cards[0]).toHaveTextContent("Last success:");
   expect(cards[0]).toHaveTextContent("Contact the service owner");
+  expect(cards[0]).toHaveTextContent("Checks the public status endpoint");
   expect(within(cards[0]).getByRole("link", { name: "Open runbook" })).toHaveAttribute("href", "https://docs.example.test/runbook");
   expect(cards[1]).toHaveTextContent("Incident open: reported failure");
+  expect(cards[1]).toHaveTextContent("Confirms the nightly export");
   expect(cards[2]).toHaveTextContent("Incident open: missing report");
+  expect(cards[2]).toHaveTextContent("Purpose not documented");
   expect(cards[3]).toHaveTextContent("Check execution overdue");
   expect(cards[4]).toHaveTextContent("Report deadline passed; missing-report evaluation has not yet been recorded");
   expect(cards[5]).toHaveTextContent("Monitoring paused; incident remains open");
@@ -98,8 +108,14 @@ it("triages both monitor types without changing health for maintenance or delive
   expect(screen.getByText(/1 terminal failures · 1 retrying · 2 pending/)).toBeInTheDocument();
   expect(screen.getByText(/3 accepted by SMTP; inbox receipt is not confirmed/)).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Healthy site" })).toHaveAttribute("href", "/projects/systems/http-monitors/good");
+  expect(screen.getByRole("link", { name: "Healthy archive" })).toHaveAttribute("href", "/projects/systems/push-monitors/archive");
+  const healthyCards = within(screen.getByRole("region", { name: "Healthy" })).getAllByRole("article");
+  expect(healthyCards[0]).toHaveTextContent("Checks <public> website availability");
+  expect(healthyCards[1]).toHaveTextContent("Purpose not documented");
+  expect(screen.queryByRole("public")).not.toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Explicit failure" })).toHaveAttribute("href", "/projects/systems/push-monitors/explicit");
   expect(screen.getByRole("link", { name: "Manage HTTP monitors" })).toHaveAttribute("href", "/projects/systems/http-monitors");
+  expect(screen.getByRole("link", { name: "Browse all project monitors" })).toHaveAttribute("href", "/monitors?project=systems");
   expect(screen.getByRole("link", { name: "Manage push monitors" })).toHaveAttribute("href", "/projects/systems/push-monitors");
   expect(screen.getByRole("link", { name: "Recipients and maintenance" })).toHaveAttribute("href", "/projects/systems/settings/email?return=%2Fprojects%2Fsystems");
   expect(screen.queryByText("mail.example.test")).not.toBeInTheDocument();

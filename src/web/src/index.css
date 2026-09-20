@@ -739,6 +739,20 @@ h2 {
   font-weight: 650;
 }
 
+.card-purpose {
+  max-width: 60ch;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  line-height: 1.45;
+  font-size: 0.9rem;
+}
+
+.card-purpose-missing {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+}
+
 .maintenance-note {
   color: var(--color-accent);
   font-size: 0.82rem;
@@ -819,6 +833,10 @@ h2 {
 
 .project-healthy-card h3 {
   margin: 0.5rem 0 0.3rem;
+}
+
+.project-healthy-card > div {
+  min-width: 0;
 }
 
 .project-healthy-card p {

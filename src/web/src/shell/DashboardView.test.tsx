@@ -15,17 +15,19 @@ const overview = {
     oldest_pending_at: "2026-09-19T11:30:00Z" },
   attention: [
     { project_key: "affected", type: "push", key: "missing", name: "Missing backup",
+      purpose: "Confirms nightly backup completion",
       state: "failing", mode: "job_completion", overdue: false, next_due_at: "2026-09-19T13:00:00Z",
       last_success_at: "2026-09-18T11:00:00Z", latest_result_at: "2026-09-19T11:00:00Z",
       latest_outcome: "failure", latest_reason: "report_missing", incident_id: "dcf2cf4b-1070-45b7-bd39-dfd12f1fb901",
       incident_began_at: "2026-09-19T11:00:00Z", incident_reason: "report_missing",
       effective_maintenance_until: "2026-09-19T13:00:00Z" },
     { project_key: "affected", type: "http", key: "site", name: "Website",
+      purpose: "Checks <public> website availability",
       state: "failing", mode: null, overdue: false, next_due_at: "2026-09-19T12:05:00Z",
       last_success_at: "2026-09-19T10:00:00Z", latest_result_at: "2026-09-19T11:58:00Z",
       latest_outcome: "failure", latest_reason: "status_mismatch", incident_id: null,
       incident_began_at: null, incident_reason: null, effective_maintenance_until: null },
-    { project_key: "affected", type: "http", key: "late", name: "Late check",
+    { project_key: "affected", type: "http", key: "late", name: "Late check", purpose: null,
       state: "healthy", mode: null, overdue: true, next_due_at: "2026-09-19T11:55:00Z",
       last_success_at: "2026-09-19T11:00:00Z", latest_result_at: "2026-09-19T11:00:00Z",
       latest_outcome: "success", latest_reason: null, incident_id: null,
@@ -84,6 +86,10 @@ it("prioritizes distinct health problems and keeps healthy and empty projects vi
   expect(await screen.findByRole("heading", { name: "Health dashboard" })).toBeInTheDocument();
   expect(await screen.findByText(/Incident open: missing report/)).toBeInTheDocument();
   expect(screen.getByText(/Incident began 1h ago/)).toBeInTheDocument();
+  expect(screen.getByText("Confirms nightly backup completion")).toBeInTheDocument();
+  expect(screen.getByText("Checks <public> website availability")).toBeInTheDocument();
+  expect(screen.queryByRole("public")).not.toBeInTheDocument();
+  expect(screen.getAllByText("Purpose not documented")).toHaveLength(3);
   expect(screen.getByText(/Failed check; no incident open: HTTP status mismatch/)).toBeInTheDocument();
   expect(screen.getByText(/Check execution overdue/)).toBeInTheDocument();
   expect(screen.getByText(/Report deadline passed; missing-report evaluation has not yet been recorded/)).toBeInTheDocument();
