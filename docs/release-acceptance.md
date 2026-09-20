@@ -50,3 +50,18 @@ fix and passed after it. The final candidate passed the gate below.
 | `ua_0.1.0_darwin_arm64.zip` | `196d17a97cd0196f67742af8591625cade5426550e83b6cf1e73518ee302fe87` |
 | `ua_0.1.0_linux_amd64.zip` | `ed4cc402a3e78e05a3fcd9f953a482fe16a54ef3f2e27323a226c41ba501b153` |
 | `ua_0.1.0_linux_arm64.zip` | `929cda8d20ca427bb5be02298bc5637b2dc9a27f1b2cee24cddf5b5b84de9161` |
+
+## v0.1.1 release sign-off (2026-09-20)
+
+- The immutable `v0.1.1` tag points to `e1de26e91127f50674275013de93c095b3a8d1b9`. [Main CI](https://github.com/datavisionzero/upaffe/actions/runs/35506846564) passed all jobs on that commit, including the composed monitoring system test, contract, Compose, and both native image checks. Local `scripts/check.sh` passed from its clean tree: 102 unit, 139 PostgreSQL integration, and 32 web tests, plus Go tests and vet, builds, lint, and Compose validation.
+- The [nonpublishing candidate workflow](https://github.com/datavisionzero/upaffe/actions/runs/35507190465) passed four native CLI archive executions, the two-architecture OCI layout check, and asset packaging. Downloaded candidate archives passed `shasum -a 256 -c SHA256SUMS`; `source-revision.txt` matched the tag commit and the notes preview matched `docs/releases/v0.1.1.md`.
+- The published-image production rehearsal passed using previous `v0.1.0` (index digest `sha256:2d3fce5597a105737fe096f170ec8b7540239c0da073eb63e092eab171f79495`) and the candidate revision image (index digest `sha256:1ee9993634c3ccf9461771c04c39bf5ff2c1b98fde652a02eec722c8494579df`). After publication it passed again using `v0.1.1` and expected version `0.1.1`. Both runs covered HTTPS heartbeat delivery and silence during stopped monitoring, bootstrap from an empty volume, persistence, failed-pull rollback, update, future-schema rejection by the older image, and isolated backup restore.
+- The [tagged workflow](https://github.com/datavisionzero/upaffe/actions/runs/35507468776) completed successfully. The [public release](https://github.com/datavisionzero/upaffe/releases/tag/v0.1.1) has the reviewed notes, four CLI ZIPs, `SHA256SUMS`, `source-revision.txt`, and `image-digest.txt`. All downloaded archives passed their checksums. The macOS arm64 binary reported `0.1.1` and the tagged source revision in its Go build metadata.
+- `ghcr.io/datavisionzero/upaffe:v0.1.1` resolves to index digest `sha256:75dec8608b52830069bb4c42602ebd9469ff186d6230351e3e69a6d74d854b34`. Independent inspection confirmed Linux amd64 and arm64 manifests, their `0.1.1` version and source revision labels, and the native application's version response. The release body and `image-digest.txt` name the same digest. All six acceptance criteria in the matrix above have passing evidence; no unexplained deviation remains open.
+
+| CLI archive | SHA-256 |
+| --- | --- |
+| `ua_0.1.1_darwin_amd64.zip` | `4e01933c5de4153ad07fd5f3477f477ccaec5733fd622742eeec32937d03c140` |
+| `ua_0.1.1_darwin_arm64.zip` | `31bd1bcda2e1fea017bb596be05f0ce64e53fe61f487079f2612cf482324b852` |
+| `ua_0.1.1_linux_amd64.zip` | `915b895053385a90667bdcbb69ca5c9081e2d2b9a976c2cfc7f3b5d3c82c89e5` |
+| `ua_0.1.1_linux_arm64.zip` | `b2646780313fd2cd11458a31b29e25d14e60d78fa5f3593013c211bcf92dff70` |
