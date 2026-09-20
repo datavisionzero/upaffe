@@ -1,30 +1,70 @@
 @import "tailwindcss";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+
+@custom-variant dark (&:is(.dark *));
 
 @theme {
-  --color-ink: oklch(0.23 0.025 250);
-  --color-paper: oklch(0.985 0.008 90);
-  --color-muted: oklch(0.43 0.02 250);
-  --color-line: oklch(0.88 0.018 90);
-  --color-accent: oklch(0.54 0.15 154);
-  --color-danger: oklch(0.47 0.18 28);
+  --font-sans: "IBM Plex Sans", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  @theme {
-    --color-ink: oklch(0.94 0.008 250);
-    --color-paper: oklch(0.2 0.015 250);
-    --color-muted: oklch(0.76 0.02 250);
-    --color-line: oklch(0.32 0.015 250);
-    --color-accent: oklch(0.74 0.11 245);
-    --color-danger: oklch(0.78 0.15 28);
-  }
+@theme inline {
+  --color-ink: var(--foreground);
+  --color-paper: var(--background);
+  --color-muted: var(--muted-foreground);
+  --color-line: var(--border);
+  --color-accent: var(--brand);
+  --color-danger: var(--danger);
+  --color-surface: var(--surface);
+  --color-subtle: var(--subtle);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+}
+
+:root {
+  color-scheme: light;
+  --background: #f7f7f5;
+  --foreground: #1d1f1c;
+  --surface: #fff;
+  --subtle: #eef0eb;
+  --muted-foreground: #6b6f68;
+  --border: #e4e5e1;
+  --brand: oklch(0.62 0.11 190);
+  --brand-soft: #e6f1ef;
+  --danger: oklch(0.577 0.245 27.325);
+  --success: oklch(0.6 0.13 150);
+  --warning: oklch(0.68 0.16 55);
+  --radius: 0.375rem;
+}
+
+:root.dark {
+  color-scheme: dark;
+  --background: #161816;
+  --foreground: #e8e9e4;
+  --surface: #1e211e;
+  --subtle: #262a26;
+  --muted-foreground: #9a9e96;
+  --border: #2c302c;
+  --brand: oklch(0.7 0.1 190);
+  --brand-soft: #243230;
+  --danger: oklch(0.704 0.191 22.216);
+  --success: oklch(0.68 0.12 150);
+  --warning: oklch(0.74 0.14 55);
 }
 
 body {
   margin: 0;
   background: var(--color-paper);
   color: var(--color-ink);
-  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  line-height: 1.5;
 }
 
 button,
@@ -54,6 +94,7 @@ textarea {
   border-radius: 0.45rem;
   background: color-mix(in oklab, var(--color-paper), white 18%);
   color: var(--color-ink);
+  font-family: inherit;
   padding: 0.65rem 0.75rem;
 }
 
@@ -319,7 +360,7 @@ h2 {
 .metadata-list code,
 .version {
   color: var(--color-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 0.8rem;
 }
 
@@ -437,7 +478,7 @@ h2 {
 }
 
 .state-healthy {
-  border-color: color-mix(in oklab, var(--color-accent), transparent 48%);
+  border-color: color-mix(in oklab, var(--success), transparent 48%);
 }
 
 .state-failing {
@@ -501,7 +542,7 @@ h2 {
 .secret-reveal dd {
   margin: 0.25rem 0 0;
   overflow-wrap: anywhere;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 0.8rem;
 }
 
@@ -725,7 +766,7 @@ h2 {
 }
 
 .state-maintenance {
-  border-color: var(--color-accent);
+  border-color: var(--warning);
 }
 
 .monitor-context,
