@@ -115,6 +115,7 @@ var app = builder.Build();
 
 if (trustedProxy is not null)
 {
+    app.UseMiddleware<UntrustedForwardedHeadersWarningMiddleware>(trustedProxy);
     app.UseForwardedHeaders(trustedProxy.ForwardedHeadersOptions());
 }
 

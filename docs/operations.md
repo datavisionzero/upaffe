@@ -385,6 +385,12 @@ proxy hop, and accepts a forwarded host only for the configured public origin.
 Both settings must be supplied together. With neither set, direct local HTTP
 continues to work without forwarded headers.
 
+If forwarded headers arrive from an address outside the configured list, the
+application ignores them and logs a warning with the connecting peer address
+and `UPAFFE_TRUSTED_PROXY_IPS` at most once per minute. Reinspect the proxy's
+address and update `.env` if it moved. The warning contains no header values
+or request path.
+
 Under HTTPS, sign-in issues a `Secure`, host-scoped `__Host-upaffe_session`
 cookie, and browser writes must carry an Origin matching the public HTTPS
 scheme and host.

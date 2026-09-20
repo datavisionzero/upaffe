@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Upaffe.Api.Hosting;
 using Upaffe.Api.Http;
 
@@ -96,6 +97,58 @@ public sealed class ReverseProxyTests(PostgresFixture postgres)
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
     }
 
+    [Fact]
+    public async Task Untrusted_forwarded_headers_warn_without_logging_their_values_or_path()
+    {
+        var logs = new CollectingLoggerProvider();
+        var clock = new MutableTimeProvider(DateTimeOffset.UtcNow);
+        await using var instance = await EstablishedAsync(DirectClient, logs, clock);
+        using var client = Client(instance);
+
+        using var direct = await client.GetAsync("/api/health/live", TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, direct.StatusCode);
+        Assert.Empty(ProxyWarnings(logs));
+
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get,
+                "/api/report/NOT-A-REAL-SECRET");
+            request.Headers.Add("X-Forwarded-For", "203.0.113.7");
+            using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
+        var warning = Assert.Single(ProxyWarnings(logs));
+        Assert.Contains(DirectClient.ToString(), warning, StringComparison.Ordinal);
+        Assert.Contains(TrustedProxySettings.ProxyAddressesVariable, warning, StringComparison.Ordinal);
+        Assert.DoesNotContain("203.0.113.7", warning, StringComparison.Ordinal);
+        Assert.DoesNotContain("NOT-A-REAL-SECRET", warning, StringComparison.Ordinal);
+
+        clock.Advance(TimeSpan.FromMinutes(1));
+        using var afterInterval = new HttpRequestMessage(HttpMethod.Get, "/api/health/live");
+        afterInterval.Headers.Add("X-Forwarded-Proto", "https");
+        using var refreshed = await client.SendAsync(afterInterval, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
+        Assert.Equal(2, ProxyWarnings(logs).Length);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Trusted_forwarded_headers_do_not_warn(bool mappedToIpv6)
+    {
+        var logs = new CollectingLoggerProvider();
+        await using var instance = await EstablishedAsync(
+            mappedToIpv6 ? Proxy.MapToIPv6() : Proxy, logs);
+        using var client = Client(instance);
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/health/live");
+        Forward(request, "203.0.113.7");
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Empty(ProxyWarnings(logs));
+    }
+
     [Theory]
     [InlineData(true, HttpStatusCode.NoContent)]
     [InlineData(false, HttpStatusCode.Unauthorized)]
@@ -118,7 +171,12 @@ public sealed class ReverseProxyTests(PostgresFixture postgres)
         Assert.Equal(expected, accepted.StatusCode);
     }
 
-    private async Task<AnInstance> EstablishedAsync(IPAddress remoteAddress)
+    private static string[] ProxyWarnings(CollectingLoggerProvider logs) =>
+        logs.Messages.Where(message => message.StartsWith(
+            "Ignored forwarded headers from untrusted peer", StringComparison.Ordinal)).ToArray();
+
+    private async Task<AnInstance> EstablishedAsync(
+        IPAddress remoteAddress, ILoggerProvider? logs = null, TimeProvider? clock = null)
     {
         var connection = await postgres.CreateDatabaseAsync();
         var settings = new Dictionary<string, string?>
@@ -126,7 +184,8 @@ public sealed class ReverseProxyTests(PostgresFixture postgres)
             [TrustedProxySettings.ProxyAddressesVariable] = Proxy.ToString(),
             [TrustedProxySettings.PublicOriginVariable] = PublicOrigin,
         };
-        var instance = AnInstance.Against(connection, settings, remoteAddress: remoteAddress);
+        var instance = AnInstance.Against(connection, settings, clock: clock,
+            logProvider: logs, remoteAddress: remoteAddress);
         using var client = Client(instance);
         await instance.EstablishAsync(Email, Password);
         return instance;
