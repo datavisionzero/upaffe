@@ -244,7 +244,7 @@ describe("push monitor administration", () => {
     await user.click((await screen.findAllByRole("button", { name: "Open details" }))[0]);
 
     expect(await screen.findByRole("heading", { name: "Nightly backup", level: 1 })).toBeInTheDocument();
-    expect(screen.getByText("Incident open", { selector: ".state" })).toBeInTheDocument();
+    expect(screen.getByText("Incident open", { selector: ".ui-badge" })).toBeInTheDocument();
     expect(screen.getByText("Failed report")).toBeInTheDocument();
     expect(screen.getAllByText(/reason backup_failed/)).toHaveLength(3);
     expect(screen.getByText("Open incident", { selector: "strong" })).toBeInTheDocument();
@@ -254,9 +254,9 @@ describe("push monitor administration", () => {
     await user.click(screen.getByRole("button", { name: "Load older reports" }));
     expect(await screen.findByText("Missing report")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Pause" }));
-    expect(await screen.findByText("Paused · incident remains open", { selector: ".state" })).toBeInTheDocument();
+    expect(await screen.findByText("Paused · incident remains open", { selector: ".ui-badge" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Resume" }));
-    expect(await screen.findByText("Untested · incident remains open", { selector: ".state" })).toBeInTheDocument();
+    expect(await screen.findByText("Untested · incident remains open", { selector: ".ui-badge" })).toBeInTheDocument();
     expect(operations).toEqual(["older-reports", "pause", "resume"]);
   });
 

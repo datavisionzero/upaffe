@@ -4,6 +4,9 @@ import type { components } from "@/api/schema";
 import { api } from "@/api/client";
 import { csrfHeaders, problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
+import { CheckboxField, SelectField, TextField } from "@/components/Fields";
+import { Alert, EmptyState, LoadingState, PageHeader, SectionHeading, StatusBadge } from "@/components/Presentation";
+import { monitorStateTone } from "@/components/status";
 import { DeliveryHistoryPanel, IncidentEmailPanel, MaintenancePanel } from "@/shell/EmailPanels";
 import { monitorLink } from "@/shell/deepLink";
 
@@ -101,18 +104,11 @@ export function MonitorsView({ project, onBack, onOpenPush, onSignedOut,
   }
 
   return (
-    <div className="workspace">
-      <header className="workspace-header">
-        <div>
-          <p className="eyebrow">Project · {project.key}</p>
-          <h1>{project.name}</h1>
-          <p className="muted">HTTP monitors</p>
-        </div>
-        <div className="actions">
+    <div className="workspace monitor-workspace">
+      <PageHeader title={project.name} detail={`HTTP monitors · ${project.key}`} actions={<>
           <Button onClick={onOpenPush} type="button">Push monitors</Button>
           <Button onClick={onBack} type="button">Back to projects</Button>
-        </div>
-      </header>
+        </>} />
 
       <section aria-labelledby="monitor-create-title" className="panel">
         <h2 id="monitor-create-title">Create an HTTP monitor</h2>
@@ -120,22 +116,16 @@ export function MonitorsView({ project, onBack, onOpenPush, onSignedOut,
       </section>
 
       <section aria-labelledby="monitor-list-title" className="panel">
-        <div className="section-heading">
-          <div>
-            <h2 id="monitor-list-title">Monitors</h2>
-            <p className="muted">State is written explicitly; color is only supporting emphasis.</p>
-          </div>
-          <Button disabled={loading} onClick={() => void load()} type="button">Refresh</Button>
-        </div>
-        {error && <div className="error" role="alert">{error}</div>}
-        {loading && <p role="status">Loading monitors…</p>}
-        {!loading && monitors.length === 0 && <div className="empty" role="status">No HTTP monitors yet.</div>}
+        <SectionHeading title="Monitors" titleId="monitor-list-title" action={<Button disabled={loading} onClick={() => void load()} type="button">Refresh</Button>} />
+        {error && <Alert tone="danger">{error}</Alert>}
+        {loading && <LoadingState>Loading monitors…</LoadingState>}
+        {!loading && monitors.length === 0 && <EmptyState>No HTTP monitors yet.</EmptyState>}
         {!loading && monitors.length > 0 && (
           <div className="monitor-list">
             {monitors.map((monitor) => (
               <article className="monitor-card" key={monitor.id}>
                 <div>
-                  <p className={`state state-${monitor.state}`}>{monitorStateLabel(monitor)}</p>
+                  <StatusBadge tone={monitorStateTone(monitor.state)}>{monitorStateLabel(monitor)}</StatusBadge>
                   <h3>{monitor.name}</h3>
                   <code>{monitor.key}</code>
                   <p className="muted monitor-target">{monitor.target_url}{monitor.has_target_query ? " · secret query configured" : ""}</p>
@@ -212,42 +202,27 @@ function MonitorForm({ busy, mode, monitor, onSubmit }: FormProps) {
   return (
     <form className="monitor-form" onSubmit={submit}>
       {mode === "create" && (
-        <label>
-          <span>Immutable key</span>
-          <input name="monitor-key" pattern="[a-z][a-z0-9-]{1,39}" placeholder="homepage" required value={key} onChange={(event) => setKey(event.target.value)} />
-        </label>
+        <TextField label="Immutable key" name="monitor-key" pattern="[a-z][a-z0-9-]{1,39}" placeholder="homepage" required value={key} onChange={(event) => setKey(event.target.value)} />
       )}
-      <label>
-        <span>Display name</span>
-        <input maxLength={100} name="monitor-name" required value={name} onChange={(event) => setName(event.target.value)} />
-      </label>
+      <TextField label="Display name" maxLength={100} name="monitor-name" required value={name} onChange={(event) => setName(event.target.value)} />
       <label className="wide-field">
         <span>Purpose (optional)</span>
         <textarea aria-describedby="http-purpose-help" aria-label="Purpose (optional)" maxLength={240} rows={2} value={purpose} onChange={(event) => setPurpose(event.target.value)} />
         <small className="muted" id="http-purpose-help">What this checks, for example “Confirms the public homepage is available.” Operator instruction below is for investigation steps.</small>
       </label>
       {mode === "edit" && (
-        <label className="checkbox-label">
-          <input checked={replaceTarget} onChange={(event) => setReplaceTarget(event.target.checked)} type="checkbox" />
-          <span>Replace the complete target URL{monitor?.has_target_query ? " (otherwise preserve its secret query)" : ""}</span>
-        </label>
+        <CheckboxField className="wide-field" label={`Replace the complete target URL${monitor?.has_target_query ? " (otherwise preserve its secret query)" : ""}`} checked={replaceTarget} onChange={(event) => setReplaceTarget(event.target.checked)} />
       )}
-      <label className="wide-field">
-        <span>Target URL</span>
-        <input disabled={!replaceTarget} name="target-url" required={replaceTarget} type="url" value={targetUrl} onChange={(event) => setTargetUrl(event.target.value)} />
-      </label>
+      <TextField className="wide-field" label="Target URL" disabled={!replaceTarget} name="target-url" required={replaceTarget} type="url" value={targetUrl} onChange={(event) => setTargetUrl(event.target.value)} />
       <label>
         <span>Expected status</span>
         <input max={599} min={100} required type="number" value={expectedStatus} onChange={(event) => setExpectedStatus(event.target.valueAsNumber)} />
       </label>
-      <label>
-        <span>Text condition</span>
-        <select value={textCondition} onChange={(event) => setTextCondition(event.target.value)}>
+      <SelectField label="Text condition" value={textCondition} onChange={(event) => setTextCondition(event.target.value)}>
           <option value="none">No text check</option>
           <option value="required">Fragment required</option>
           <option value="forbidden">Fragment forbidden</option>
-        </select>
-      </label>
+      </SelectField>
       <label>
         <span>Text fragment</span>
         <input disabled={textCondition === "none"} maxLength={4096} required={textCondition !== "none"} value={textFragment} onChange={(event) => setTextFragment(event.target.value)} />
@@ -293,7 +268,7 @@ function MonitorForm({ busy, mode, monitor, onSubmit }: FormProps) {
           <Button onClick={() => setHeaders((current) => [...current, { id: ++nextHeaderID.current, name: "", value: "" }])} type="button">Add secret header</Button>
         </fieldset>
       )}
-      <Button disabled={busy} type="submit">{busy ? "Saving…" : mode === "create" ? "Create monitor" : "Save configuration"}</Button>
+      <Button disabled={busy} type="submit" variant="primary">{busy ? "Saving…" : mode === "create" ? "Create monitor" : "Save configuration"}</Button>
     </form>
   );
 }
@@ -540,12 +515,12 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
     }
   }
 
-  if (loading && !monitor) return <div className="workspace"><p role="status">Loading monitor detail…</p></div>;
+  if (loading && !monitor) return <div className="workspace"><LoadingState>Loading monitor detail…</LoadingState></div>;
   if (!monitor) {
     return (
       <div className="workspace panel">
         <h1>Monitor unavailable</h1>
-        <div className="error" role="alert">{error ?? "The monitor is unavailable."}</div>
+        <Alert tone="danger">{error ?? "The monitor is unavailable."}</Alert>
         <div className="actions">
           <Button onClick={() => void load()} type="button">Try again</Button>
           <Button onClick={onBack} type="button">Back to monitors</Button>
@@ -565,36 +540,26 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
     && snapshotAt !== undefined && Date.parse(monitor.next_check_at) < snapshotAt;
 
   return (
-    <div className="workspace">
-      <header className="workspace-header">
-        <div>
-          <p className="eyebrow">{project.key} · {monitor.key}</p>
-          <h1>{monitor.name}</h1>
-          <p className="monitor-purpose">{monitor.purpose || <>Purpose not documented. <a href="#configuration-title">Add purpose</a></>}</p>
-          <p className={`state state-${monitor.state}`}>{monitorStateLabel(monitor)}</p>
-        </div>
-        <Button onClick={onBack} type="button">Back to monitors</Button>
-      </header>
+    <div className="workspace monitor-workspace">
+      <PageHeader title={monitor.name} detail={<>{project.key} · {monitor.key} · <span className="monitor-purpose">{monitor.purpose || <>Purpose not documented. <a href="#configuration-title">Add purpose</a></>}</span></>}
+        actions={<><StatusBadge tone={monitorStateTone(monitor.state)}>{monitorStateLabel(monitor)}</StatusBadge><Button onClick={onBack} type="button">Back to monitors</Button></>} />
 
-      {error && <div className="error" role="alert">{error}</div>}
-      {notice && <div className="notice" role="status">{notice}</div>}
+      {error && <Alert tone="danger">{error}</Alert>}
+      {notice && <Alert>{notice}</Alert>}
       {testResult && (
-        <div className="notice test-result" role="status">
+        <Alert tone={testResult.succeeded ? "neutral" : "warning"}>
           Immediate check: {testResult.succeeded ? "success" : "failure"}; status {testResult.status_code ?? "none"}; {testResult.response_time_milliseconds} ms; reason {testResult.reason_code ?? "none"}; {testResult.applied_to_current_state ? "applied" : "history only"}.
-        </div>
+        </Alert>
       )}
 
       <section aria-labelledby="facts-title" className="panel">
-        <div className="section-heading">
-          <h2 id="facts-title">Current facts</h2>
-          <div className="actions">
+        <SectionHeading title="Current facts" titleId="facts-title" action={<div className="actions">
             <Button disabled={busy !== undefined} onClick={() => void lifecycle("test")} type="button">Run test now</Button>
             <Button disabled={busy !== undefined || loading} onClick={() => void load()} type="button">Refresh evidence</Button>
             {monitor.state === "paused"
               ? <Button disabled={busy !== undefined} onClick={() => void lifecycle("resume")} type="button">Resume</Button>
               : <Button disabled={busy !== undefined} onClick={() => void lifecycle("pause")} type="button">Pause</Button>}
-          </div>
-        </div>
+          </div>} />
         <dl className="fact-grid">
           <Fact label="Target" value={`${monitor.target_url}${monitor.has_target_query ? " (secret query configured)" : ""}`} />
           <Fact label="Latest result" value={latest ? `${latest.outcome} · ${formatDate(latest.completed_at)}` : monitor.latest_result_id ? "Evidence unavailable" : "No result yet"} />
@@ -622,7 +587,7 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
       <section aria-labelledby="headers-title" className="panel">
         <h2 id="headers-title">Secret request headers</h2>
         <p className="muted">Only names and timestamps are visible. Setting a name replaces its hidden value.</p>
-        {monitor.headers.length === 0 ? <div className="empty">No request headers configured.</div> : (
+        {monitor.headers.length === 0 ? <EmptyState>No request headers configured.</EmptyState> : (
           <ul className="metadata-list">
             {monitor.headers.map((header) => (
               <li key={header.id}><span><code>{header.name}</code> · updated {formatDate(header.updated_at)}</span><Button disabled={busy !== undefined} onClick={() => void removeHeader(header.name)} type="button">Remove</Button></li>
@@ -634,7 +599,7 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
 
       <section aria-labelledby="checks-title" className="panel">
         <h2 id="checks-title">Check history</h2>
-        {checks.length === 0 ? <div className="empty">No completed checks yet.</div> : (
+        {checks.length === 0 ? <EmptyState>No completed checks yet.</EmptyState> : (
           <ol className="history-list">
             {checks.map((check) => (
               <li key={check.id}>
@@ -651,7 +616,7 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
 
       <section aria-labelledby="incidents-title" className="panel">
         <h2 id="incidents-title">Incident history</h2>
-        {incidents.length === 0 ? <div className="empty">No incidents.</div> : (
+        {incidents.length === 0 ? <EmptyState>No incidents.</EmptyState> : (
           <ol className="history-list">
             {incidents.map((incident) => (
               <li key={incident.id}>
@@ -679,11 +644,11 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
         <h2 id="remove-title">Remove monitor</h2>
         <p className="muted">Removal stops scheduling and hides the monitor while retaining its history and key.</p>
         {!confirmRemove ? (
-          <Button className="danger" onClick={() => setConfirmRemove(true)} type="button">Remove monitor…</Button>
+          <Button variant="destructive" onClick={() => setConfirmRemove(true)} type="button">Remove monitor…</Button>
         ) : (
           <div className="actions confirmation" role="group" aria-label="Confirm monitor removal">
             <span>Remove {monitor.name}?</span>
-            <Button className="danger" disabled={busy !== undefined} onClick={() => void lifecycle("remove")} type="button">Confirm removal</Button>
+            <Button variant="destructive" disabled={busy !== undefined} onClick={() => void lifecycle("remove")} type="button">Confirm removal</Button>
             <Button disabled={busy !== undefined} onClick={() => setConfirmRemove(false)} type="button">Cancel</Button>
           </div>
         )}

@@ -6,6 +6,7 @@
 @import "./components/ui.css";
 @import "./shell/shell.css";
 @import "./shell/overview.css";
+@import "./shell/monitoring.css";
 
 @custom-variant dark (&:is(.dark *));
 

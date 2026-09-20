@@ -4,6 +4,9 @@ import type { components } from "@/api/schema";
 import { api } from "@/api/client";
 import { csrfHeaders, problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
+import { SelectField, TextField } from "@/components/Fields";
+import { Alert, EmptyState, LoadingState, PageHeader, SectionHeading, StatusBadge } from "@/components/Presentation";
+import { monitorStateTone } from "@/components/status";
 import { DeliveryHistoryPanel, IncidentEmailPanel, MaintenancePanel } from "@/shell/EmailPanels";
 import { monitorLink } from "@/shell/deepLink";
 
@@ -92,18 +95,11 @@ export function PushMonitorsView({ project, onBack, onOpenHttp, onSignedOut,
   }
 
   return (
-    <div className="workspace">
-      <header className="workspace-header">
-        <div>
-          <p className="eyebrow">Project · {project.key}</p>
-          <h1>{project.name}</h1>
-          <p className="muted">Push monitors</p>
-        </div>
-        <div className="actions">
+    <div className="workspace monitor-workspace">
+      <PageHeader title={project.name} detail={`Push monitors · ${project.key}`} actions={<>
           <Button onClick={onOpenHttp} type="button">HTTP monitors</Button>
           <Button onClick={onBack} type="button">Back to projects</Button>
-        </div>
-      </header>
+        </>} />
 
       <section aria-labelledby="push-create-title" className="panel">
         <h2 id="push-create-title">Create a push monitor</h2>
@@ -111,20 +107,14 @@ export function PushMonitorsView({ project, onBack, onOpenHttp, onSignedOut,
       </section>
 
       <section aria-labelledby="push-list-title" className="panel">
-        <div className="section-heading">
-          <div>
-            <h2 id="push-list-title">Push monitors</h2>
-            <p className="muted">State and reporting mode are always written out; color is only supporting emphasis.</p>
-          </div>
-          <Button disabled={loading} onClick={() => void load()} type="button">Refresh</Button>
-        </div>
-        {error && <div className="error" role="alert">{error}</div>}
-        {loading && <p role="status">Loading push monitors…</p>}
-        {!loading && monitors.length === 0 && <div className="empty" role="status">No push monitors yet.</div>}
+        <SectionHeading title="Push monitors" titleId="push-list-title" action={<Button disabled={loading} onClick={() => void load()} type="button">Refresh</Button>} />
+        {error && <Alert tone="danger">{error}</Alert>}
+        {loading && <LoadingState>Loading push monitors…</LoadingState>}
+        {!loading && monitors.length === 0 && <EmptyState>No push monitors yet.</EmptyState>}
         {!loading && monitors.length > 0 && <div className="monitor-list">
           {monitors.map((monitor) => <article className="monitor-card" key={monitor.id}>
             <div>
-              <p className={`state state-${monitor.state}`}>{pushStateLabel(monitor)}</p>
+              <StatusBadge tone={monitorStateTone(monitor.state)}>{pushStateLabel(monitor)}</StatusBadge>
               <h3>{monitor.name}</h3>
               <code>{monitor.key}</code>
               <p className="muted monitor-target">{modeLabel(monitor.mode)} · every {monitor.interval_seconds}s + {monitor.tolerance_seconds}s tolerance</p>
@@ -173,26 +163,17 @@ function PushMonitorForm({ busy, mode, monitor, onSubmit }: FormProps) {
   }
 
   return <form className="monitor-form" onSubmit={submit}>
-    {mode === "create" && <label>
-      <span>Immutable key</span>
-      <input pattern="[a-z][a-z0-9-]{1,39}" placeholder="nightly-backup" required value={key} onChange={(event) => setKey(event.target.value)} />
-    </label>}
-    <label>
-      <span>Display name</span>
-      <input maxLength={100} required value={name} onChange={(event) => setName(event.target.value)} />
-    </label>
+    {mode === "create" && <TextField label="Immutable key" pattern="[a-z][a-z0-9-]{1,39}" placeholder="nightly-backup" required value={key} onChange={(event) => setKey(event.target.value)} />}
+    <TextField label="Display name" maxLength={100} required value={name} onChange={(event) => setName(event.target.value)} />
     <label className="wide-field">
       <span>Purpose (optional)</span>
       <textarea aria-describedby="push-purpose-help" aria-label="Purpose (optional)" maxLength={240} rows={2} value={purpose} onChange={(event) => setPurpose(event.target.value)} />
       <small className="muted" id="push-purpose-help">What this reports, for example “Confirms the nightly backup completes.” Operator instruction below is for investigation steps.</small>
     </label>
-    {mode === "create" && <label>
-      <span>Reporting mode</span>
-      <select value={reportingMode} onChange={(event) => setReportingMode(event.target.value)}>
+    {mode === "create" && <SelectField label="Reporting mode" value={reportingMode} onChange={(event) => setReportingMode(event.target.value)}>
         <option value="job_completion">Job completion</option>
         <option value="state_report">State report</option>
-      </select>
-    </label>}
+      </SelectField>}
     {mode === "create" && <p className="mode-explanation wide-field" role="note">
       {reportingMode === "job_completion"
         ? "Job completion expects each successful run to report. An explicit failure opens an incident but does not postpone the next success deadline."
@@ -216,7 +197,7 @@ function PushMonitorForm({ busy, mode, monitor, onSubmit }: FormProps) {
       <span>Runbook URL</span>
       <input maxLength={2048} type="url" value={runbook} onChange={(event) => setRunbook(event.target.value)} />
     </label>
-    <Button disabled={busy} type="submit">{busy ? "Saving…" : mode === "create" ? "Create push monitor" : "Save configuration"}</Button>
+    <Button disabled={busy} type="submit" variant="primary">{busy ? "Saving…" : mode === "create" ? "Create push monitor" : "Save configuration"}</Button>
   </form>;
 }
 
@@ -406,10 +387,10 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
     finally { setBusy(undefined); }
   }
 
-  if (loading && !monitor) return <div className="workspace"><p role="status">Loading push monitor detail…</p></div>;
+  if (loading && !monitor) return <div className="workspace"><LoadingState>Loading push monitor detail…</LoadingState></div>;
   if (!monitor) return <div className="workspace panel">
     <h1>Monitor unavailable</h1>
-    <div className="error" role="alert">{error ?? "The push monitor is unavailable."}</div>
+    <Alert tone="danger">{error ?? "The push monitor is unavailable."}</Alert>
     <div className="actions"><Button onClick={() => void load()} type="button">Try again</Button><Button onClick={onBack} type="button">Back to push monitors</Button></div>
   </div>;
 
@@ -423,29 +404,19 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
   const overdue = monitor.state !== "paused" && monitor.next_deadline_at !== null
     && snapshotAt !== undefined && Date.parse(monitor.next_deadline_at) < snapshotAt;
 
-  return <div className="workspace">
-    <header className="workspace-header">
-      <div>
-        <p className="eyebrow">{project.key} · {monitor.key}</p>
-        <h1>{monitor.name}</h1>
-        <p className="monitor-purpose">{monitor.purpose || <>Purpose not documented. <a href="#push-configuration-title">Add purpose</a></>}</p>
-        <p className={`state state-${monitor.state}`}>{pushStateLabel(monitor)}</p>
-      </div>
-      <Button onClick={onBack} type="button">Back to push monitors</Button>
-    </header>
+  return <div className="workspace monitor-workspace">
+    <PageHeader title={monitor.name} detail={<>{project.key} · {monitor.key} · <span className="monitor-purpose">{monitor.purpose || <>Purpose not documented. <a href="#push-configuration-title">Add purpose</a></>}</span></>}
+      actions={<><StatusBadge tone={monitorStateTone(monitor.state)}>{pushStateLabel(monitor)}</StatusBadge><Button onClick={onBack} type="button">Back to push monitors</Button></>} />
 
-    {error && <div className="error" role="alert">{error}</div>}
-    {notice && <div className="notice" role="status">{notice}</div>}
+    {error && <Alert tone="danger">{error}</Alert>}
+    {notice && <Alert>{notice}</Alert>}
     <section aria-labelledby="push-status-title" className="panel">
-      <div className="section-heading">
-        <div><h2 id="push-status-title">Current status</h2><p className="muted">{modeLabel(monitor.mode)}</p></div>
-        <div className="actions">
+      <SectionHeading title="Current status" titleId="push-status-title" eyebrow={modeLabel(monitor.mode)} action={<div className="actions">
           {monitor.state === "paused"
             ? <Button disabled={busy !== undefined} onClick={() => void lifecycle("resume")} type="button">Resume</Button>
             : <Button disabled={busy !== undefined} onClick={() => void lifecycle("pause")} type="button">Pause</Button>}
           <Button disabled={busy !== undefined || loading} onClick={() => void load()} type="button">Refresh</Button>
-        </div>
-      </div>
+        </div>} />
       <dl className="fact-grid">
         <Fact label="Mode" value={modeLabel(monitor.mode)} />
         <Fact label="Latest report" value={latest ? `${latest.outcome} · observed ${formatDate(latest.observed_at)} · received ${formatDate(latest.received_at)} · ${latest.reason ?? "no failure reason"}` : monitor.latest_report_id ? "Evidence unavailable" : "No report yet"} />
@@ -489,15 +460,15 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
         </dl>
         <div className="actions credential-actions">
           <Button disabled={busy !== undefined} onClick={() => void changeCredential("rotate")} type="button">Rotate and reveal new credential</Button>
-          <Button className="danger" disabled={busy !== undefined} onClick={() => void changeCredential("revoke")} type="button">Revoke credential</Button>
+          <Button variant="destructive" disabled={busy !== undefined} onClick={() => void changeCredential("revoke")} type="button">Revoke credential</Button>
         </div>
-      </> : <div className="empty">No active reporting credential.</div>}
+      </> : <EmptyState>No active reporting credential.</EmptyState>}
       {!credential && <Button disabled={busy !== undefined} onClick={() => void changeCredential("issue")} type="button">Issue reporting credential</Button>}
     </section>
 
     <section aria-labelledby="push-reports-title" className="panel">
       <h2 id="push-reports-title">Report history</h2>
-      {reports.length === 0 ? <div className="empty">No reports received yet.</div> : <ol className="history-list">
+      {reports.length === 0 ? <EmptyState>No reports received yet.</EmptyState> : <ol className="history-list">
         {reports.map((report) => <li key={report.id}>
           <strong>{report.outcome === "success"
             ? incidents.some((incident) => incident.resolution_report_id === report.id) ? "Recovery" : "Successful report"
@@ -510,7 +481,7 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
 
     <section aria-labelledby="push-incidents-title" className="panel">
       <h2 id="push-incidents-title">Incident history</h2>
-      {incidents.length === 0 ? <div className="empty">No incidents.</div> : <ol className="history-list">
+      {incidents.length === 0 ? <EmptyState>No incidents.</EmptyState> : <ol className="history-list">
         {incidents.map((incident) => <li key={incident.id}>
           <strong>{incident.resolved_at ? "Resolved incident" : "Open incident"}</strong> · began {formatDate(incident.began_at)} · opened {formatDate(incident.opened_at)}
           <span>original reason {incident.original_reason} · latest reason {incident.latest_reason} · last observed {formatDate(incident.last_observed_at)}{incident.resolved_at ? ` · recovered ${formatDate(incident.resolved_at)}` : ""}</span>
@@ -534,10 +505,10 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
       <h2 id="push-remove-title">Remove push monitor</h2>
       <p className="muted">Removal revokes its reporting credential and retains its history and key.</p>
       {!confirmRemove
-        ? <Button className="danger" onClick={() => setConfirmRemove(true)} type="button">Remove push monitor…</Button>
+        ? <Button variant="destructive" onClick={() => setConfirmRemove(true)} type="button">Remove push monitor…</Button>
         : <div className="actions confirmation" role="group" aria-label="Confirm push monitor removal">
           <span>Remove {monitor.name}?</span>
-          <Button className="danger" disabled={busy !== undefined} onClick={() => void lifecycle("remove")} type="button">Confirm removal</Button>
+          <Button variant="destructive" disabled={busy !== undefined} onClick={() => void lifecycle("remove")} type="button">Confirm removal</Button>
           <Button disabled={busy !== undefined} onClick={() => setConfirmRemove(false)} type="button">Cancel</Button>
         </div>}
     </section>

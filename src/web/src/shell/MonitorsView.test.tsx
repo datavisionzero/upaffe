@@ -189,8 +189,8 @@ describe("HTTP monitor administration", () => {
 
     expect(screen.getByRole("status")).toHaveTextContent("Loading monitors");
     list.resolve(json(monitors));
-    expect(await screen.findByText("Untested", { selector: ".state" })).toBeInTheDocument();
-    expect(screen.getByText("Healthy", { selector: ".state" })).toBeInTheDocument();
+    expect(await screen.findByText("Untested", { selector: ".ui-badge" })).toBeInTheDocument();
+    expect(screen.getByText("Healthy", { selector: ".ui-badge" })).toBeInTheDocument();
     expect(screen.getByText("Failing below threshold · 1/3 failures")).toBeInTheDocument();
     expect(screen.getByText("Incident open · 3/3 failures")).toBeInTheDocument();
     expect(screen.getByText("Paused · incident remains open")).toBeInTheDocument();

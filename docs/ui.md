@@ -45,3 +45,10 @@ health, and email acceptance is described separately from inbox delivery.
 The brand accent has a darker light-theme text companion so small links and
 labels remain readable on warm surfaces; health and warning colors have their
 own tokens. Long purpose and operator guidance text wraps within cards.
+
+The monitor inventory uses compact filters and a dense table on wide screens;
+on narrow screens each result becomes a labeled card without losing evidence or
+links. HTTP and push monitor lists and details share headers, status badges,
+alerts, and form styling. Their domain-specific controls and histories remain
+separate: HTTP targets and secret headers, push reporting modes and one-time
+credential handoff, and each monitor's pause, maintenance, and removal actions.

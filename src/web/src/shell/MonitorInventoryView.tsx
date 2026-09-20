@@ -4,6 +4,9 @@ import type { components } from "@/api/schema";
 import { api } from "@/api/client";
 import { problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
+import { SelectField, TextField } from "@/components/Fields";
+import { Alert, EmptyState, LoadingState, PageHeader, SectionHeading, StatusBadge } from "@/components/Presentation";
+import { monitorStateTone } from "@/components/status";
 import { monitorPath, projectPath } from "@/shell/routes";
 
 type Page = components["schemas"]["MonitorInventoryPage"];
@@ -109,45 +112,36 @@ export function MonitorInventoryView({ search, onNavigate, onSignedOut }: {
   }
 
   return <div className="workspace monitor-inventory">
-    <header className="workspace-header">
-      <div>
-        <p className="eyebrow">Across projects</p>
-        <h1>Monitors</h1>
-        <p className="muted">Find what each monitor covers and inspect its current evidence.</p>
-      </div>
-    </header>
+    <PageHeader title="Monitors" detail="Find what each monitor covers and inspect its current evidence across projects." />
     <form className="panel inventory-filters" onSubmit={submit} role="search">
-      <label><span>Search monitors</span><input maxLength={120} value={q} onChange={(event) => setQ(event.target.value)} placeholder="Name, purpose, project, or safe target" /></label>
-      <label><span>Project</span><select value={project} onChange={(event) => setProject(event.target.value)}>
+      <TextField label="Search monitors" maxLength={120} value={q} onChange={(event) => setQ(event.target.value)} placeholder="Name, purpose, project, or safe target" />
+      <SelectField label="Project" value={project} onChange={(event) => setProject(event.target.value)}>
         <option value="">All projects</option>
         {project && !projects.some((value) => value.key === project) && <option value={project}>{project}</option>}
         {projects.map((value) => <option key={value.key} value={value.key}>{value.name} · {value.key}</option>)}
-      </select></label>
-      <label><span>State</span><select value={state} onChange={(event) => setState(event.target.value)}>
+      </SelectField>
+      <SelectField label="State" value={state} onChange={(event) => setState(event.target.value)}>
         <option value="">All states</option><option value="failing">Failing</option>
         <option value="untested">Untested</option><option value="paused">Paused</option>
         <option value="healthy">Healthy</option>
-      </select></label>
-      <label><span>Type</span><select value={type} onChange={(event) => setType(event.target.value)}>
+      </SelectField>
+      <SelectField label="Type" value={type} onChange={(event) => setType(event.target.value)}>
         <option value="">All types</option><option value="http">HTTP check</option>
         <option value="push">Push report</option>
-      </select></label>
-      <Button type="submit">Apply filters</Button>
+      </SelectField>
+      <Button type="submit" variant="primary">Apply filters</Button>
     </form>
 
-    {loading && <p role="status">Loading monitor inventory…</p>}
-    {error && <div className="error" role="alert">{error}</div>}
+    {loading && <LoadingState>Loading monitor inventory…</LoadingState>}
+    {error && <Alert tone="danger">{error}</Alert>}
     {page && <section className="panel" aria-labelledby="inventory-results-title">
-      <div className="section-heading"><div>
-        <h2 id="inventory-results-title">Inventory</h2>
-        <p className="muted">{page.total === 0 ? "No matching monitors" :
-          page.items.length === 0 ? `${page.total} matching monitors on earlier pages` :
-            `Showing ${page.offset + 1}–${page.offset + page.items.length} of ${page.total}`}</p>
-      </div></div>
-      {page.items.length === 0 ? <p className="empty" role="status">{page.total > 0
+      <SectionHeading title="Inventory" titleId="inventory-results-title" eyebrow={page.total === 0 ? "No matching monitors" :
+        page.items.length === 0 ? `${page.total} matching monitors on earlier pages` :
+          `Showing ${page.offset + 1}–${page.offset + page.items.length} of ${page.total}`} />
+      {page.items.length === 0 ? <EmptyState>{page.total > 0
         ? "This page is empty. Return to an earlier page." : current.project || current.state || current.type || current.q
-          ? "No monitors match these filters." : "No monitors configured yet."}</p> :
-        <table className="inventory-table">
+          ? "No monitors match these filters." : "No monitors configured yet."}</EmptyState> :
+        <table className="ui-table inventory-table">
           <thead><tr><th scope="col">Monitor and project</th><th scope="col">Purpose</th>
             <th scope="col">Method and cadence</th><th scope="col">State</th>
             <th scope="col">Latest evidence</th><th scope="col">Next due</th></tr></thead>
@@ -156,7 +150,7 @@ export function MonitorInventoryView({ search, onNavigate, onSignedOut }: {
               <small>{link(projectPath(item.project_key), item.project_name)} · {item.key}</small></td>
             <td data-label="Purpose"><span className="inventory-purpose">{item.purpose || "Purpose not documented"}</span></td>
             <td data-label="Method and cadence">{context(item)}</td>
-            <td data-label="State"><span className={`state state-${item.state}`}>{item.state}</span>
+            <td data-label="State"><StatusBadge tone={monitorStateTone(item.state)}>{item.state}</StatusBadge>
               {item.incident_open && <small>Incident open</small>}
               {item.overdue && <small>Overdue</small>}
               {item.maintenance_until && <small>Maintenance until {time(item.maintenance_until)}</small>}</td>
