@@ -25,6 +25,8 @@ node_modules/
 dist/
 *.tsbuildinfo
 npm-debug.log*
+/src/web/test-results/
+/src/web/playwright-report/
 
 # Locally built executables.
 /ua

@@ -12,6 +12,7 @@
     "typecheck": "tsc -b",
     "pretest": "npm run generate",
     "test": "vitest run",
+    "test:visual": "playwright test",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -28,6 +29,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10",
+    "@playwright/test": "^1.63.0",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.7",

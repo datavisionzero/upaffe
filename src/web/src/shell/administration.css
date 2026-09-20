@@ -5,6 +5,7 @@
   padding: 1rem 1.2rem;
 }
 .app-shell > .panel { max-width: 38rem; }
+.app-shell > .ui-loading { width: min(38rem, 100%); margin: min(14vh, 7rem) auto 0; }
 .app-shell > .panel h1 { font-size: 1.3rem; }
 .app-shell > .panel .lede { font-size: 0.9rem; line-height: 1.55; }
 .app-shell > .panel .form-stack { gap: 0.8rem; margin-top: 1rem; }
