@@ -82,7 +82,7 @@ public sealed class ProjectReportStore(UpaffeDbContext context, IEmailStatusStor
                     incident.Id, incident.BeganAt, incident.OpenedAt,
                     Age(now, incident.BeganAt), incident.OriginalReason, incident.LatestReason),
                 Window(direct), EffectiveEnd(direct, projectWindow),
-                monitor.Instruction, monitor.RunbookUrl));
+                monitor.Instruction, monitor.RunbookUrl, monitor.Purpose));
         }
         foreach (var monitor in push)
         {
@@ -101,7 +101,7 @@ public sealed class ProjectReportStore(UpaffeDbContext context, IEmailStatusStor
                     incident.Id, incident.BeganAt, incident.OpenedAt,
                     Age(now, incident.BeganAt), incident.OriginalReason, incident.LatestReason),
                 Window(direct), EffectiveEnd(direct, projectWindow),
-                monitor.Instruction, monitor.RunbookUrl));
+                monitor.Instruction, monitor.RunbookUrl, monitor.Purpose));
         }
 
         var attention = all.Where(value => value.State != "healthy" || value.Overdue)
@@ -113,7 +113,7 @@ public sealed class ProjectReportStore(UpaffeDbContext context, IEmailStatusStor
             .Select(value => new ReportHealthyMonitor(value.Type, value.Id,
                 value.Key, value.Name, value.Mode, value.LastSuccess?.ObservedAt,
                 value.NextDueAt, value.DirectMaintenance,
-                value.EffectiveMaintenanceUntil)).ToArray();
+                value.EffectiveMaintenanceUntil, value.Purpose)).ToArray();
         var counts = new ReportCounts(all.Count, http.Count, push.Count,
             all.Count(value => value.State == "healthy"),
             all.Count(value => value.State == "failing"),

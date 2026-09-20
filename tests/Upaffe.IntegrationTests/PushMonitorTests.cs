@@ -27,7 +27,7 @@ public sealed class PushMonitorTests(PostgresFixture postgres)
         Assert.Equal(HttpStatusCode.Created, (await JsonAsync(client, HttpMethod.Post, "/api/projects", new CreateProjectRequest("backups", "Backups"), token)).StatusCode);
 
         var create = new CreatePushMonitorRequest("nightly-backup", "Nightly backup", "job_completion", 86400, 3600,
-            "Inspect the backup logs.", "https://runbooks.example.test/nightly-backup");
+            "Inspect the backup logs.", "https://runbooks.example.test/nightly-backup", "  Confirms the nightly backup completes.  ");
         var createdResponse = await JsonAsync(client, HttpMethod.Post, "/api/projects/backups/push-monitors", create, token);
         Assert.Equal(HttpStatusCode.Created, createdResponse.StatusCode);
         var body = await createdResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
@@ -35,6 +35,7 @@ public sealed class PushMonitorTests(PostgresFixture postgres)
         var created = JsonSerializer.Deserialize<PushMonitorResponse>(body, Json)!;
         Assert.Equal("untested", created.State);
         Assert.Equal("job_completion", created.Mode);
+        Assert.Equal("Confirms the nightly backup completes.", created.Purpose);
         Assert.False(created.HasReportingCredential);
         Assert.NotNull(created.NextDeadlineAt);
 
@@ -47,8 +48,22 @@ public sealed class PushMonitorTests(PostgresFixture postgres)
         Assert.NotNull(resumed.NextDeadlineAt);
 
         var updated = await Read(await JsonAsync(client, HttpMethod.Put, "/api/projects/backups/push-monitors/nightly-backup",
-            new UpdatePushMonitorRequest("Renamed backup", 43200, 1800, null, null, resumed.Version), token));
+            new UpdatePushMonitorRequest("Renamed backup", 43200, 1800, null, null, resumed.Version, "Checks backup completion."), token));
         Assert.Equal("Renamed backup", updated.Name);
+        Assert.Equal("Checks backup completion.", updated.Purpose);
+        var cleared = await Read(await JsonAsync(client, HttpMethod.Put,
+            "/api/projects/backups/push-monitors/nightly-backup",
+            new UpdatePushMonitorRequest(updated.Name, 43200, 1800, null, null,
+                updated.Version, " "), token));
+        Assert.Null(cleared.Purpose);
+
+        using (var overlong = await JsonAsync(client, HttpMethod.Put,
+            "/api/projects/backups/push-monitors/nightly-backup",
+            new UpdatePushMonitorRequest(cleared.Name, 43200, 1800, null, null,
+                cleared.Version, new string('x', 241)), token))
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, overlong.StatusCode);
+        }
 
         using var issuedReporting = await Send(client, HttpMethod.Post,
             "/api/projects/backups/push-monitors/nightly-backup/reporting-credential", token);

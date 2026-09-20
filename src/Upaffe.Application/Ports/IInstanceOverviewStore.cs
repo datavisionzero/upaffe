@@ -9,7 +9,7 @@ public sealed record OverviewMonitor(string ProjectKey, string Type, string Key,
     DateTimeOffset? NextDueAt, DateTimeOffset? LastSuccessAt,
     DateTimeOffset? LatestResultAt, string? LatestOutcome, string? LatestReason,
     Guid? IncidentId, DateTimeOffset? IncidentBeganAt, string? IncidentReason,
-    DateTimeOffset? EffectiveMaintenanceUntil);
+    DateTimeOffset? EffectiveMaintenanceUntil, string? Purpose = null);
 public sealed record OverviewProject(string Key, string Name, OverviewCounts Counts,
     OverviewDelivery Delivery, DateTimeOffset? MaintenanceUntil);
 public sealed record InstanceOverview(DateTimeOffset GeneratedAt, OverviewCounts Counts,

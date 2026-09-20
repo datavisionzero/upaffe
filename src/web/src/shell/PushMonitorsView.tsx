@@ -150,6 +150,7 @@ type FormProps = {
 function PushMonitorForm({ busy, mode, monitor, onSubmit }: FormProps) {
   const [key, setKey] = useState("");
   const [name, setName] = useState(monitor?.name ?? "");
+  const [purpose, setPurpose] = useState(monitor?.purpose ?? "");
   const [reportingMode, setReportingMode] = useState(monitor?.mode ?? "job_completion");
   const [interval, setInterval] = useState(monitor?.interval_seconds ?? 3600);
   const [tolerance, setTolerance] = useState(monitor?.tolerance_seconds ?? 300);
@@ -160,6 +161,7 @@ function PushMonitorForm({ busy, mode, monitor, onSubmit }: FormProps) {
     event.preventDefault();
     const common = {
       name,
+      purpose: purpose.trim() || null,
       interval_seconds: interval,
       tolerance_seconds: tolerance,
       instruction: instruction || null,
@@ -178,6 +180,11 @@ function PushMonitorForm({ busy, mode, monitor, onSubmit }: FormProps) {
     <label>
       <span>Display name</span>
       <input maxLength={100} required value={name} onChange={(event) => setName(event.target.value)} />
+    </label>
+    <label className="wide-field">
+      <span>Purpose (optional)</span>
+      <textarea aria-describedby="push-purpose-help" aria-label="Purpose (optional)" maxLength={240} rows={2} value={purpose} onChange={(event) => setPurpose(event.target.value)} />
+      <small className="muted" id="push-purpose-help">What this reports, for example “Confirms the nightly backup completes.” Operator instruction below is for investigation steps.</small>
     </label>
     {mode === "create" && <label>
       <span>Reporting mode</span>
@@ -421,6 +428,7 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
       <div>
         <p className="eyebrow">{project.key} · {monitor.key}</p>
         <h1>{monitor.name}</h1>
+        <p className="monitor-purpose">{monitor.purpose || <>Purpose not documented. <a href="#push-configuration-title">Add purpose</a></>}</p>
         <p className={`state state-${monitor.state}`}>{pushStateLabel(monitor)}</p>
       </div>
       <Button onClick={onBack} type="button">Back to push monitors</Button>

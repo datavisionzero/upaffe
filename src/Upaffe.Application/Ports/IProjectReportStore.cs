@@ -19,11 +19,11 @@ public sealed record ReportMonitor(
     ReportResult? LatestResult, ReportResult? LastSuccess,
     ReportIncident? Incident, ReportMaintenance? DirectMaintenance,
     DateTimeOffset? EffectiveMaintenanceUntil, string? Instruction,
-    string? RunbookUrl);
+    string? RunbookUrl, string? Purpose = null);
 public sealed record ReportHealthyMonitor(string Type, Guid Id, string Key,
     string Name, string? Mode, DateTimeOffset? LastSuccessAt,
     DateTimeOffset? NextDueAt, ReportMaintenance? DirectMaintenance,
-    DateTimeOffset? EffectiveMaintenanceUntil);
+    DateTimeOffset? EffectiveMaintenanceUntil, string? Purpose = null);
 public sealed record ReportEmail(bool Configured, string? Host, int? Port,
     string? Security, string? SenderAddress, string? PublicBaseUrl,
     bool HasPassword, IReadOnlyList<string> Recipients,

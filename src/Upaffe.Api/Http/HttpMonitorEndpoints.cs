@@ -19,7 +19,8 @@ public sealed record CreateHttpMonitorRequest(
     int FailureThreshold,
     string? Instruction,
     string? RunbookUrl,
-    IReadOnlyList<HttpHeaderInput>? Headers);
+    IReadOnlyList<HttpHeaderInput>? Headers,
+    string? Purpose = null);
 
 public sealed record UpdateHttpMonitorRequest(
     string? Name,
@@ -32,7 +33,8 @@ public sealed record UpdateHttpMonitorRequest(
     int FailureThreshold,
     string? Instruction,
     string? RunbookUrl,
-    [property: JsonNumberHandling(JsonNumberHandling.Strict)] long Version);
+    [property: JsonNumberHandling(JsonNumberHandling.Strict)] long Version,
+    string? Purpose = null);
 
 public sealed record HttpMonitorVersionRequest(
     [property: JsonNumberHandling(JsonNumberHandling.Strict)] long Version);
@@ -73,7 +75,8 @@ public sealed record HttpMonitorResponse(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     DateTimeOffset? PausedAt,
-    DateTimeOffset? DeletedAt);
+    DateTimeOffset? DeletedAt,
+    string? Purpose = null);
 
 public sealed record HttpMonitorTestResponse(
     Guid CheckId,
@@ -155,7 +158,8 @@ public static class HttpMonitorEndpoints
                     request.Headers?.Select(value => new HttpHeaderValue(
                         value.Name ?? string.Empty,
                         value.Value ?? string.Empty)).ToArray(),
-                    cancellationToken);
+                    cancellationToken,
+                    request.Purpose);
                 var response = Response(result.Monitor);
                 return result.Created
                     ? Results.Created(
@@ -301,7 +305,8 @@ public static class HttpMonitorEndpoints
                 request.Instruction,
                 request.RunbookUrl,
                 request.Version,
-                cancellationToken)))
+                cancellationToken,
+                request.Purpose)))
             .WithName("UpdateHttpMonitor")
             .WithSummary("Update non-secret HTTP monitor configuration and optionally replace its target URL.")
             .Produces<HttpMonitorResponse>()
@@ -461,7 +466,8 @@ public static class HttpMonitorEndpoints
         value.CreatedAt,
         value.UpdatedAt,
         value.PausedAt,
-        value.DeletedAt);
+        value.DeletedAt,
+        value.Purpose);
 
     private static HttpMonitorTestResponse TestResponse(CompletedHttpTest value) => new(
         value.CheckId,

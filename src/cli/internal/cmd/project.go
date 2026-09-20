@@ -155,9 +155,9 @@ func writeProjectReportText(output io.Writer, report *api.ProjectReport) error {
 		return reportTextPriority(attention[left]) < reportTextPriority(attention[right])
 	})
 	for _, monitor := range attention {
-		fmt.Fprintf(&body, "monitor\ttype=%s\tkey=%s\tname=%s\tstate=%s\tmode=%s\toverdue=%t\tnext_due=%s\tlast_received=%s\tlast_success=%s\n",
+		fmt.Fprintf(&body, "monitor\ttype=%s\tkey=%s\tname=%s\tpurpose=%s\tstate=%s\tmode=%s\toverdue=%t\tnext_due=%s\tlast_received=%s\tlast_success=%s\n",
 			strconv.Quote(monitor.Type), strconv.Quote(monitor.Key),
-			strconv.Quote(monitor.Name), strconv.Quote(monitor.State),
+			strconv.Quote(monitor.Name), quoteOptional(monitor.Purpose), strconv.Quote(monitor.State),
 			quoteOptional(monitor.Mode),
 			monitor.Overdue, formatTime(monitor.NextDueAt),
 			formatTime(monitor.LastReceivedAt), formatResult(monitor.LastSuccess))
@@ -191,9 +191,9 @@ func writeProjectReportText(output io.Writer, report *api.ProjectReport) error {
 		}
 	}
 	for _, monitor := range report.Healthy {
-		fmt.Fprintf(&body, "healthy\ttype=%s\tkey=%s\tname=%s\tlast_success=%s\tnext_due=%s\tdirect_maintenance=%t\teffective_maintenance_until=%s\n",
+		fmt.Fprintf(&body, "healthy\ttype=%s\tkey=%s\tname=%s\tpurpose=%s\tlast_success=%s\tnext_due=%s\tdirect_maintenance=%t\teffective_maintenance_until=%s\n",
 			strconv.Quote(monitor.Type), strconv.Quote(monitor.Key),
-			strconv.Quote(monitor.Name), formatTime(monitor.LastSuccessAt),
+			strconv.Quote(monitor.Name), quoteOptional(monitor.Purpose), formatTime(monitor.LastSuccessAt),
 			formatTime(monitor.NextDueAt), monitor.DirectMaintenance != nil,
 			formatTime(monitor.EffectiveMaintenanceUntil))
 	}

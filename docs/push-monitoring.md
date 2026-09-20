@@ -39,6 +39,7 @@ ua push create backup-jobs --file - --json <<'JSON'
 {
   "key": "nightly-backup",
   "name": "Nightly backup",
+  "purpose": "Confirms the nightly backup completes.",
   "mode": "job_completion",
   "interval_seconds": 86400,
   "tolerance_seconds": 3600,
@@ -53,7 +54,10 @@ ua push incidents backup-jobs nightly-backup --json
 ```
 
 Web and CLI call the same checked-in API contract and show the same persisted
-state. Updates, deletion, pause, and resume use the positive `version` last
+state. `purpose` describes the job or condition the monitor covers, while
+`instruction` tells an operator how to investigate a failure. Purpose is
+optional, trimmed to 240 characters, and cleared with an empty or null update
+value. Updates, deletion, pause, and resume use the positive `version` last
 read. A conflict means another operator changed the monitor; reread it before
 deciding whether to retry.
 

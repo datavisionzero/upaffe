@@ -27,6 +27,7 @@ setup uses a local container command with database access, not an HTTP write.
 | `POST /api/projects` | Create a project idempotently by its immutable key. |
 | `GET /api/projects?deleted=false` | List live projects, or deleted projects with `deleted=true`. |
 | `GET /api/overview` | Read a current, safe health overview across live projects. |
+| `GET /api/monitors` | Search and page the safe cross-project HTTP and push monitor inventory. |
 | `GET /api/projects/{key}` | Read a live or deleted project by immutable key. |
 | `PUT /api/projects/{key}` | Rename a live project at the version last read. |
 | `DELETE /api/projects/{key}?version={version}` | Soft-delete a project at the version last read. |
@@ -139,6 +140,27 @@ names return `400 validation`.
 Authentication audit messages contain the HTTP operation, outcome, access path,
 and public session or credential ID when available. They never contain the
 presented bearer token, cookie secret, or password.
+
+## Monitor inventory
+
+`GET /api/monitors` requires management authentication. It searches live HTTP
+and push monitors in live projects. Optional `project`, `state` (`healthy`,
+`failing`, `untested`, or `paused`), `type` (`http` or `push`), and `q` filters
+compose. Search matches project name/key, monitor name/key, purpose, and the
+query-redacted HTTP target, case-insensitively. Search treats `%` and `_` as
+literal characters. `q` is at most 120 characters. `limit` is 1–100 (default
+50); `offset` is 0–1,000,000 (default 0). Invalid filters return
+`400 validation`.
+
+The response has `as_of`, `total`, `limit`, `offset`, `has_more`, and `items`.
+Each item has project and monitor identity, purpose, type, push mode or safe HTTP
+target, interval and optional push tolerance, state, overdue and open-incident
+flags, maintenance end, latest observation, last success, and next due time.
+An absent purpose is `null`. Open incidents come first, followed by failing,
+overdue, untested, paused, and healthy monitors; project key, type, and monitor
+key break ties. Count and page use two database queries regardless of monitor
+count. The response excludes request header values, target query values,
+reporting secrets, and remote diagnostic content.
 
 ## Projects
 
@@ -266,7 +288,7 @@ An HTTP monitor has a generated UUID and an immutable key scoped to its
 project. Its create and read contract includes name, query-redacted target URL,
 whether a query is configured, exact expected status, `none`, `required`, or
 `forbidden` text condition and fragment, interval and timeout seconds, failure
-threshold, optional operator instruction and runbook URL, current state and
+threshold, optional purpose, operator instruction and runbook URL, current state and
 failure count, next due time, latest-result and latest-success IDs, header
 metadata, optimistic version, and lifecycle timestamps. `open_incident_id` is
 present exactly while an incident remains unresolved. In combination with the
@@ -287,6 +309,13 @@ complete target. A query can therefore survive unrelated edits without being
 revealed. Individual header `PUT` accepts `{ "value": "...", "version": N }`
 and creates or replaces the named secret. Header `DELETE` carries `version` in
 the query. Both return only refreshed monitor and header metadata.
+
+`purpose` is an optional operator-written description of what the monitor
+covers. It is trimmed to at most 240 characters; an empty value becomes `null`.
+It differs from `instruction`, which guides incident investigation. Both HTTP
+and push monitor create and full-replacement update operations accept it.
+Sending `null`, empty text, or omitting it on update clears it. Existing
+monitors return `null` until documented.
 
 Pause, resume, and removal are explicit operations. Pause and resume accept
 `{ "version": N }`; removal uses the version query parameter. A pause clears
@@ -433,7 +462,8 @@ The typed response has `generated_at`, `project`, `counts`, `attention`,
 facts for failing, untested, paused, or overdue HTTP and push monitors. It is
 ordered by urgency, type, and key. `healthy` contains shorter summaries ordered
 by type and key. The snapshot exposes only stable failure reasons. It keeps
-operator `instruction` and `runbook_url` separate from diagnostic fields.
+operator `purpose`, `instruction` and `runbook_url` separate from diagnostic fields.
+Purpose is present in both attention and healthy entries.
 Use the existing paginated check, report, incident, and delivery endpoints for
 history. The report cannot prove that an overdue worker has run or that SMTP
 acceptance reached an inbox.

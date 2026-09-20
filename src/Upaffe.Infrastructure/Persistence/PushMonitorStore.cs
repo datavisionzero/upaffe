@@ -52,7 +52,7 @@ public sealed class PushMonitorStore(UpaffeDbContext context) : IPushMonitorStor
     {
         var found = await FindForChangeAsync(projectKey, monitorKey, expectedVersion, cancellationToken);
         if (found.Result is not null) return found.Result;
-        found.Monitor!.ChangeConfiguration(change.Name, change.IntervalSeconds, change.ToleranceSeconds, change.Instruction, change.RunbookUrl, now);
+        found.Monitor!.ChangeConfiguration(change.Name, change.IntervalSeconds, change.ToleranceSeconds, change.Instruction, change.RunbookUrl, now, change.Purpose);
         return await SaveAsync(found.Monitor, projectKey, cancellationToken);
     }
 
@@ -121,15 +121,16 @@ public sealed class PushMonitorStore(UpaffeDbContext context) : IPushMonitorStor
         return new(monitor.Id, projectKey, monitor.Key, monitor.Name, monitor.Mode, monitor.IntervalSeconds, monitor.ToleranceSeconds,
             monitor.Instruction, monitor.RunbookUrl, monitor.State, monitor.LastReceivedAt, monitor.NextDeadlineAt,
             monitor.LatestReportId, monitor.LatestSuccessId, incident, hasCredential, monitor.Version, monitor.CreatedAt,
-            monitor.UpdatedAt, monitor.PausedAt, monitor.DeletedAt);
+            monitor.UpdatedAt, monitor.PausedAt, monitor.DeletedAt, monitor.Purpose);
     }
 
     private static PushMonitor Create(Guid projectId, PushMonitorDefinition value, DateTimeOffset now) =>
-        PushMonitor.Create(projectId, value.Key, value.Name, value.Mode, value.IntervalSeconds, value.ToleranceSeconds, value.Instruction, value.RunbookUrl, now);
+        PushMonitor.Create(projectId, value.Key, value.Name, value.Mode, value.IntervalSeconds, value.ToleranceSeconds, value.Instruction, value.RunbookUrl, now, value.Purpose);
 
     private static bool Same(PushMonitor monitor, PushMonitorDefinition value) => monitor.Name == value.Name && monitor.Mode == value.Mode
         && monitor.IntervalSeconds == value.IntervalSeconds && monitor.ToleranceSeconds == value.ToleranceSeconds
-        && monitor.Instruction == value.Instruction && monitor.RunbookUrl == value.RunbookUrl;
+        && monitor.Instruction == value.Instruction && monitor.RunbookUrl == value.RunbookUrl
+        && monitor.Purpose == value.Purpose;
 
     private static bool IsKeyConflict(DbUpdateException exception) => exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } postgres
         && postgres.ConstraintName == "push_monitor_project_key";

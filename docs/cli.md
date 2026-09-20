@@ -129,6 +129,7 @@ ua project list [--deleted] [--url ADDRESS] [--credential TOKEN] [--json]
 ua project rename KEY --name NAME --version VERSION [--url ADDRESS] [--credential TOKEN] [--json]
 ua project delete KEY --version VERSION [--url ADDRESS] [--credential TOKEN] [--json]
 ua project restore KEY --version VERSION [--url ADDRESS] [--credential TOKEN] [--json]
+ua inventory [--project KEY] [--state healthy|failing|untested|paused] [--type http|push] [--search TEXT] [--limit N] [--offset N] [--url ADDRESS] [--credential TOKEN] [--json]
 ua monitor create PROJECT_KEY --file PATH|- [--url ADDRESS] [--credential TOKEN] [--json]
 ua monitor list PROJECT_KEY [--url ADDRESS] [--credential TOKEN] [--json]
 ua monitor get PROJECT_KEY MONITOR_KEY [--url ADDRESS] [--credential TOKEN] [--json]
@@ -194,6 +195,16 @@ commands, including issuing a replacement credential before revoking itself.
 Missing credentials exit with code 7 and `authentication_required`; invalid,
 expired, and revoked credentials use the same code with
 `authentication_rejected`.
+
+### Monitor inventory
+
+`ua inventory` reads the same bounded cross-project inventory as the web view.
+Filters compose, with `--limit` 1–100 (default 50) and `--offset` 0–1,000,000.
+JSON output preserves the API page and all safe item fields. Text output writes
+one tab-separated line per monitor, quotes free text and the safe target, and
+ends with a `page` line containing `total`, `limit`, `offset`, and `has_more`.
+Use another offset when `has_more=true`. No target query, request-header value,
+reporting credential, or remote response body appears in either format.
 
 ### Projects
 
@@ -274,6 +285,7 @@ target query are accepted here but never appear in the returned text or JSON:
 {
   "key": "homepage",
   "name": "Public homepage",
+  "purpose": "Checks the public homepage after each deployment.",
   "target_url": "https://status.example.test/health?access=secret-from-store",
   "expected_status_code": 200,
   "text_condition": "contains",
@@ -289,8 +301,11 @@ target query are accepted here but never appear in the returned text or JSON:
 }
 ```
 
-An update document carries `version` and every non-secret setting. Omitting or
-setting `target_url` to `null` preserves the complete existing URL, including
+An update document carries `version` and every non-secret setting. `purpose`
+describes what is monitored; `instruction` gives investigation guidance.
+Purpose is trimmed to 240 characters, and `null`, empty text, or an omitted
+value clears it on update. The CLI rejects overlong purpose before sending a
+request. Omitting `target_url` or setting it to `null` preserves the complete existing URL, including
 its hidden query. A value replaces it. Header replacement is separate and uses
 `{"value":"secret-from-store","version":4}`; there is deliberately no
 header-value command-line flag that could be retained in shell history or
@@ -329,6 +344,7 @@ available. A job-completion create document is:
 {
   "key": "nightly-backup",
   "name": "Nightly backup",
+  "purpose": "Confirms the nightly backup completes.",
   "mode": "job_completion",
   "interval_seconds": 86400,
   "tolerance_seconds": 3600,

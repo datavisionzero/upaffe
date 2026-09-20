@@ -165,6 +165,7 @@ type SecretHeader = { id: number; name: string; value: string };
 function MonitorForm({ busy, mode, monitor, onSubmit }: FormProps) {
   const [key, setKey] = useState("");
   const [name, setName] = useState(monitor?.name ?? "");
+  const [purpose, setPurpose] = useState(monitor?.purpose ?? "");
   const [targetUrl, setTargetUrl] = useState(mode === "create" ? "" : monitor?.target_url ?? "");
   const [replaceTarget, setReplaceTarget] = useState(mode === "create");
   const [expectedStatus, setExpectedStatus] = useState(monitor?.expected_status_code ?? 200);
@@ -182,6 +183,7 @@ function MonitorForm({ busy, mode, monitor, onSubmit }: FormProps) {
     event.preventDefault();
     const common = {
       name,
+      purpose: purpose.trim() || null,
       target_url: replaceTarget ? targetUrl : null,
       expected_status_code: expectedStatus,
       text_condition: textCondition,
@@ -218,6 +220,11 @@ function MonitorForm({ busy, mode, monitor, onSubmit }: FormProps) {
       <label>
         <span>Display name</span>
         <input maxLength={100} name="monitor-name" required value={name} onChange={(event) => setName(event.target.value)} />
+      </label>
+      <label className="wide-field">
+        <span>Purpose (optional)</span>
+        <textarea aria-describedby="http-purpose-help" aria-label="Purpose (optional)" maxLength={240} rows={2} value={purpose} onChange={(event) => setPurpose(event.target.value)} />
+        <small className="muted" id="http-purpose-help">What this checks, for example “Confirms the public homepage is available.” Operator instruction below is for investigation steps.</small>
       </label>
       {mode === "edit" && (
         <label className="checkbox-label">
@@ -563,6 +570,7 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
         <div>
           <p className="eyebrow">{project.key} · {monitor.key}</p>
           <h1>{monitor.name}</h1>
+          <p className="monitor-purpose">{monitor.purpose || <>Purpose not documented. <a href="#configuration-title">Add purpose</a></>}</p>
           <p className={`state state-${monitor.state}`}>{monitorStateLabel(monitor)}</p>
         </div>
         <Button onClick={onBack} type="button">Back to monitors</Button>
@@ -608,7 +616,7 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
 
       <section aria-labelledby="configuration-title" className="panel">
         <h2 id="configuration-title">Configuration</h2>
-        <MonitorForm busy={busy === "update"} mode="edit" monitor={monitor} onSubmit={update} />
+        <MonitorForm busy={busy === "update"} key={monitor.version} mode="edit" monitor={monitor} onSubmit={update} />
       </section>
 
       <section aria-labelledby="headers-title" className="panel">

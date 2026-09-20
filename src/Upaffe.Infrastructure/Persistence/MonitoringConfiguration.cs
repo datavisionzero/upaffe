@@ -13,6 +13,7 @@ internal sealed class HttpMonitorConfiguration : IEntityTypeConfiguration<HttpMo
         {
             table.HasCheckConstraint("ck_http_monitor_key", "key ~ '^[a-z][a-z0-9-]{1,39}$'");
             table.HasCheckConstraint("ck_http_monitor_name", "char_length(btrim(name)) between 1 and 100");
+            table.HasCheckConstraint("ck_http_monitor_purpose", "purpose is null or char_length(purpose) <= 240");
             table.HasCheckConstraint("ck_http_monitor_target", "char_length(target_url) between 1 and 2048 and target_url !~ '[?#]'");
             table.HasCheckConstraint("ck_http_monitor_expected_status", "expected_status_code between 100 and 599");
             table.HasCheckConstraint("ck_http_monitor_interval", "interval_seconds between 30 and 2592000");
@@ -43,6 +44,7 @@ internal sealed class HttpMonitorConfiguration : IEntityTypeConfiguration<HttpMo
         builder.Property(value => value.ProjectId).HasColumnName("project_id");
         builder.Property(value => value.Key).HasColumnName("key").HasMaxLength(HttpMonitor.MaximumKeyLength);
         builder.Property(value => value.Name).HasColumnName("name").HasMaxLength(HttpMonitor.MaximumNameLength);
+        builder.Property(value => value.Purpose).HasColumnName("purpose").HasMaxLength(MonitorPurpose.MaximumLength);
         builder.Property(value => value.TargetUrl).HasColumnName("target_url").HasMaxLength(HttpMonitor.MaximumTargetLength);
         builder.Property(value => value.HasTargetQuery).HasColumnName("has_target_query");
         builder.Property(value => value.ExpectedStatusCode).HasColumnName("expected_status_code");

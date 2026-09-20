@@ -14,6 +14,9 @@ and Go CLI exist. Access, projects, HTTP-monitor administration, and push
 monitor administration work through the shared API, web application, and CLI.
 The same surfaces configure incident email, inspect durable delivery, and
 manage finite project and monitor maintenance.
+The cross-project monitor inventory reads safe HTTP and push facts through one
+application port and two bounded PostgreSQL queries. The web `Monitors` route
+keeps search and filters in the URL; the CLI calls the same API operation.
 The HTTP monitoring domain and PostgreSQL schema persist monitor configuration,
 scheduling and current-result facts, explicitly separated secrets, ordered
 checks, and incident lifecycles. A shared bounded executor performs one

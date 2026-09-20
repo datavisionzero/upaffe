@@ -4,6 +4,7 @@ import type { components } from "@/api/schema";
 import { api } from "@/api/client";
 import { problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
+import { MonitorPurpose } from "@/shell/MonitorPurpose";
 import { monitorPath, projectPath, withReturn } from "@/shell/routes";
 
 type Overview = components["schemas"]["InstanceOverview"];
@@ -109,6 +110,7 @@ export function DashboardView({ onNavigate, onSignedOut }: {
                     {monitor.effective_maintenance_until && <span className="state state-maintenance">Maintenance</span>}
                   </div>
                   <h3>{link(path, monitor.name, "monitor-name-link")}</h3>
+                  <MonitorPurpose purpose={monitor.purpose} />
                   <p className="monitor-context">{monitor.project_key} · {monitor.type === "http" ? "HTTP check" : modeLabel(monitor.mode)}</p>
                   <p className="monitor-reason">{description}</p>
                   {monitor.incident_began_at && <p className="muted">Incident began {ageLabel(overview.generated_at, monitor.incident_began_at)} ago.</p>}

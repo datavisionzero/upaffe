@@ -42,6 +42,7 @@ const monitor = {
   project_key: project.key,
   key: "nightly-backup",
   name: "Nightly backup",
+  purpose: null as string | null,
   mode: "job_completion",
   interval_seconds: 3600,
   tolerance_seconds: 300,
@@ -100,6 +101,31 @@ function answering(answer: (request: Request) => Promise<Response> | Response) {
 describe("push monitor administration", () => {
   afterEach(() => { vi.unstubAllGlobals(); window.history.replaceState({}, "", "/"); });
 
+  it("shows purpose as text and clears it through the versioned form", async () => {
+    let current = { ...monitor, purpose: "<b>Confirms the backup</b>" };
+    answering(async (request) => {
+      const path = new URL(request.url).pathname;
+      if (path.endsWith(`/push-monitors/${monitor.key}`) && request.method === "GET") return json(current);
+      if (path.endsWith(`/push-monitors/${monitor.key}`) && request.method === "PUT") {
+        expect(await request.json()).toMatchObject({ purpose: null, version: 1 });
+        current = { ...current, purpose: "", version: 2 };
+        return json({ ...current, purpose: null });
+      }
+      if (path.endsWith("/reports")) return json({ items: [], next_before_sequence: null });
+      if (path.endsWith("/incidents")) return json({ items: [], next_before_opening_sequence: null });
+      return json({ code: "not_found", status: 404, title: "ignored" }, 404);
+    });
+    render(<PushMonitorsView onBack={vi.fn()} onOpenHttp={vi.fn()} onSignedOut={vi.fn()}
+      project={project} routeMonitorKey={monitor.key} />);
+    expect(await screen.findByText("<b>Confirms the backup</b>", { selector: ".monitor-purpose" })).toBeInTheDocument();
+    expect(document.querySelector(".monitor-purpose b")).toBeNull();
+    const user = userEvent.setup();
+    await user.clear(screen.getByLabelText("Purpose (optional)"));
+    await user.click(screen.getByRole("button", { name: "Save configuration" }));
+    expect(await screen.findByText(/Purpose not documented/, { selector: ".monitor-purpose" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Add purpose" })).toHaveAttribute("href", "#push-configuration-title");
+  });
+
   it("loads old success and deep-linked incident evidence without exposing sender diagnostics", async () => {
     const oldSuccess = { ...success, sequence: 1, observed_at: "2026-08-01T10:00:00Z",
       received_at: "2026-08-01T10:00:03Z" };
@@ -140,13 +166,14 @@ describe("push monitor administration", () => {
         expect(await request.json()).toEqual({
           key: "database-state",
           name: "Database state",
+          purpose: "Reports database replication health.",
           mode: "state_report",
           interval_seconds: 120,
           tolerance_seconds: 30,
           instruction: "Check replication",
           runbook_url: "https://docs.example.test/runbooks/database",
         });
-        const created = { ...stateMonitor, id: "bb51f0d7-8f04-4a8a-b85f-1683a15ce172", key: "database-state", name: "Database state", interval_seconds: 120, tolerance_seconds: 30, instruction: "Check replication", runbook_url: "https://docs.example.test/runbooks/database" };
+        const created = { ...stateMonitor, id: "bb51f0d7-8f04-4a8a-b85f-1683a15ce172", key: "database-state", name: "Database state", purpose: "Reports database replication health.", interval_seconds: 120, tolerance_seconds: 30, instruction: "Check replication", runbook_url: "https://docs.example.test/runbooks/database" };
         monitors = [...monitors, created];
         return json(created, 201);
       }
@@ -166,6 +193,7 @@ describe("push monitor administration", () => {
     expect(screen.getByRole("note")).toHaveTextContent("Silence");
     await user.type(screen.getByLabelText("Immutable key"), "database-state");
     await user.type(screen.getByLabelText("Display name"), "Database state");
+    await user.type(screen.getByLabelText("Purpose (optional)"), "Reports database replication health.");
     await user.clear(screen.getByLabelText("Expected interval (seconds)"));
     await user.type(screen.getByLabelText("Expected interval (seconds)"), "120");
     await user.clear(screen.getByLabelText("Deadline tolerance (seconds)"));
@@ -174,6 +202,7 @@ describe("push monitor administration", () => {
     await user.type(screen.getByLabelText("Runbook URL"), "https://docs.example.test/runbooks/database");
     await user.click(screen.getByRole("button", { name: "Create push monitor" }));
     expect(await screen.findByRole("heading", { name: "Database state", level: 1 })).toBeInTheDocument();
+    expect(screen.getByText("Reports database replication health.", { selector: ".monitor-purpose" })).toBeInTheDocument();
     expect(screen.getByText("State report", { selector: "dd" })).toBeInTheDocument();
   });
 

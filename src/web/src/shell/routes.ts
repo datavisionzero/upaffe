@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 export type AppRoute =
   | { kind: "projects" }
   | { kind: "dashboard" }
+  | { kind: "inventory" }
   | { kind: "settings" }
   | { kind: "project"; projectKey: string; section: "overview" | "http" | "push" | "email"; monitorKey?: string }
   | { kind: "missing" };
@@ -19,6 +20,7 @@ function key(value: string): string | undefined {
 export function parseRoute(pathname: string): AppRoute {
   if (pathname === "/" || pathname === "/dashboard") return { kind: "dashboard" };
   if (pathname === "/projects") return { kind: "projects" };
+  if (pathname === "/monitors") return { kind: "inventory" };
   if (pathname === "/settings" || pathname === "/settings/email") return { kind: "settings" };
   const parts = pathname.split("/");
   if (parts[1] !== "projects" || !parts[2]) return { kind: "missing" };
@@ -40,6 +42,8 @@ export function parseRoute(pathname: string): AppRoute {
 }
 
 export const projectPath = (projectKey: string) => `/projects/${encodeURIComponent(projectKey)}`;
+export const inventoryPath = (projectKey?: string) =>
+  projectKey ? `/monitors?project=${encodeURIComponent(projectKey)}` : "/monitors";
 export const monitorPath = (projectKey: string, type: "http" | "push", monitorKey: string) =>
   `${projectPath(projectKey)}/${type}-monitors/${encodeURIComponent(monitorKey)}`;
 
