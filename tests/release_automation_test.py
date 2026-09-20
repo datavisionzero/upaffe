@@ -24,10 +24,15 @@ class PublishReleaseTests(unittest.TestCase):
         image_digest = "sha256:" + "b" * 64
         state: dict = {}
         calls: list[str] = []
+        unlisted_reads = 2
 
         def fake_gh(*args: str) -> str:
+            nonlocal unlisted_reads
             calls.append(" ".join(args[:2]))
             if args[0] == "api":
+                if state and unlisted_reads:
+                    unlisted_reads -= 1
+                    return "[]"
                 return json.dumps([state] if state else [])
             if args[:2] == ("release", "create"):
                 state.update(tag_name="v0.1.0", draft=True, assets=[],
@@ -44,7 +49,8 @@ class PublishReleaseTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temporary, \
              mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "datavisionzero/upaffe"}), \
-             mock.patch.object(publisher, "gh", fake_gh):
+             mock.patch.object(publisher, "gh", fake_gh), \
+             mock.patch.object(publisher.time, "sleep") as sleep:
             root = pathlib.Path(temporary)
             notes = root / "notes.md"
             notes.write_text("Reviewed release notes.\n", encoding="utf-8")
@@ -64,6 +70,7 @@ class PublishReleaseTests(unittest.TestCase):
             with mock.patch.object(sys, "argv", [str(SCRIPT), "0.1.0", revision, image_digest,
                                                 str(bundle("first")), str(notes)]):
                 publisher.main()
+            self.assertEqual(sleep.call_count, 2)
             self.assertFalse(state["draft"])
             self.assertEqual(len(state["assets"]), 7)
             self.assertIn(image_digest, state["body"])
