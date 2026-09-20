@@ -66,7 +66,7 @@ curl --fail --location --silent --show-error \
 grep -Eq '^ghcr\.io/datavisionzero/upaffe@sha256:[0-9a-f]{64}$' image-digest.txt
 for file in docker-compose.yml docker-compose.heartbeat.yml docker-compose.verify-restore.yml \
   backup-production.sh restore-production.sh production.env.example \
-  nginx-upaffe.conf.example; do
+  nginx-upaffe.conf.example caddy-upaffe.example; do
   curl --fail --location --silent --show-error \
     "https://raw.githubusercontent.com/datavisionzero/upaffe/$UPAFFE_TAG/deploy/$file" \
     --output "$file"
@@ -347,15 +347,25 @@ test send. Keep the original installation and backup until these checks pass.
 
 The production Compose port is bound to host loopback so a reverse proxy on
 that host can terminate HTTPS. Use the
-[Nginx example](../deploy/nginx-upaffe.conf.example) as a starting point;
-replace its fictional hostname and certificate files. Keep the application
-port and PostgreSQL port off public interfaces. The proxy must replace
+[Nginx example](../deploy/nginx-upaffe.conf.example) or
+[Caddy example](../deploy/caddy-upaffe.example) as a starting point; replace
+the fictional hostname and, for Nginx, the certificate files. Keep the
+application and PostgreSQL ports off public interfaces. The proxy must replace
 `X-Forwarded-For`, `X-Forwarded-Proto`, and `X-Forwarded-Host` with the actual
 client address, `https`, and the public host. It must not pass client-supplied
-values for those headers. The example limits the request path in access logs
-to a redacted marker for `/api/report/*`, omits query strings, and disables
-request-bearing proxy error logs. Apply equivalent redaction to any other
-proxy, load balancer, or ingress logs; simple reporting paths contain secrets.
+values for those headers. The Nginx example redacts `/api/report/*` in access
+logs and disables request-bearing proxy error logs. The Caddy example discards
+access logs and handles upstream failures locally because Caddy's separate
+proxy error log can include the full request URI. Discarding access logs alone
+does not protect report paths. Apply equivalent protection to every proxy,
+load balancer, or ingress log; simple reporting paths contain credentials.
+Handling Caddy proxy errors this way also removes its upstream failure logs,
+so investigate outages in the application and database container logs.
+
+Send secret report URLs directly over HTTPS. An HTTP request exposes the
+credential before any redirect to HTTPS; rotate it with
+`ua push credential rotate` if this happens. Treat report paths in tickets,
+screenshots, and support requests as exposed credentials too.
 
 After the first Compose start has created `upaffe_edge`, find the gateway IP
 that the application sees for connections through the host port:
