@@ -274,6 +274,7 @@ target query are accepted here but never appear in the returned text or JSON:
 {
   "key": "homepage",
   "name": "Public homepage",
+  "purpose": "Checks the public homepage after each deployment.",
   "target_url": "https://status.example.test/health?access=secret-from-store",
   "expected_status_code": 200,
   "text_condition": "contains",
@@ -289,8 +290,11 @@ target query are accepted here but never appear in the returned text or JSON:
 }
 ```
 
-An update document carries `version` and every non-secret setting. Omitting or
-setting `target_url` to `null` preserves the complete existing URL, including
+An update document carries `version` and every non-secret setting. `purpose`
+describes what is monitored; `instruction` gives investigation guidance.
+Purpose is trimmed to 240 characters, and `null`, empty text, or an omitted
+value clears it on update. The CLI rejects overlong purpose before sending a
+request. Omitting `target_url` or setting it to `null` preserves the complete existing URL, including
 its hidden query. A value replaces it. Header replacement is separate and uses
 `{"value":"secret-from-store","version":4}`; there is deliberately no
 header-value command-line flag that could be retained in shell history or
@@ -329,6 +333,7 @@ available. A job-completion create document is:
 {
   "key": "nightly-backup",
   "name": "Nightly backup",
+  "purpose": "Confirms the nightly backup completes.",
   "mode": "job_completion",
   "interval_seconds": 86400,
   "tolerance_seconds": 3600,

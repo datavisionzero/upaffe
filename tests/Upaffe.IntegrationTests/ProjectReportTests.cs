@@ -78,6 +78,7 @@ public sealed class ProjectReportTests(PostgresFixture postgres)
         var report = JsonSerializer.Deserialize<ProjectReport>(bearerJson, Json)!;
         Assert.Equal(34, report.Counts.Total);
         Assert.Equal(30, report.Healthy.Count);
+        Assert.Equal("Checks backup freshness.", Assert.Single(report.Healthy, value => value.Key == "healthy-00").Purpose);
         Assert.All(report.Healthy, monitor => Assert.NotNull(monitor.EffectiveMaintenanceUntil));
         Assert.Equal(["push", "http", "push", "push"],
             report.Attention.Select(value => value.Type).ToArray());
@@ -87,6 +88,7 @@ public sealed class ProjectReportTests(PostgresFixture postgres)
         Assert.Null(failed.Incident);
         Assert.Equal("status_mismatch", failed.LatestResult?.Reason);
         Assert.Equal("https://example.test/health", failed.TargetUrl);
+        Assert.Equal("Checks the public health endpoint.", failed.Purpose);
         var missing = Assert.Single(report.Attention, value => value.Key == "missing-push");
         Assert.Equal("report_missing", missing.LatestResult?.Reason);
         Assert.Equal(Now.AddSeconds(-30), missing.LastReceivedAt);
@@ -94,6 +96,7 @@ public sealed class ProjectReportTests(PostgresFixture postgres)
         Assert.NotEqual(missing.LatestResult?.Id, missing.LastSuccess.Id);
         Assert.NotNull(missing.Incident);
         Assert.Equal("Inspect the backup log", missing.Instruction);
+        Assert.Equal("Confirms nightly backup completion.", missing.Purpose);
         Assert.NotNull(report.ProjectMaintenance);
         Assert.NotNull(missing.EffectiveMaintenanceUntil);
         var paused = Assert.Single(report.Attention, value => value.Key == "paused-push");
@@ -158,10 +161,10 @@ public sealed class ProjectReportTests(PostgresFixture postgres)
         var failed = HttpMonitor.Create(project.Id, "failed-http", "Failed HTTP",
             "https://example.test/health?token=secret-query-value", 200,
             TextCondition.None, null, 60, 10, 3, "Check the endpoint",
-            "https://docs.example.test/runbooks/http", before);
+            "https://docs.example.test/runbooks/http", before, "Checks the public health endpoint.");
         var missing = PushMonitor.Create(project.Id, "missing-push", "Missing push",
             PushMonitorMode.JobCompletion, 30, 0, "Inspect the backup log",
-            "https://docs.example.test/runbooks/backup", Now.AddSeconds(-100));
+            "https://docs.example.test/runbooks/backup", Now.AddSeconds(-100), "Confirms nightly backup completion.");
         var paused = PushMonitor.Create(project.Id, "paused-push", "Paused push",
             PushMonitorMode.StateReport, 60, 0, null, null, before);
         context.AddRange(failed, missing, paused);
@@ -173,7 +176,7 @@ public sealed class ProjectReportTests(PostgresFixture postgres)
         {
             var monitor = PushMonitor.Create(project.Id, $"healthy-{index:00}",
                 $"Healthy {index:00}", PushMonitorMode.StateReport, 60, 0,
-                null, null, before);
+                null, null, before, index == 0 ? "Checks backup freshness." : null);
             healthy.Add(monitor);
             context.PushMonitors.Add(monitor);
         }

@@ -124,7 +124,8 @@ public sealed class HttpMonitorStore(UpaffeDbContext context) : IHttpMonitorStor
             change.FailureThreshold,
             change.Instruction,
             change.RunbookUrl,
-            now);
+            now,
+            change.Purpose);
         if (change.TargetUrl is not null)
         {
             targetSecret.ReplaceTarget(change.TargetUrl);
@@ -531,7 +532,8 @@ public sealed class HttpMonitorStore(UpaffeDbContext context) : IHttpMonitorStor
             monitor.CreatedAt,
             monitor.UpdatedAt,
             monitor.PausedAt,
-            monitor.DeletedAt);
+            monitor.DeletedAt,
+            monitor.Purpose);
     }
 
     private async Task<HttpExecutionRequest> ExecutionRequestAsync(
@@ -556,6 +558,7 @@ public sealed class HttpMonitorStore(UpaffeDbContext context) : IHttpMonitorStor
             || existing.TimeoutSeconds != candidate.TimeoutSeconds
             || existing.FailureThreshold != candidate.FailureThreshold
             || existing.Instruction != candidate.Instruction
+            || existing.Purpose != candidate.Purpose
             || existing.RunbookUrl != candidate.RunbookUrl)
         {
             return false;
@@ -591,7 +594,8 @@ public sealed class HttpMonitorStore(UpaffeDbContext context) : IHttpMonitorStor
             value.FailureThreshold,
             value.Instruction,
             value.RunbookUrl,
-            now);
+            now,
+            value.Purpose);
 
     private static bool IsMonitorKeyConflict(DbUpdateException exception) =>
         exception.InnerException is PostgresException

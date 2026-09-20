@@ -38,6 +38,9 @@ func newPushCreate(output io.Writer, getenv environment, flags *managementFlags)
 			if err != nil {
 				return err
 			}
+			if err := normalizeMonitorPurpose(request.Purpose); err != nil {
+				return err
+			}
 			client, ctx, cancel, err := managementClient(command, flags, getenv)
 			if err != nil {
 				return err
@@ -121,6 +124,9 @@ func newPushUpdate(output io.Writer, getenv environment, flags *managementFlags)
 		RunE: func(command *cobra.Command, arguments []string) error {
 			request, err := readDocumentInput[api.UpdatePushMonitorRequest](command, file)
 			if err != nil {
+				return err
+			}
+			if err := normalizeMonitorPurpose(request.Purpose); err != nil {
 				return err
 			}
 			client, ctx, cancel, err := managementClient(command, flags, getenv)
@@ -421,10 +427,10 @@ func writePushMonitor(output io.Writer, monitor *api.PushMonitorResponse, asJSON
 }
 
 func writePushMonitorText(output io.Writer, monitor *api.PushMonitorResponse) error {
-	_, err := fmt.Fprintf(output, "%s/%s\t%s\t%s\t%d\t%s\t%s\tlast_received=%s\tlast_report=%s\tlast_success=%s\tdeadline=%s\tincident=%s\tcredential=%t\n",
+	_, err := fmt.Fprintf(output, "%s/%s\t%s\t%s\t%d\t%s\t%s\tlast_received=%s\tlast_report=%s\tlast_success=%s\tdeadline=%s\tincident=%s\tcredential=%t\tpurpose=%s\n",
 		monitor.ProjectKey, monitor.Key, strconv.Quote(monitor.Name), monitor.Id, monitor.Version, monitor.Mode, monitor.State,
 		timeValueOrDash(monitor.LastReceivedAt), uuidValueOrDash(monitor.LatestReportId), uuidValueOrDash(monitor.LatestSuccessId),
-		timeValueOrDash(monitor.NextDeadlineAt), uuidValueOrDash(monitor.OpenIncidentId), monitor.HasReportingCredential)
+		timeValueOrDash(monitor.NextDeadlineAt), uuidValueOrDash(monitor.OpenIncidentId), monitor.HasReportingCredential, purposeText(monitor.Purpose))
 	return err
 }
 

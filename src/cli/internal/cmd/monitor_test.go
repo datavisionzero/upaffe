@@ -79,6 +79,20 @@ const (
 }`
 )
 
+func TestMonitorPurposeIsTrimmedAndBoundedBeforeRequest(t *testing.T) {
+	value := "  " + strings.Repeat("✓", 240) + "  "
+	if err := normalizeMonitorPurpose(&value); err != nil {
+		t.Fatal(err)
+	}
+	if value != strings.Repeat("✓", 240) {
+		t.Fatalf("purpose was not trimmed: %q", value)
+	}
+	tooLong := value + "x"
+	if err := normalizeMonitorPurpose(&tooLong); err == nil {
+		t.Fatal("expected a length error")
+	}
+}
+
 func TestMonitorCommandsCoverTheGeneratedContractAndKeepInputsSecret(t *testing.T) {
 	const secret = "Bearer monitor-input-secret"
 	calls := map[string]int{}

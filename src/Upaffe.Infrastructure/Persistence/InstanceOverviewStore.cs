@@ -75,7 +75,7 @@ public sealed class InstanceOverviewStore(UpaffeDbContext context) : IInstanceOv
                     ? latest.Outcome == CheckOutcome.Success ? "success" : "failure" : null,
                 latest?.EvaluationGeneration == monitor.EvaluationGeneration ? latest.FailureReason : null,
                 incident?.Id, incident?.BeganAt, incident?.LatestReason,
-                EffectiveEnd(active, monitor.ProjectId, "http", monitor.Id)));
+                EffectiveEnd(active, monitor.ProjectId, "http", monitor.Id), monitor.Purpose));
         }
         foreach (var monitor in push)
         {
@@ -96,7 +96,7 @@ public sealed class InstanceOverviewStore(UpaffeDbContext context) : IInstanceOv
                 applicable ? latest!.Outcome == ReportOutcome.Success ? null
                     : latest.IsDeadlineObservation ? "report_missing" : "reported_failure" : null,
                 incident?.Id, incident?.BeganAt, incident?.LatestReason,
-                EffectiveEnd(active, monitor.ProjectId, "push", monitor.Id)));
+                EffectiveEnd(active, monitor.ProjectId, "push", monitor.Id), monitor.Purpose));
         }
 
         var deliveryByProject = deliveries.GroupBy(value => value.ProjectKey)

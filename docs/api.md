@@ -266,7 +266,7 @@ An HTTP monitor has a generated UUID and an immutable key scoped to its
 project. Its create and read contract includes name, query-redacted target URL,
 whether a query is configured, exact expected status, `none`, `required`, or
 `forbidden` text condition and fragment, interval and timeout seconds, failure
-threshold, optional operator instruction and runbook URL, current state and
+threshold, optional purpose, operator instruction and runbook URL, current state and
 failure count, next due time, latest-result and latest-success IDs, header
 metadata, optimistic version, and lifecycle timestamps. `open_incident_id` is
 present exactly while an incident remains unresolved. In combination with the
@@ -287,6 +287,13 @@ complete target. A query can therefore survive unrelated edits without being
 revealed. Individual header `PUT` accepts `{ "value": "...", "version": N }`
 and creates or replaces the named secret. Header `DELETE` carries `version` in
 the query. Both return only refreshed monitor and header metadata.
+
+`purpose` is an optional operator-written description of what the monitor
+covers. It is trimmed to at most 240 characters; an empty value becomes `null`.
+It differs from `instruction`, which guides incident investigation. Both HTTP
+and push monitor create and full-replacement update operations accept it.
+Sending `null`, empty text, or omitting it on update clears it. Existing
+monitors return `null` until documented.
 
 Pause, resume, and removal are explicit operations. Pause and resume accept
 `{ "version": N }`; removal uses the version query parameter. A pause clears
@@ -433,7 +440,8 @@ The typed response has `generated_at`, `project`, `counts`, `attention`,
 facts for failing, untested, paused, or overdue HTTP and push monitors. It is
 ordered by urgency, type, and key. `healthy` contains shorter summaries ordered
 by type and key. The snapshot exposes only stable failure reasons. It keeps
-operator `instruction` and `runbook_url` separate from diagnostic fields.
+operator `purpose`, `instruction` and `runbook_url` separate from diagnostic fields.
+Purpose is present in both attention and healthy entries.
 Use the existing paginated check, report, incident, and delivery endpoints for
 history. The report cannot prove that an overdue worker has run or that SMTP
 acceptance reached an inbox.

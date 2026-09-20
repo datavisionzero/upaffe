@@ -13,6 +13,7 @@ internal sealed class PushMonitorConfiguration : IEntityTypeConfiguration<PushMo
         {
             table.HasCheckConstraint("ck_push_monitor_key", "key ~ '^[a-z][a-z0-9-]{1,39}$'");
             table.HasCheckConstraint("ck_push_monitor_name", "char_length(btrim(name)) between 1 and 100");
+            table.HasCheckConstraint("ck_push_monitor_purpose", "purpose is null or char_length(purpose) <= 240");
             table.HasCheckConstraint("ck_push_monitor_mode", "mode in ('JobCompletion', 'StateReport')");
             table.HasCheckConstraint("ck_push_monitor_interval", "interval_seconds between 30 and 31536000");
             table.HasCheckConstraint(
@@ -50,6 +51,7 @@ internal sealed class PushMonitorConfiguration : IEntityTypeConfiguration<PushMo
         builder.Property(value => value.ProjectId).HasColumnName("project_id");
         builder.Property(value => value.Key).HasColumnName("key").HasMaxLength(PushMonitor.MaximumKeyLength);
         builder.Property(value => value.Name).HasColumnName("name").HasMaxLength(PushMonitor.MaximumNameLength);
+        builder.Property(value => value.Purpose).HasColumnName("purpose").HasMaxLength(MonitorPurpose.MaximumLength);
         builder.Property(value => value.Mode).HasColumnName("mode").HasConversion<string>().HasMaxLength(20);
         builder.Property(value => value.IntervalSeconds).HasColumnName("interval_seconds");
         builder.Property(value => value.ToleranceSeconds).HasColumnName("tolerance_seconds");

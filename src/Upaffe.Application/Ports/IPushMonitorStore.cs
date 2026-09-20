@@ -23,7 +23,8 @@ public sealed record PushMonitorSnapshot(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     DateTimeOffset? PausedAt,
-    DateTimeOffset? DeletedAt);
+    DateTimeOffset? DeletedAt,
+    string? Purpose = null);
 
 public sealed record PushMonitorDefinition(
     string Key,
@@ -32,14 +33,16 @@ public sealed record PushMonitorDefinition(
     int IntervalSeconds,
     int ToleranceSeconds,
     string? Instruction,
-    string? RunbookUrl);
+    string? RunbookUrl,
+    string? Purpose = null);
 
 public sealed record PushMonitorChange(
     string Name,
     int IntervalSeconds,
     int ToleranceSeconds,
     string? Instruction,
-    string? RunbookUrl);
+    string? RunbookUrl,
+    string? Purpose = null);
 
 public enum PushMonitorMutation
 {

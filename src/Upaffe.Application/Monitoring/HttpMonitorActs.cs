@@ -26,7 +26,8 @@ public sealed class CreateHttpMonitor(IHttpMonitorStore monitors, TimeProvider c
         string? instruction,
         string? runbookUrl,
         IReadOnlyList<HttpHeaderValue>? headers,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? purpose = null)
     {
         _ = identity;
         var now = clock.GetUtcNow();
@@ -42,7 +43,8 @@ public sealed class CreateHttpMonitor(IHttpMonitorStore monitors, TimeProvider c
             failureThreshold,
             instruction,
             runbookUrl,
-            now);
+            now,
+            purpose);
         var result = await monitors.CreateAsync(
             HttpMonitorValidation.ProjectKey(projectKey),
             definition,
@@ -110,7 +112,8 @@ public sealed class UpdateHttpMonitor(IHttpMonitorStore monitors, TimeProvider c
         string? instruction,
         string? runbookUrl,
         long? version,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? purpose = null)
     {
         _ = identity;
         var now = clock.GetUtcNow();
@@ -125,7 +128,8 @@ public sealed class UpdateHttpMonitor(IHttpMonitorStore monitors, TimeProvider c
             failureThreshold,
             instruction,
             runbookUrl,
-            now);
+            now,
+            purpose);
         var result = await monitors.UpdateAsync(
             HttpMonitorValidation.ProjectKey(projectKey),
             HttpMonitorValidation.MonitorKey(monitorKey),
@@ -324,7 +328,8 @@ internal static class HttpMonitorValidation
         int? failureThreshold,
         string? instruction,
         string? runbookUrl,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        string? purpose = null)
     {
         var condition = Condition(textCondition);
         var accepted = Validate(
@@ -342,7 +347,8 @@ internal static class HttpMonitorValidation
                 failureThreshold ?? 0,
                 instruction,
                 runbookUrl,
-                now));
+                now,
+                purpose));
         return new(
             accepted.Key,
             accepted.Name,
@@ -354,7 +360,8 @@ internal static class HttpMonitorValidation
             accepted.TimeoutSeconds,
             accepted.FailureThreshold,
             accepted.Instruction,
-            accepted.RunbookUrl);
+            accepted.RunbookUrl,
+            accepted.Purpose);
     }
 
     public static HttpMonitorChange Change(
@@ -368,7 +375,8 @@ internal static class HttpMonitorValidation
         int? failureThreshold,
         string? instruction,
         string? runbookUrl,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        string? purpose = null)
     {
         var validated = Definition(
             "validation-only",
@@ -382,7 +390,8 @@ internal static class HttpMonitorValidation
             failureThreshold,
             instruction,
             runbookUrl,
-            now);
+            now,
+            purpose);
         return new(
             validated.Name,
             targetUrl?.Trim(),
@@ -393,7 +402,8 @@ internal static class HttpMonitorValidation
             validated.TimeoutSeconds,
             validated.FailureThreshold,
             validated.Instruction,
-            validated.RunbookUrl);
+            validated.RunbookUrl,
+            validated.Purpose);
     }
 
     public static IReadOnlyList<HttpHeaderValue> Headers(IReadOnlyList<HttpHeaderValue>? values)

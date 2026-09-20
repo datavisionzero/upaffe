@@ -21,7 +21,8 @@ Attention is ordered by open incident, failing, overdue, untested, paused,
 then stable project key, type, and monitor key. Project summaries put incidents
 first, then failures or terminal delivery trouble, overdue or pending work,
 untested projects, and finally healthy or empty projects, with key as a stable
-tie breaker. The response omits detailed history and all secret and untrusted
+tie breaker. Attention items include the optional operator-written monitor
+`purpose`. The response omits detailed history and all secret and untrusted
 diagnostic content. Delivery counts describe recorded intent state, and
 `overdue` uses stored next-attempt times or an expired claim lease; `accepted`
 means SMTP acceptance only. These rules follow ADRs 0003, 0007,

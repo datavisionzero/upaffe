@@ -9,7 +9,9 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/datavisionzero/upaffe/src/cli/internal/api"
 	process "github.com/datavisionzero/upaffe/src/cli/internal/exit"
@@ -53,6 +55,9 @@ func newMonitorCreate(output io.Writer, getenv environment, flags *managementFla
 		RunE: func(command *cobra.Command, arguments []string) error {
 			request, err := readDocumentInput[api.CreateHttpMonitorRequest](command, file)
 			if err != nil {
+				return err
+			}
+			if err := normalizeMonitorPurpose(request.Purpose); err != nil {
 				return err
 			}
 			client, ctx, cancel, err := managementClient(command, flags, getenv)
@@ -157,6 +162,9 @@ func newMonitorUpdate(output io.Writer, getenv environment, flags *managementFla
 		RunE: func(command *cobra.Command, arguments []string) error {
 			request, err := readDocumentInput[api.UpdateHttpMonitorRequest](command, file)
 			if err != nil {
+				return err
+			}
+			if err := normalizeMonitorPurpose(request.Purpose); err != nil {
 				return err
 			}
 			client, ctx, cancel, err := managementClient(command, flags, getenv)
@@ -527,6 +535,24 @@ func readDocumentInput[T any](command *cobra.Command, file string) (T, error) {
 	return *decoded, nil
 }
 
+func normalizeMonitorPurpose(value *string) error {
+	if value == nil {
+		return nil
+	}
+	*value = strings.TrimSpace(*value)
+	if utf8.RuneCountInString(*value) > 240 {
+		return process.New(process.Usage, "purpose may contain at most 240 characters")
+	}
+	return nil
+}
+
+func purposeText(value *string) string {
+	if value == nil || *value == "" {
+		return "-"
+	}
+	return strconv.Quote(*value)
+}
+
 func latestFailedCheck(
 	ctx context.Context,
 	client *api.ClientWithResponses,
@@ -616,7 +642,7 @@ func writeMonitorText(output io.Writer, monitor *api.HttpMonitorResponse, latest
 	}
 	_, err := fmt.Fprintf(
 		output,
-		"%s/%s\t%s\t%s\t%d\t%s\tfailures=%d/%d\tincident=%s\tlast_failure=%s\tnext=%s\n",
+		"%s/%s\t%s\t%s\t%d\t%s\tfailures=%d/%d\tincident=%s\tlast_failure=%s\tnext=%s\tpurpose=%s\n",
 		monitor.ProjectKey,
 		monitor.Key,
 		strconv.Quote(monitor.Name),
@@ -627,7 +653,8 @@ func writeMonitorText(output io.Writer, monitor *api.HttpMonitorResponse, latest
 		monitor.FailureThreshold,
 		incident,
 		lastFailure,
-		next)
+		next,
+		purposeText(monitor.Purpose))
 	return err
 }
 

@@ -20,6 +20,7 @@ write-only request header:
 {
   "key": "homepage",
   "name": "Public homepage",
+  "purpose": "Checks the public homepage after each deployment.",
   "target_url": "https://status.example.test/health?probe=secret-from-store",
   "expected_status_code": 200,
   "text_condition": "required",
@@ -52,6 +53,10 @@ ua monitor get public-site homepage --json
 ua monitor checks public-site homepage --limit 20 --json
 ua monitor incidents public-site homepage --limit 20 --json
 ```
+
+The optional `purpose` describes what this monitor covers; the separate
+`instruction` explains what to do during investigation. Purpose is trimmed to
+240 characters and can be cleared with an empty or null update value.
 
 The test command writes its structured result in both success and failure
 cases. A completed failure exits with code 5, which is distinct from usage,

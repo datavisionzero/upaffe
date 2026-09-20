@@ -76,6 +76,7 @@ public sealed class InstanceOverviewTests(PostgresFixture postgres)
         Assert.NotNull(overview.Attention[1].IncidentId);
         Assert.Null(overview.Attention[1].NextDueAt);
         Assert.Equal("failing", overview.Attention[2].State);
+        Assert.Equal("Checks the public endpoint.", overview.Attention[2].Purpose);
         Assert.Equal("status_mismatch", overview.Attention[2].LatestReason);
         Assert.Null(overview.Attention[2].IncidentId);
         Assert.True(overview.Attention[3].Overdue);
@@ -111,7 +112,7 @@ public sealed class InstanceOverviewTests(PostgresFixture postgres)
         context.Projects.AddRange(alpha, beta, empty, healthyProject);
         var failed = HttpMonitor.Create(alpha.Id, "failed", "Failed",
             "https://example.test/health?token=secret-query-value", 200,
-            TextCondition.None, null, 60, 10, 3, null, null, Now.AddMinutes(-2));
+            TextCondition.None, null, 60, 10, 3, null, null, Now.AddMinutes(-2), "Checks the public endpoint.");
         var incident = PushMonitor.Create(alpha.Id, "incident", "Incident",
             PushMonitorMode.StateReport, 60, 0, null, null, Now.AddMinutes(-2));
         var lateHttp = HttpMonitor.Create(beta.Id, "late-http", "Late HTTP",

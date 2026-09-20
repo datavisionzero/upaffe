@@ -49,7 +49,8 @@ public sealed class HttpMonitorTests(PostgresFixture postgres)
             3,
             "Inspect the current deployment.",
             "https://runbooks.example.test/public-site",
-            [new("Authorization", $"Bearer {headerSecret}")]);
+            [new("Authorization", $"Bearer {headerSecret}")],
+            "  Checks the public site after deployment.  ");
         using var createdResponse = await JsonAsync(
             client, HttpMethod.Post, "/api/projects/public-services/http-monitors", createRequest, token);
         var createdJson = await createdResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
@@ -60,6 +61,7 @@ public sealed class HttpMonitorTests(PostgresFixture postgres)
         Assert.DoesNotContain(headerSecret, createdJson, StringComparison.Ordinal);
         var created = JsonSerializer.Deserialize<HttpMonitorResponse>(createdJson, Json)!;
         Assert.Equal("untested", created.State);
+        Assert.Equal("Checks the public site after deployment.", created.Purpose);
         Assert.Equal("https://status.example.test/health", created.TargetUrl);
         Assert.True(created.HasTargetQuery);
         Assert.Equal("authorization", Assert.Single(created.Headers).Name);
@@ -74,6 +76,7 @@ public sealed class HttpMonitorTests(PostgresFixture postgres)
         var listed = await MonitorsAsync(await SendAsync(
             client, HttpMethod.Get, "/api/projects/public-services/http-monitors", token));
         Assert.Equal(created.Id, Assert.Single(listed).Id);
+        Assert.Equal(created.Purpose, Assert.Single(listed).Purpose);
 
         var updated = await MonitorAsync(await JsonAsync(
             client,
@@ -90,9 +93,11 @@ public sealed class HttpMonitorTests(PostgresFixture postgres)
                 2,
                 null,
                 "https://runbooks.example.test/public-site",
-                created.Version),
+                created.Version,
+                "Checks the primary website."),
             token));
         Assert.Equal("Renamed public site", updated.Name);
+        Assert.Equal("Checks the primary website.", updated.Purpose);
         Assert.True(updated.HasTargetQuery);
 
         const string replacementSecret = "replacement-never-returned";
@@ -152,10 +157,18 @@ public sealed class HttpMonitorTests(PostgresFixture postgres)
         Assert.NotNull(resumed.NextCheckAt);
         Assert.Equal(tested.CheckId, resumed.LatestSuccessId);
 
+        var cleared = await MonitorAsync(await JsonAsync(client, HttpMethod.Put,
+            "/api/projects/public-services/http-monitors/public-site",
+            new UpdateHttpMonitorRequest(resumed.Name, null, resumed.ExpectedStatusCode,
+                "required", "ready", resumed.IntervalSeconds, resumed.TimeoutSeconds,
+                resumed.FailureThreshold, resumed.Instruction, resumed.RunbookUrl,
+                resumed.Version, "   "), token));
+        Assert.Null(cleared.Purpose);
+
         var removed = await MonitorAsync(await SendAsync(
             client,
             HttpMethod.Delete,
-            $"/api/projects/public-services/http-monitors/public-site?version={resumed.Version}",
+            $"/api/projects/public-services/http-monitors/public-site?version={cleared.Version}",
             token));
         Assert.NotNull(removed.DeletedAt);
         Assert.Empty(await MonitorsAsync(await SendAsync(
@@ -188,6 +201,13 @@ public sealed class HttpMonitorTests(PostgresFixture postgres)
 
         await CreateProjectAsync(client, token, "one-project");
         await CreateProjectAsync(client, token, "other-project");
+        using (var overlong = await JsonAsync(client, HttpMethod.Post,
+            "/api/projects/one-project/http-monitors",
+            ValidCreate() with { Purpose = new string('x', 241) }, token))
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, overlong.StatusCode);
+            Assert.Equal("validation", (await Problem(overlong))?.Code);
+        }
         using (var invalid = await JsonAsync(
             client,
             HttpMethod.Post,

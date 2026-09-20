@@ -12,11 +12,11 @@ public sealed class CreatePushMonitor(IPushMonitorStore monitors, TimeProvider c
 {
     public async Task<CreatedPushMonitor> ExecuteAsync(Identity identity, string? projectKey, string? key, string? name,
         string? mode, int? intervalSeconds, int? toleranceSeconds, string? instruction, string? runbookUrl,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, string? purpose = null)
     {
         _ = identity;
         var now = clock.GetUtcNow();
-        var definition = PushMonitorValidation.Definition(key, name, mode, intervalSeconds, toleranceSeconds, instruction, runbookUrl, now);
+        var definition = PushMonitorValidation.Definition(key, name, mode, intervalSeconds, toleranceSeconds, instruction, runbookUrl, now, purpose);
         var result = await monitors.CreateAsync(PushMonitorValidation.ProjectKey(projectKey), definition, now, cancellationToken);
         return result.Outcome switch
         {
@@ -54,10 +54,10 @@ public sealed class UpdatePushMonitor(IPushMonitorStore monitors, TimeProvider c
 {
     public async Task<PushMonitorSnapshot> ExecuteAsync(Identity identity, string? projectKey, string? monitorKey, string? name,
         int? intervalSeconds, int? toleranceSeconds, string? instruction, string? runbookUrl, long? version,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, string? purpose = null)
     {
         _ = identity;
-        var change = PushMonitorValidation.Change(name, intervalSeconds, toleranceSeconds, instruction, runbookUrl, clock.GetUtcNow());
+        var change = PushMonitorValidation.Change(name, intervalSeconds, toleranceSeconds, instruction, runbookUrl, clock.GetUtcNow(), purpose);
         return PushMonitorValidation.Changed(await monitors.UpdateAsync(PushMonitorValidation.ProjectKey(projectKey),
             PushMonitorValidation.MonitorKey(monitorKey), change, PushMonitorValidation.Version(version), clock.GetUtcNow(), cancellationToken), "update");
     }
@@ -100,7 +100,7 @@ internal static class PushMonitorValidation
 
     public static long Version(long? value) => value is > 0 ? value.Value : throw Refusal.Validation(new Dictionary<string, string[]> { ["version"] = ["A positive push monitor version is required."] });
 
-    public static PushMonitorDefinition Definition(string? key, string? name, string? mode, int? interval, int? tolerance, string? instruction, string? runbook, DateTimeOffset now)
+    public static PushMonitorDefinition Definition(string? key, string? name, string? mode, int? interval, int? tolerance, string? instruction, string? runbook, DateTimeOffset now, string? purpose = null)
     {
         var parsedMode = mode switch
         {
@@ -109,14 +109,14 @@ internal static class PushMonitorValidation
             _ => throw Refusal.Validation(new Dictionary<string, string[]> { ["mode"] = ["Mode must be job_completion or state_report."] }),
         };
         var accepted = Validate("monitor", () => PushMonitor.Create(Guid.NewGuid(), key ?? string.Empty, name ?? string.Empty,
-            parsedMode, interval ?? 0, tolerance ?? -1, instruction, runbook, now));
-        return new(accepted.Key, accepted.Name, accepted.Mode, accepted.IntervalSeconds, accepted.ToleranceSeconds, accepted.Instruction, accepted.RunbookUrl);
+            parsedMode, interval ?? 0, tolerance ?? -1, instruction, runbook, now, purpose));
+        return new(accepted.Key, accepted.Name, accepted.Mode, accepted.IntervalSeconds, accepted.ToleranceSeconds, accepted.Instruction, accepted.RunbookUrl, accepted.Purpose);
     }
 
-    public static PushMonitorChange Change(string? name, int? interval, int? tolerance, string? instruction, string? runbook, DateTimeOffset now)
+    public static PushMonitorChange Change(string? name, int? interval, int? tolerance, string? instruction, string? runbook, DateTimeOffset now, string? purpose = null)
     {
-        var value = Definition("validation-only", name, "job_completion", interval, tolerance, instruction, runbook, now);
-        return new(value.Name, value.IntervalSeconds, value.ToleranceSeconds, value.Instruction, value.RunbookUrl);
+        var value = Definition("validation-only", name, "job_completion", interval, tolerance, instruction, runbook, now, purpose);
+        return new(value.Name, value.IntervalSeconds, value.ToleranceSeconds, value.Instruction, value.RunbookUrl, value.Purpose);
     }
 
     public static PushMonitorSnapshot Changed(PushMonitorMutationResult result, string operation, bool allowUnchanged = false) => result.Outcome switch

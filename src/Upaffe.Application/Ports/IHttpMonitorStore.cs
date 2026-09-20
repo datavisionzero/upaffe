@@ -34,7 +34,8 @@ public sealed record HttpMonitorSnapshot(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     DateTimeOffset? PausedAt,
-    DateTimeOffset? DeletedAt);
+    DateTimeOffset? DeletedAt,
+    string? Purpose = null);
 
 public sealed record HttpMonitorDefinition(
     string Key,
@@ -47,7 +48,8 @@ public sealed record HttpMonitorDefinition(
     int TimeoutSeconds,
     int FailureThreshold,
     string? Instruction,
-    string? RunbookUrl);
+    string? RunbookUrl,
+    string? Purpose = null);
 
 public sealed record HttpMonitorChange(
     string Name,
@@ -59,7 +61,8 @@ public sealed record HttpMonitorChange(
     int TimeoutSeconds,
     int FailureThreshold,
     string? Instruction,
-    string? RunbookUrl);
+    string? RunbookUrl,
+    string? Purpose = null);
 
 public sealed record HttpHeaderValue(string Name, string Value);
 

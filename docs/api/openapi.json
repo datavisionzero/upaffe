@@ -4432,6 +4432,12 @@
             "items": {
               "$ref": "#/components/schemas/HttpHeaderInput"
             }
+          },
+          "purpose": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -4507,6 +4513,12 @@
             ]
           },
           "runbook_url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "purpose": {
             "type": [
               "null",
               "string"
@@ -5130,6 +5142,12 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "purpose": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -5739,6 +5757,12 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "purpose": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -6161,6 +6185,12 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "purpose": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -6491,6 +6521,12 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "purpose": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -6724,6 +6760,12 @@
             ]
           },
           "runbook_url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "purpose": {
             "type": [
               "null",
               "string"
@@ -7111,6 +7153,12 @@
           "version": {
             "type": "integer",
             "format": "int64"
+          },
+          "purpose": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -7163,6 +7211,12 @@
               "integer"
             ],
             "format": "int64"
+          },
+          "purpose": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

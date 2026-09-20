@@ -7,13 +7,13 @@ namespace Upaffe.Api.Http;
 public sealed record CreatePushMonitorRequest(string? Key, string? Name, string? Mode,
     [property: JsonNumberHandling(JsonNumberHandling.Strict)] int? IntervalSeconds,
     [property: JsonNumberHandling(JsonNumberHandling.Strict)] int? ToleranceSeconds,
-    string? Instruction, string? RunbookUrl);
+    string? Instruction, string? RunbookUrl, string? Purpose = null);
 
 public sealed record UpdatePushMonitorRequest(string? Name,
     [property: JsonNumberHandling(JsonNumberHandling.Strict)] int? IntervalSeconds,
     [property: JsonNumberHandling(JsonNumberHandling.Strict)] int? ToleranceSeconds,
     string? Instruction, string? RunbookUrl,
-    [property: JsonNumberHandling(JsonNumberHandling.Strict)] long? Version);
+    [property: JsonNumberHandling(JsonNumberHandling.Strict)] long? Version, string? Purpose = null);
 
 public sealed record PushMonitorVersionRequest([property: JsonNumberHandling(JsonNumberHandling.Strict)] long? Version);
 
@@ -21,7 +21,7 @@ public sealed record PushMonitorResponse(Guid Id, string ProjectKey, string Key,
     int IntervalSeconds, int ToleranceSeconds, string? Instruction, string? RunbookUrl, string State,
     DateTimeOffset? LastReceivedAt, DateTimeOffset? NextDeadlineAt, Guid? LatestReportId, Guid? LatestSuccessId,
     Guid? OpenIncidentId, bool HasReportingCredential, long Version, DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt, DateTimeOffset? PausedAt, DateTimeOffset? DeletedAt);
+    DateTimeOffset UpdatedAt, DateTimeOffset? PausedAt, DateTimeOffset? DeletedAt, string? Purpose = null);
 
 public sealed record ReportingCredentialResponse(Guid Id, DateTimeOffset CreatedAt, DateTimeOffset? RotatedAt, DateTimeOffset? RevokedAt);
 public sealed record IssuedReportingCredentialResponse(Guid Id, string Token, string ReportUrl, DateTimeOffset CreatedAt,
@@ -70,7 +70,7 @@ public static class PushMonitorEndpoints
             CreatePushMonitor create, CancellationToken cancellationToken) =>
         {
             var result = await create.ExecuteAsync(http.ActingIdentity(), projectKey, request.Key, request.Name, request.Mode,
-                request.IntervalSeconds, request.ToleranceSeconds, request.Instruction, request.RunbookUrl, cancellationToken);
+                request.IntervalSeconds, request.ToleranceSeconds, request.Instruction, request.RunbookUrl, cancellationToken, request.Purpose);
             return result.Created
                 ? Results.Created($"/api/projects/{projectKey}/push-monitors/{result.Monitor.Key}", Response(result.Monitor))
                 : Results.Ok(Response(result.Monitor));
@@ -153,7 +153,7 @@ public static class PushMonitorEndpoints
 
         monitors.MapPut("/{monitorKey}", async (string projectKey, string monitorKey, UpdatePushMonitorRequest request, HttpContext http,
             UpdatePushMonitor update, CancellationToken cancellationToken) => Response(await update.ExecuteAsync(http.ActingIdentity(), projectKey,
-                monitorKey, request.Name, request.IntervalSeconds, request.ToleranceSeconds, request.Instruction, request.RunbookUrl, request.Version, cancellationToken)))
+                monitorKey, request.Name, request.IntervalSeconds, request.ToleranceSeconds, request.Instruction, request.RunbookUrl, request.Version, cancellationToken, request.Purpose)))
             .WithName("UpdatePushMonitor").WithSummary("Update push monitor configuration at the version last read.").Produces<PushMonitorResponse>().Produces<ProblemResponse>(400).Produces<ProblemResponse>(401).Produces<ProblemResponse>(404).Produces<ProblemResponse>(409);
 
         monitors.MapPost("/{monitorKey}/pause", async (string projectKey, string monitorKey, PushMonitorVersionRequest request, HttpContext http,
@@ -199,7 +199,7 @@ public static class PushMonitorEndpoints
         value.Mode == Domain.Monitoring.PushMonitorMode.JobCompletion ? "job_completion" : "state_report", value.IntervalSeconds,
         value.ToleranceSeconds, value.Instruction, value.RunbookUrl, value.State.ToString().ToLowerInvariant(), value.LastReceivedAt,
         value.NextDeadlineAt, value.LatestReportId, value.LatestSuccessId, value.OpenIncidentId, value.HasReportingCredential,
-        value.Version, value.CreatedAt, value.UpdatedAt, value.PausedAt, value.DeletedAt);
+        value.Version, value.CreatedAt, value.UpdatedAt, value.PausedAt, value.DeletedAt, value.Purpose);
 
     private static ReportingCredentialResponse Metadata(ReportingCredentialMetadata value) =>
         new(value.Id, value.CreatedAt, value.RotatedAt, value.RevokedAt);

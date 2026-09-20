@@ -38,7 +38,7 @@ The object contains:
   `accepted`, and oldest pending time). Accepted means SMTP relay acceptance,
   not inbox delivery. Retained counts cover only available history.
 
-Every `attention` item has `type`, `key`, `name`, `state`, `id`, `version`,
+Every `attention` item has `type`, `key`, `name`, `purpose`, `state`, `id`, `version`,
 `instruction`, `runbook_url`, `latest_result`, `last_success`, `incident`,
 `next_due_at`, `overdue`, `direct_maintenance`, and
 `effective_maintenance_until`. `type` is `http` or `push`; `mode` is null for
@@ -51,6 +51,8 @@ reason, observation time and result ID. `last_success` gives its separate ID
 and observation time, including when the monitor now fails, is paused, or was
 resumed. `incident` gives ID, beginning/opening time, age in seconds, original
 and latest stable reasons; it can remain open on a paused or resumed monitor.
+Healthy summaries carry the same optional purpose. It describes what the
+monitor covers, separately from incident investigation `instruction`.
 
 `next_due_at` is null while paused. `overdue` means an active monitor's stored
 next check or reporting deadline is before `generated_at`. It is a scheduling

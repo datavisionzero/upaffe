@@ -35,7 +35,8 @@ public sealed partial class HttpMonitor
         int failureThreshold,
         string? instruction,
         string? runbookUrl,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        string? purpose)
     {
         if (projectId == Guid.Empty)
         {
@@ -55,7 +56,8 @@ public sealed partial class HttpMonitor
             timeoutSeconds,
             failureThreshold,
             instruction,
-            runbookUrl);
+            runbookUrl,
+            purpose);
         State = MonitorState.Untested;
         EvaluationGeneration = 1;
         NextSequence = 1;
@@ -69,6 +71,7 @@ public sealed partial class HttpMonitor
     public Guid ProjectId { get; private set; }
     public string Key { get; private set; } = string.Empty;
     public string Name { get; private set; } = string.Empty;
+    public string? Purpose { get; private set; }
     public string TargetUrl { get; private set; } = string.Empty;
     public bool HasTargetQuery { get; private set; }
     public int ExpectedStatusCode { get; private set; }
@@ -107,7 +110,8 @@ public sealed partial class HttpMonitor
         int failureThreshold,
         string? instruction,
         string? runbookUrl,
-        DateTimeOffset now) => new(
+        DateTimeOffset now,
+        string? purpose = null) => new(
             projectId,
             key,
             name,
@@ -120,7 +124,8 @@ public sealed partial class HttpMonitor
             failureThreshold,
             instruction,
             runbookUrl,
-            now);
+            now,
+            purpose);
 
     public void ChangeConfiguration(
         string name,
@@ -133,7 +138,8 @@ public sealed partial class HttpMonitor
         int failureThreshold,
         string? instruction,
         string? runbookUrl,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        string? purpose = null)
     {
         EnsureLive();
         ApplyConfiguration(
@@ -146,7 +152,8 @@ public sealed partial class HttpMonitor
             timeoutSeconds,
             failureThreshold,
             instruction,
-            runbookUrl);
+            runbookUrl,
+            purpose);
         Changed(now);
     }
 
@@ -292,7 +299,8 @@ public sealed partial class HttpMonitor
         int timeoutSeconds,
         int failureThreshold,
         string? instruction,
-        string? runbookUrl)
+        string? runbookUrl,
+        string? purpose)
     {
         var acceptedName = (name ?? string.Empty).Trim();
         if (acceptedName.Length is < 1 or > MaximumNameLength)
@@ -333,8 +341,10 @@ public sealed partial class HttpMonitor
 
         var acceptedInstruction = NormalizeOptional(instruction, MaximumInstructionLength, nameof(instruction));
         var acceptedRunbook = NormalizeRunbook(runbookUrl);
+        var acceptedPurpose = MonitorPurpose.Normalize(purpose);
 
         Name = acceptedName;
+        Purpose = acceptedPurpose;
         TargetUrl = acceptedTarget;
         HasTargetQuery = query is not null;
         ExpectedStatusCode = expectedStatusCode;

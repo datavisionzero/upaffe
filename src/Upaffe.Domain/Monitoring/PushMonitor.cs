@@ -26,7 +26,8 @@ public sealed partial class PushMonitor
         int toleranceSeconds,
         string? instruction,
         string? runbookUrl,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        string? purpose)
     {
         if (projectId == Guid.Empty)
         {
@@ -37,7 +38,7 @@ public sealed partial class PushMonitor
         ProjectId = projectId;
         Key = ValidateKey(key);
         Mode = mode;
-        ApplyConfiguration(name, intervalSeconds, toleranceSeconds, instruction, runbookUrl);
+        ApplyConfiguration(name, intervalSeconds, toleranceSeconds, instruction, runbookUrl, purpose);
         State = MonitorState.Untested;
         EvaluationGeneration = 1;
         NextSequence = 1;
@@ -51,6 +52,7 @@ public sealed partial class PushMonitor
     public Guid ProjectId { get; private set; }
     public string Key { get; private set; } = string.Empty;
     public string Name { get; private set; } = string.Empty;
+    public string? Purpose { get; private set; }
     public PushMonitorMode Mode { get; private set; }
     public int IntervalSeconds { get; private set; }
     public int ToleranceSeconds { get; private set; }
@@ -82,7 +84,8 @@ public sealed partial class PushMonitor
         int toleranceSeconds,
         string? instruction,
         string? runbookUrl,
-        DateTimeOffset now) => new(
+        DateTimeOffset now,
+        string? purpose = null) => new(
             projectId,
             key,
             name,
@@ -91,7 +94,8 @@ public sealed partial class PushMonitor
             toleranceSeconds,
             instruction,
             runbookUrl,
-            now);
+            now,
+            purpose);
 
     public void ChangeConfiguration(
         string name,
@@ -99,10 +103,11 @@ public sealed partial class PushMonitor
         int toleranceSeconds,
         string? instruction,
         string? runbookUrl,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        string? purpose = null)
     {
         EnsureLive();
-        ApplyConfiguration(name, intervalSeconds, toleranceSeconds, instruction, runbookUrl);
+        ApplyConfiguration(name, intervalSeconds, toleranceSeconds, instruction, runbookUrl, purpose);
         if (State != MonitorState.Paused)
         {
             NextDeadlineAt = now.AddSeconds(intervalSeconds + toleranceSeconds);
@@ -296,7 +301,8 @@ public sealed partial class PushMonitor
         int intervalSeconds,
         int toleranceSeconds,
         string? instruction,
-        string? runbookUrl)
+        string? runbookUrl,
+        string? purpose)
     {
         var acceptedName = (name ?? string.Empty).Trim();
         if (acceptedName.Length is < 1 or > MaximumNameLength)
@@ -319,11 +325,16 @@ public sealed partial class PushMonitor
             throw new ArgumentOutOfRangeException(nameof(toleranceSeconds));
         }
 
+        var acceptedPurpose = MonitorPurpose.Normalize(purpose);
+        var acceptedInstruction = NormalizeOptional(instruction, MaximumInstructionLength, nameof(instruction));
+        var acceptedRunbook = NormalizeRunbook(runbookUrl);
+
         Name = acceptedName;
+        Purpose = acceptedPurpose;
         IntervalSeconds = intervalSeconds;
         ToleranceSeconds = toleranceSeconds;
-        Instruction = NormalizeOptional(instruction, MaximumInstructionLength, nameof(instruction));
-        RunbookUrl = NormalizeRunbook(runbookUrl);
+        Instruction = acceptedInstruction;
+        RunbookUrl = acceptedRunbook;
     }
 
     private static string? NormalizeOptional(string? value, int maximumLength, string parameter)
