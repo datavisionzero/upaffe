@@ -1,0 +1,24 @@
+# Example Caddyfile for Caddy on the same host as the production Compose stack.
+# Replace the fictional hostname and set UPAFFE_TRUSTED_PROXY_IPS as described
+# in docs/operations.md. Caddy obtains and renews the HTTPS certificate.
+status.example.test {
+	# Report paths contain credentials. Access logs must not record request URIs.
+	log {
+		output discard
+	}
+
+	reverse_proxy 127.0.0.1:8080 {
+		# Replace any client-supplied X-Forwarded-For chain.
+		header_up X-Forwarded-For {client_ip}
+	}
+
+	# Caddy's proxy error log can include the full request URI, even when the
+	# access log is discarded. Handle upstream failures without logging it.
+	# This also suppresses proxy diagnostics for this site; inspect the app
+	# and database container logs when investigating an outage.
+	handle_errors {
+		respond "upstream unavailable" 502
+	}
+
+	encode zstd gzip
+}
