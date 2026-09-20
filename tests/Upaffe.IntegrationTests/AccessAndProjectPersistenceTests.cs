@@ -86,32 +86,6 @@ public sealed class AccessAndProjectPersistenceTests(PostgresFixture postgres)
             context.SaveChangesAsync(TestContext.Current.CancellationToken));
     }
 
-    [Fact]
-    public async Task Bootstrap_expiry_and_consumption_are_persisted_without_the_secret()
-    {
-        await using var context = await MigratedContextAsync();
-        const string plaintext = "this-bootstrap-secret-is-never-a-column";
-        var hash = SecretValue.Hash(plaintext);
-        var grant = BootstrapGrant.Arm(hash, Noon);
-        grant.Consume(Noon.AddMinutes(1));
-        context.BootstrapGrants.Add(grant);
-        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
-        context.ChangeTracker.Clear();
-
-        var stored = await context.BootstrapGrants.SingleAsync(TestContext.Current.CancellationToken);
-        Assert.Equal(hash, stored.SecretHash);
-        Assert.False(stored.Accepts(hash, Noon.AddMinutes(2)));
-
-        var columns = await context.Database.SqlQuery<string>(
-            $"""
-            select column_name::text as "Value"
-            from information_schema.columns
-            where table_schema = 'public' and table_name = 'bootstrap_grant'
-            """).ToListAsync(TestContext.Current.CancellationToken);
-        Assert.DoesNotContain("secret", columns);
-        Assert.Contains("secret_hash", columns);
-    }
-
     private async Task<UpaffeDbContext> MigratedContextAsync()
     {
         var context = AnInstance.ContextFor(await postgres.CreateDatabaseAsync());

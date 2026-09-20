@@ -331,9 +331,10 @@ refuses a database containing unknown migrations. Integration tests use a real
 PostgreSQL 18 container and isolate every test in its own database. The full
 rule is in [`storage.md`](./storage.md). Access rows retain only password hashes
 or fixed-length secret digests; database constraints enforce the singleton
-operator, credential lifecycles, and stable project identity. Startup can arm a
-30-minute bootstrap grant only while no operator exists; the proof is digested
-before persistence and consumed transactionally with operator creation.
+operator, credential lifecycles, and stable project identity. The local
+`upaffe bootstrap` command applies migrations without starting HTTP or workers,
+then creates the singleton operator and initial named credential atomically.
+The HTTP bootstrap route is read-only.
 Browser authentication compares Argon2id work for every email outcome, stores
 only the session-secret digest, and applies both idle and absolute expiry during
 each admission. Cookie-authenticated writes pass the same-origin CSRF guard.

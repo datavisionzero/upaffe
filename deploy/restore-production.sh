@@ -51,12 +51,12 @@ cp -p "$backup/.env" "$backup/docker-compose.yml" \
   "$backup/database.dump" "$backup/database.sha256" "$destination/"
 mkdir -m 0700 "$destination/secrets"
 cp -p "$backup/secrets/postgres_password" "$destination/secrets/"
-for optional in docker-compose.bootstrap.yml docker-compose.heartbeat.yml; do
+for optional in docker-compose.heartbeat.yml; do
   if [ -f "$backup/$optional" ]; then
     cp -p "$backup/$optional" "$destination/"
   fi
 done
-for optional in bootstrap_proof heartbeat_url; do
+for optional in heartbeat_url; do
   if [ -f "$backup/secrets/$optional" ]; then
     cp -p "$backup/secrets/$optional" "$destination/secrets/"
   fi

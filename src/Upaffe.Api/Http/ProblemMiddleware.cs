@@ -24,8 +24,6 @@ public sealed class ProblemMiddleware(RequestDelegate next, ILogger<ProblemMiddl
             var status = refusal.Code switch
             {
                 "validation" => StatusCodes.Status400BadRequest,
-                "bootstrap_rejected" => StatusCodes.Status401Unauthorized,
-                "bootstrap_closed" => StatusCodes.Status409Conflict,
                 "sign_in_rejected" => StatusCodes.Status401Unauthorized,
                 "authentication_required" => StatusCodes.Status401Unauthorized,
                 "authentication_rejected" => StatusCodes.Status401Unauthorized,

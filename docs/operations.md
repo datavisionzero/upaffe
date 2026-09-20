@@ -19,57 +19,52 @@ response header. A local build uses `0.0.0-dev` unless an
 the scoped GitHub Actions package token; deployment secrets are supplied at
 runtime and never enter the image build.
 
-The production Compose installation procedure is below. Use deployment files
-from the same release tag as the image. The release's `source-revision.txt`
-identifies the exact source commit.
+The production Compose installation procedure below requires an image built
+with the local bootstrap command. The v0.1.0 release predates that command;
+existing v0.1.0 installations can upgrade without creating a new operator.
+Use deployment files from the same later release tag as the image. Its
+`source-revision.txt` identifies the exact source commit.
 
 ## Production secret inputs
 
-The application accepts these mounted secret files at startup. Paths are
-passed as environment values; secret contents are not. See
-[ADR 0010](./adr/0010-read-production-secrets-from-mounted-files.md) for the
-conflict and validation rules.
+The production application reads the PostgreSQL password and optional
+heartbeat destination from mounted UTF-8 files. See [ADR 0010](./adr/0010-read-production-secrets-from-mounted-files.md).
 
 | Application setting | File contents | When needed |
 | --- | --- | --- |
-| `UPAFFE_POSTGRES_PASSWORD_FILE` | PostgreSQL password shared with `POSTGRES_PASSWORD_FILE` in the database container | Every start |
-| `UPAFFE_BOOTSTRAP_SECRET_FILE` | One-time random proof, 32–1024 characters | Only until the operator is established |
-| `UPAFFE_HEARTBEAT_URL_FILE` | Optional HTTPS URL for an independent receiver | Only when the outbound sender is enabled |
+| `UPAFFE_POSTGRES_PASSWORD_FILE` | PostgreSQL password shared with `POSTGRES_PASSWORD_FILE` | Every start and local access command |
+| `UPAFFE_HEARTBEAT_URL_FILE` | Optional HTTPS URL for an independent receiver | Only when outbound sending is enabled |
 
-Files contain one UTF-8 line with an optional trailing newline. Keep their
-source files outside the public checkout and readable only by the operator and
-the containers that need them. An unset bootstrap proof leaves a fresh instance
-unavailable for establishment. Once the operator exists, remove the bootstrap
-mount and setting from Compose before deleting its source file; the application
-will then start without it. The database password file remains required.
+The local bootstrap command reads the operator password from standard input or
+`--password-file`. It never accepts the password as an argument. Keep input and
+one-time token output files in a protected directory outside the checkout.
 
 The file-backed database configuration defaults to host `db`, port `5432`,
 database `upaffe`, and user `upaffe`. Override these nonsecret fields with
 `UPAFFE_DB_HOST`, `UPAFFE_DB_PORT`, `UPAFFE_DB_NAME`, and `UPAFFE_DB_USER` when
-needed. `ConnectionStrings__Postgres` and `UPAFFE_BOOTSTRAP_SECRET` remain
-available for local development. Each direct setting conflicts with its file
-form; startup reports setting names only. No database connection string or
-proof belongs in production Compose environment values.
+needed. `ConnectionStrings__Postgres` remains available for local development;
+it conflicts with `UPAFFE_POSTGRES_PASSWORD_FILE`. Production Compose contains
+no password-bearing connection string.
 
 ## Production Compose startup
 
-Choose the published v0.1.0 release. Download its digest and the deployment
-files from the matching tag into one directory. This uses no source checkout or
-application runtime on the host. Docker Compose, `curl`, and `openssl` are
-required. The release page provides `source-revision.txt` for provenance and
+Choose a published release that includes local bootstrap. Download its digest
+and deployment files from the matching tag into one directory. This uses no source checkout or
+application runtime on the host. Docker Compose, `curl`, `jq`, an installed
+`ua` release binary, and `openssl` are required. The release page provides
+`source-revision.txt` for provenance and
 `SHA256SUMS` for CLI archives; the image is pinned by its registry digest:
 
 ```sh
 set -eu
-UPAFFE_TAG=v0.1.0
+UPAFFE_TAG=REPLACE_WITH_RELEASE_TAG
 mkdir -m 0700 upaffe-deploy
 cd upaffe-deploy
 curl --fail --location --silent --show-error \
   "https://github.com/datavisionzero/upaffe/releases/download/$UPAFFE_TAG/image-digest.txt" \
   --output image-digest.txt
 grep -Eq '^ghcr\.io/datavisionzero/upaffe@sha256:[0-9a-f]{64}$' image-digest.txt
-for file in docker-compose.yml docker-compose.bootstrap.yml \
-  docker-compose.heartbeat.yml docker-compose.verify-restore.yml \
+for file in docker-compose.yml docker-compose.heartbeat.yml docker-compose.verify-restore.yml \
   backup-production.sh restore-production.sh production.env.example \
   nginx-upaffe.conf.example; do
   curl --fail --location --silent --show-error \
@@ -86,44 +81,65 @@ the deployment directory, `.env`, and these exact Compose files for the
 installation's lifetime.
 The optional overlays are used only for their named procedures.
 
-Create a `secrets` directory in the same directory as the Compose files with
-mode `0700`. Put a generated password in `secrets/postgres_password` and a
-separate generated proof in `secrets/bootstrap_proof`, each on one line. The
-file sources need mode `0644` inside this operator-only directory so the
-non-root application and PostgreSQL containers can read their mounts. The
-directory prevents other host users from traversing to them. Keep both files
-out of source control and backups that are not access controlled. For example,
-from the deployment directory:
+Create a `secrets` directory with mode `0700` beside the Compose files.
+Generate the database password and a separate strong operator password. The
+database password source needs mode `0644` inside the
+protected directory for the non-root containers; the operator password and
+issued token output stay mode `0600`. The shell must not trace secrets.
 
 ```sh
+umask 077
 mkdir -m 0700 secrets
 openssl rand -base64 48 > secrets/postgres_password
-openssl rand -base64 48 > secrets/bootstrap_proof
-chmod 0644 secrets/postgres_password secrets/bootstrap_proof
-docker compose -f docker-compose.yml -f docker-compose.bootstrap.yml config --quiet
-docker compose -f docker-compose.yml -f docker-compose.bootstrap.yml up -d --wait
+chmod 0644 secrets/postgres_password
+openssl rand -base64 48 > secrets/operator_password
+
+docker compose -f docker-compose.yml config --quiet
+docker compose -f docker-compose.yml up -d --wait db
+docker compose -f docker-compose.yml run --rm --no-deps -T app \
+  bootstrap --email operator@example.test --credential-name automation \
+  --password-stdin < secrets/operator_password > secrets/initial-credential.json
+jq -e '.status == "created" and (.token | startswith("upaffe_"))' \
+  secrets/initial-credential.json >/dev/null
+docker compose -f docker-compose.yml up -d --wait app
+curl --fail-with-body http://127.0.0.1:8080/api/health/ready
+UPAFFE_URL=https://upaffe.example.test \
+UPAFFE_CREDENTIAL="$(jq -r .token secrets/initial-credential.json)" \
+  ua project list --json
 ```
 
-The first start waits for PostgreSQL and applies forward migrations. The app
-listens at `http://127.0.0.1:8080` unless `UPAFFE_PORT` changes the local host
-port. Use the [browser bootstrap form](#browser-workflow) over this loopback
-address or an SSH tunnel. Read the one-time proof from
-`secrets/bootstrap_proof` within 30 minutes of startup, enter the operator
-email and a strong password, and confirm that `GET /api/bootstrap` reports
-`required:false`. Then remove the one-time proof mount and source file:
+`upaffe bootstrap` runs migrations without opening an HTTP listener or starting
+workers. It creates the sole operator and first management credential in one
+transaction. Its only success output is one JSON line containing `status`,
+`credential_name`, and the token. Exit codes are `0` for success, `2` for
+invalid input, `3` for `already_initialized`, and `1` for an infrastructure
+failure. A repeat returns only `{"status":"already_initialized"}` and does
+not change the credential. `GET /api/bootstrap` then reports
+`{"required":false}`. Transfer both `operator_password` and
+`initial-credential.json` to a secret store, then remove those temporary host
+files. The example HTTPS URL is a placeholder for the operator's configured
+origin.
+
+If the first output is lost, host access can rotate the named credential
+without creating another operator or reopening bootstrap:
 
 ```sh
-docker compose -f docker-compose.yml up -d --wait
-rm secrets/bootstrap_proof
-curl --fail-with-body http://127.0.0.1:8080/api/health/ready
+umask 077
+docker compose -f docker-compose.yml run --rm --no-deps -T app \
+  recover-credential --name automation > secrets/recovered-credential.json
 ```
 
-The first command recreates the application without the bootstrap overlay;
-the database volume remains. `docker compose ps` shows container health.
-`/api/health/live` proves that the process answers, and `/api/health/ready`
-proves PostgreSQL and schema readiness. These do not prove that monitoring
-workers are progressing. The database has no host port; the only host binding
-is the application's loopback HTTP port for a trusted reverse proxy.
+Recovery returns `status:recovered` and a new token only on success. It exits
+`4` with `status:not_found` if the named active credential does not exist. The
+previous tokens become invalid immediately, including any normal rotation
+overlap. Transfer the replacement promptly and protect or remove the recovery
+output file.
+
+The application binds `127.0.0.1:8080` by default; `UPAFFE_PORT` changes the
+host port. `docker compose ps` shows container health. `/api/health/live`
+proves the process answers, and `/api/health/ready` proves PostgreSQL and
+schema readiness. These do not prove monitoring worker progress. The database
+has no host port; the application loopback port is for a trusted reverse proxy.
 
 `/api/health/progress` is the separate public signal for independent checking.
 It returns `200 {"status":"progressing"}` only after both the scheduled HTTP
@@ -237,8 +253,7 @@ projects, monitor definitions and stored headers, incidents and history,
 deadlines, email settings and password, and pending deliveries. Back up the
 whole `upaffe` database, not selected tables. Also retain the deployment
 `.env`, the Compose files in use, the backup/restore helpers and verification
-overlay, and `secrets/postgres_password`; include the optional heartbeat URL
-or a still-active bootstrap proof when present. The
+overlay, and `secrets/postgres_password`; include the optional heartbeat URL when present. The
 reverse proxy's TLS certificates and configuration, DNS, external receiver
 account, and any other infrastructure outside this Compose stack need their
 own backup or re-provisioning. Existing clients must retain their issued
@@ -394,20 +409,19 @@ stops PostgreSQL and is unnecessary for routine app restarts. Never use
 ## Update the production image
 
 Choose a published release tag and review its notes. Download its image digest
-and matching deployment files into a separate staging directory. For an
-upgrade to v0.1.0, use:
+and matching deployment files into a separate staging directory. Choose a
+release that includes the local bootstrap command:
 
 ```sh
 set -eu
-UPAFFE_NEXT_TAG=v0.1.0
+UPAFFE_NEXT_TAG=REPLACE_WITH_RELEASE_TAG
 mkdir -m 0700 ../upaffe-next
 curl --fail --location --silent --show-error \
   "https://github.com/datavisionzero/upaffe/releases/download/$UPAFFE_NEXT_TAG/image-digest.txt" \
   --output ../upaffe-next/image-digest.txt
 grep -Eq '^ghcr\.io/datavisionzero/upaffe@sha256:[0-9a-f]{64}$' \
   ../upaffe-next/image-digest.txt
-for file in docker-compose.yml docker-compose.bootstrap.yml \
-  docker-compose.heartbeat.yml docker-compose.verify-restore.yml \
+for file in docker-compose.yml docker-compose.heartbeat.yml docker-compose.verify-restore.yml \
   backup-production.sh restore-production.sh; do
   curl --fail --location --silent --show-error \
     "https://raw.githubusercontent.com/datavisionzero/upaffe/$UPAFFE_NEXT_TAG/deploy/$file" \
@@ -419,6 +433,12 @@ Review differences in every deployed file. Keep the current files in place
 until the pre-upgrade backup completes; that backup must contain the old
 revision's deployment contract. Use the same Compose file set throughout the
 update. The commands below show the base stack.
+
+When upgrading from v0.1.0, confirm the operator already exists and remove
+the obsolete bootstrap Compose overlay from the deployment flow. The new image
+removes `POST /api/bootstrap` and ignores the old proof setting; its read-only
+state endpoint remains. An existing operator and credentials remain in the
+database through migration.
 
 Stop the app so the backup is the exact pre-upgrade point, then create a new
 protected backup. The database container stays running for `pg_dump`. If the
@@ -433,7 +453,7 @@ Now install the reviewed Compose files and helpers from staging, retaining
 the current `.env` and `secrets/` directory:
 
 ```sh
-cp ../upaffe-next/docker-compose.yml ../upaffe-next/docker-compose.bootstrap.yml \
+cp ../upaffe-next/docker-compose.yml \
   ../upaffe-next/docker-compose.heartbeat.yml \
   ../upaffe-next/docker-compose.verify-restore.yml \
   ../upaffe-next/backup-production.sh ../upaffe-next/restore-production.sh .
@@ -579,77 +599,34 @@ shell or in the ignored `deploy/.env`:
 | `UPAFFE_DEV_DB_PASSWORD` | `local-development-only` | PostgreSQL password shared only by the two local containers |
 | `UPAFFE_DEV_DB_PORT` | `5432` | PostgreSQL host port |
 | `UPAFFE_DEV_PORT` | `8080` | application host port |
-| `UPAFFE_BOOTSTRAP_SECRET` | unset | One-use installation proof; 32-1024 characters and valid for 30 minutes after startup |
 
-## Establish the operator
+## Establish the operator in development
 
-A database without an operator reports `{"required":true,"available":false}`
-from `GET /api/bootstrap`. Generate a random proof locally, supply it only as
-`UPAFFE_BOOTSTRAP_SECRET`, and restart the application. For example:
-
-```sh
-export UPAFFE_BOOTSTRAP_SECRET="$(openssl rand -base64 32)"
-docker compose -f deploy/docker-compose.dev.yml up --build --wait
-```
-
-The state then reports `available:true` for 30 minutes. Submit the proof in the
-JSON request body together with the operator email and a password of 12-200
-characters:
+A fresh development database reports `{"required":true}` from
+`GET /api/bootstrap`. Start PostgreSQL, then run the same local command with
+the development image before starting the app:
 
 ```sh
-curl --fail-with-body http://localhost:8080/api/bootstrap \
-  --header 'Content-Type: application/json' \
-  --data-binary @- <<EOF
-{"proof":"$UPAFFE_BOOTSTRAP_SECRET","email":"operator@example.test","password":"a long local password"}
-EOF
-unset UPAFFE_BOOTSTRAP_SECRET
+umask 077
+mkdir -p scratchpad
+printf '%s\n' 'a synthetic local password' > scratchpad/operator-password
+docker compose -f deploy/docker-compose.dev.yml build app
+docker compose -f deploy/docker-compose.dev.yml up -d --wait db
+docker compose -f deploy/docker-compose.dev.yml run --rm --no-deps -T app \
+  bootstrap --email operator@example.test --credential-name local-agent \
+  --password-stdin < scratchpad/operator-password > scratchpad/initial-credential.json
+rm scratchpad/operator-password
+docker compose -f deploy/docker-compose.dev.yml up -d --wait app
 ```
 
-Remove the variable from the environment or ignored `deploy/.env` after the
-request succeeds. The database stores only the proof digest, success consumes
-the grant, and future starts cannot arm bootstrap again while the operator
-exists. A restart before success may arm a new proof; an expired, missing, or
-incorrect proof receives the same `bootstrap_rejected` response.
-
-## Browser workflow
-
-Opening the application root checks bootstrap and session state through the
-same documented API. A database without an operator shows the establishment
-form; when no live proof is armed, it explains that setup cannot proceed and
-offers a state refresh. After establishment, or on an initialized instance
-without a live session, the application shows sign-in. Proof and password
-values are password fields and leave browser component state when submitted.
+The browser first-start view directs an uninitialized operator to this local
+procedure and can refresh its state. Once initialized, it shows sign-in. The
+first management credential is already available to `ua` from the protected
+output file; no browser console operation is needed.
 
 After sign-in, the project workspace lists live projects by default. It creates
-a project from an immutable key and mutable display name, renames at the version
-shown, soft-deletes, switches to the deleted list, and restores. A concurrent
-change is shown as a conflict and the list is refreshed rather than silently
-overwritten. A live project opens its HTTP monitors for configuration, current
-state, immediate tests, pause/resume, retained removal, secret-header writes,
-and check/incident history. These views report persisted monitoring facts but
-do not widen the API and `ua` contracts or replace the technical health paths.
-The same workspace switches to push monitors for both reporting modes,
-deadlines, reports, incidents, pause/resume, and one-time credential handoff.
-
-To hand administration to `ua` after signing in, open the browser's developer
-console on the upaffe page and deliberately issue the first named management
-credential. The browser sends its session cookie and same-origin write header;
-this explicit response reveals the token once:
-
-```js
-const response = await fetch('/api/management-credentials', {
-  method: 'POST',
-  headers: {'Content-Type': 'application/json', 'X-Upaffe-CSRF': '1'},
-  body: JSON.stringify({name: 'automation'})
-});
-if (!response.ok) throw new Error(`Credential issuance failed: ${response.status}`);
-console.log((await response.json()).token);
-```
-
-Copy the returned token into a protected secret store and clear the console.
-Do not put it in a URL or shell history. Set `UPAFFE_CREDENTIAL` from that store
-for the [noninteractive CLI workflow](./agent-workflow.md). Later credential
-creation and rotation can use `ua credential` without a browser session.
+projects, configures HTTP and push monitors, and exposes persisted monitoring
+facts through the same management API used by `ua`.
 
 ## SMTP setup and test send
 

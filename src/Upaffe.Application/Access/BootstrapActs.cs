@@ -4,86 +4,51 @@ using Upaffe.Domain.Access;
 
 namespace Upaffe.Application.Access;
 
-public sealed class ArmBootstrap(IBootstrapStore store, TimeProvider clock)
-{
-    public Task ExecuteAsync(BootstrapSettings settings, CancellationToken cancellationToken)
-    {
-        var secret = settings.ValidatedSecret();
-        return store.ArmAsync(
-            secret is null ? null : SecretValue.Hash(secret),
-            clock.GetUtcNow(),
-            cancellationToken);
-    }
-}
-
-public sealed class ReadBootstrapState(IBootstrapStore store, TimeProvider clock)
+public sealed class ReadBootstrapState(IBootstrapStore store)
 {
     public Task<BootstrapState> ExecuteAsync(CancellationToken cancellationToken) =>
-        store.ReadAsync(clock.GetUtcNow(), cancellationToken);
+        store.ReadAsync(cancellationToken);
 }
 
-public sealed class EstablishOperator(
-    IBootstrapStore store,
-    IPasswordHasher passwords,
-    TimeProvider clock)
+/// <summary>Establishes the sole operator and first management credential together.</summary>
+public sealed class EstablishOperator(IBootstrapStore store, IPasswordHasher passwords, TimeProvider clock)
 {
-    public async Task ExecuteAsync(
-        string? proof,
-        string? email,
-        string? password,
-        CancellationToken cancellationToken)
+    public async Task<IssuedCredential> ExecuteAsync(
+        string? email, string? password, string? credentialName, CancellationToken cancellationToken)
     {
-        var proofHash = HashProof(proof);
-        var now = clock.GetUtcNow();
-        ThrowUnlessAccepted(await store.CheckAsync(proofHash, now, cancellationToken));
-
         var errors = new Dictionary<string, string[]>();
         string? acceptedEmail = null;
         string? acceptedPassword = null;
-        try
-        {
-            acceptedEmail = Operator.ValidateEmail(email ?? string.Empty);
-        }
-        catch (ArgumentException exception)
-        {
-            errors["email"] = [exception.Message];
-        }
+        string? acceptedName = null;
+        try { acceptedEmail = Operator.ValidateEmail(email ?? string.Empty); }
+        catch (ArgumentException exception) { errors["email"] = [exception.Message]; }
+        try { acceptedPassword = Password.Validate(password); }
+        catch (ArgumentException exception) { errors["password"] = [exception.Message]; }
+        try { acceptedName = ManagementCredential.ValidateName(credentialName ?? string.Empty); }
+        catch (ArgumentException exception) { errors["credential_name"] = [exception.Message]; }
+        if (errors.Count > 0) throw Refusal.Validation(errors);
 
-        try
-        {
-            acceptedPassword = Password.Validate(password);
-        }
-        catch (ArgumentException exception)
-        {
-            errors["password"] = [exception.Message];
-        }
-
-        if (errors.Count > 0)
-        {
-            throw Refusal.Validation(errors);
-        }
-
-        var passwordHash = await passwords.HashAsync(acceptedPassword!, cancellationToken);
-        var created = Operator.Establish(acceptedEmail!, passwordHash, now);
-        ThrowUnlessAccepted(await store.EstablishAsync(
-            proofHash, created, now, cancellationToken));
+        var now = clock.GetUtcNow();
+        var hash = await passwords.HashAsync(acceptedPassword!, cancellationToken);
+        var created = Operator.Establish(acceptedEmail!, hash, now);
+        return await store.EstablishAsync(created, acceptedName!, now, cancellationToken)
+            ?? throw Refusal.AlreadyInitialized();
     }
+}
 
-    private static byte[] HashProof(string? proof) =>
-        proof is { Length: >= BootstrapSettings.MinimumLength and <= BootstrapSettings.MaximumLength }
-            ? SecretValue.Hash(proof)
-            : SecretValue.Hash("a-deliberately-invalid-bootstrap-proof");
-
-    private static void ThrowUnlessAccepted(BootstrapProof proof)
+/// <summary>Issues a replacement token through the host-only local command.</summary>
+public sealed class RecoverManagementCredential(IBootstrapStore store, TimeProvider clock)
+{
+    public async Task<IssuedCredential> ExecuteAsync(string? name, CancellationToken cancellationToken)
     {
-        if (proof == BootstrapProof.Rejected)
+        string accepted;
+        try { accepted = ManagementCredential.ValidateName(name ?? string.Empty); }
+        catch (ArgumentException exception)
         {
-            throw Refusal.BootstrapRejected();
+            throw Refusal.Validation(new Dictionary<string, string[]> { ["name"] = [exception.Message] });
         }
 
-        if (proof == BootstrapProof.Closed)
-        {
-            throw Refusal.BootstrapClosed();
-        }
+        return await store.RecoverCredentialAsync(accepted, clock.GetUtcNow(), cancellationToken)
+            ?? throw Refusal.NotFound("No active management credential uses that name.");
     }
 }

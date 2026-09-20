@@ -47,42 +47,27 @@ describe("the access and project application", () => {
     return { promise, resolve };
   }
 
-  it("shows loading and a distinct bootstrap surface when the operator is missing", async () => {
+  it("directs a fresh instance to local setup and can detect its completion", async () => {
     const bootstrap = deferred<Response>();
-    answering(() => bootstrap.promise);
+    let initialized = false;
+    const fetch = answering(() => initialized ? json({ required: false }) : bootstrap.promise);
     render(<App />);
     expect(screen.getByRole("status")).toHaveTextContent("Opening the instance");
 
-    bootstrap.resolve(json({ required: true, available: false }));
+    bootstrap.resolve(json({ required: true }));
     expect(await screen.findByRole("heading", { name: "Establish the operator" })).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("No live bootstrap proof");
-    expect(screen.getByRole("button", { name: "Establish operator" })).toBeDisabled();
-  });
-
-  it("submits bootstrap password fields and clears both secrets immediately", async () => {
-    const established = deferred<Response>();
-    answering(async (request) => {
-      if (request.method === "GET") return json({ required: true, available: true });
-      expect(new URL(request.url).pathname).toBe("/api/bootstrap");
-      expect(await request.json()).toEqual({
-        email: "operator@example.test",
-        proof: "one-use-proof",
-        password: "a long password",
-      });
-      return established.promise;
-    });
-    render(<App />);
+    expect(screen.getByText(/Run the local bootstrap command/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "production startup guide" })).toHaveAttribute(
+      "href", "https://github.com/datavisionzero/upaffe/blob/main/docs/operations.md#production-compose-startup",
+    );
     const user = userEvent.setup();
-    await screen.findByRole("heading", { name: "Establish the operator" });
-
-    await user.type(screen.getByLabelText("Email"), "operator@example.test");
-    await user.type(screen.getByLabelText("Bootstrap proof"), "one-use-proof");
-    await user.type(screen.getByLabelText("Password"), "a long password");
-    await user.click(screen.getByRole("button", { name: "Establish operator" }));
-
-    expect(screen.getByLabelText("Bootstrap proof")).toHaveValue("");
-    expect(screen.getByLabelText("Password")).toHaveValue("");
-    established.resolve(new Response(null, { status: 204 }));
+    initialized = true;
+    fetch.mockImplementation(async (input) => {
+      const path = new URL((input as Request).url).pathname;
+      return path === "/api/bootstrap" ? json({ required: false }) :
+        json({ code: "authentication_required", status: 401, title: "ignored" }, 401);
+    });
+    await user.click(screen.getByRole("button", { name: "Check again" }));
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
   });
 

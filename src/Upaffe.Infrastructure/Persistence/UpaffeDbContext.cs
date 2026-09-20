@@ -10,7 +10,6 @@ namespace Upaffe.Infrastructure.Persistence;
 public sealed class UpaffeDbContext(DbContextOptions<UpaffeDbContext> options) : DbContext(options)
 {
     public DbSet<Operator> Operators => Set<Operator>();
-    public DbSet<BootstrapGrant> BootstrapGrants => Set<BootstrapGrant>();
     public DbSet<BrowserSession> BrowserSessions => Set<BrowserSession>();
     public DbSet<ManagementCredential> ManagementCredentials => Set<ManagementCredential>();
     public DbSet<ManagementCredentialSecret> ManagementCredentialSecrets => Set<ManagementCredentialSecret>();

@@ -10,7 +10,6 @@ namespace Upaffe.IntegrationTests;
 [Collection(nameof(PostgresCollection))]
 public sealed class ReverseProxyTests(PostgresFixture postgres)
 {
-    private const string Proof = "a-proxy-test-bootstrap-proof-with-enough-entropy";
     private const string Email = "operator@example.test";
     private const string Password = "a long operator password";
     private const string PublicOrigin = "https://status.example.test";
@@ -124,16 +123,12 @@ public sealed class ReverseProxyTests(PostgresFixture postgres)
         var connection = await postgres.CreateDatabaseAsync();
         var settings = new Dictionary<string, string?>
         {
-            ["UPAFFE_BOOTSTRAP_SECRET"] = Proof,
             [TrustedProxySettings.ProxyAddressesVariable] = Proxy.ToString(),
             [TrustedProxySettings.PublicOriginVariable] = PublicOrigin,
         };
         var instance = AnInstance.Against(connection, settings, remoteAddress: remoteAddress);
         using var client = Client(instance);
-        using var response = await client.PostAsJsonAsync(
-            "/api/bootstrap", new BootstrapRequest(Proof, Email, Password),
-            TestContext.Current.CancellationToken);
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        await instance.EstablishAsync(Email, Password);
         return instance;
     }
 

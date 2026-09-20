@@ -24,7 +24,7 @@ if [ -z "$expected_current_version" ]; then
 fi
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 "$root/scripts/check-production-heartbeat.sh" "$current_image"
-check_image=$previous_image
+check_image=$current_image
 mkdir -p "$root/scratchpad"
 check_dir=$(mktemp -d "$root/scratchpad/upaffe-workflow.XXXXXX")
 project_suffix=$(openssl rand -hex 6)
@@ -43,7 +43,7 @@ cleanup() {
 }
 trap cleanup EXIT
 trap 'exit 1' HUP INT TERM
-cp "$root/deploy/docker-compose.yml" "$root/deploy/docker-compose.bootstrap.yml" \
+cp "$root/deploy/docker-compose.yml" \
   "$root/deploy/docker-compose.verify-restore.yml" "$root/deploy/backup-production.sh" \
   "$root/deploy/restore-production.sh" "$check_dir/"
 write_env() {
@@ -59,26 +59,37 @@ services:
 TEST_OVERLAY
 mkdir -m 0700 "$check_dir/secrets"
 openssl rand -hex 24 > "$check_dir/secrets/postgres_password"
-bootstrap_proof=$(openssl rand -hex 32)
 operator_password=$(openssl rand -hex 24)
-printf '%s\n' "$bootstrap_proof" > "$check_dir/secrets/bootstrap_proof"
-jq -n --arg proof "$bootstrap_proof" --arg email operator@example.test \
-  --arg password "$operator_password" \
-  '{proof:$proof,email:$email,password:$password}' > "$check_dir/bootstrap-request.json"
+printf '%s\n' "$operator_password" > "$check_dir/secrets/operator_password"
 jq -n --arg email operator@example.test --arg password "$operator_password" \
   '{email:$email,password:$password}' > "$check_dir/session-request.json"
-chmod 0644 "$check_dir/secrets/postgres_password" "$check_dir/secrets/bootstrap_proof"
+chmod 0644 "$check_dir/secrets/postgres_password"
+chmod 0600 "$check_dir/secrets/operator_password"
 cd "$check_dir"
-echo 'Workflow: empty installation and one-time operator bootstrap.'
+echo 'Workflow: fresh installation with local operator bootstrap.'
 UPAFFE_IMAGE="$check_image" UPAFFE_PORT="$check_port" \
-  docker compose -p "$check_project" -f docker-compose.yml -f docker-compose.bootstrap.yml -f docker-compose.test.yml up -d --wait
+  docker compose -p "$check_project" -f docker-compose.yml -f docker-compose.test.yml up -d --wait db
+UPAFFE_IMAGE="$check_image" UPAFFE_PORT="$check_port" \
+  docker compose -p "$check_project" -f docker-compose.yml -f docker-compose.test.yml \
+  run --rm --no-deps -T app bootstrap --email operator@example.test \
+  --credential-name automation --password-stdin \
+  < secrets/operator_password > initial-credential.json
+[ "$(jq -r .status initial-credential.json)" = created ]
+[ "$(jq -r .token initial-credential.json | cut -c1-7)" = 'upaffe_' ]
+if UPAFFE_IMAGE="$check_image" UPAFFE_PORT="$check_port" \
+  docker compose -p "$check_project" -f docker-compose.yml -f docker-compose.test.yml \
+  run --rm --no-deps -T app bootstrap --email operator@example.test \
+  --credential-name automation --password-stdin \
+  < secrets/operator_password > bootstrap-second.json; then
+  echo 'Repeated bootstrap unexpectedly succeeded.' >&2; exit 1
+else
+  [ "$?" = 3 ]
+fi
+[ "$(jq -r .status bootstrap-second.json)" = already_initialized ]
+UPAFFE_IMAGE="$check_image" UPAFFE_PORT="$check_port" \
+  docker compose -p "$check_project" -f docker-compose.yml -f docker-compose.test.yml up -d --wait
 curl --fail --silent "http://127.0.0.1:$check_port/api/health/ready" | grep -q '"status":"ready"'
-curl --fail --silent "http://127.0.0.1:$check_port/api/bootstrap" | grep -q '"required":true,"available":true'
-status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
-  --header 'Content-Type: application/json' \
-  --data-binary @bootstrap-request.json \
-  "http://127.0.0.1:$check_port/api/bootstrap")
-[ "$status" = 204 ]
+curl --fail --silent "http://127.0.0.1:$check_port/api/bootstrap" | grep -q '"required":false'
 base_url="http://127.0.0.1:$check_port"
 curl --fail --silent --cookie-jar browser.cookies \
   --header 'Content-Type: application/json' \
@@ -130,13 +141,12 @@ curl --fail --silent --cookie browser.cookies \
 curl --fail --silent --cookie browser.cookies \
   "$base_url/api/email/deliveries/summary" > delivery-before.json
 [ "$(jq -r .pending_count delivery-before.json)" = 1 ]
-echo 'Workflow: recreate application without the bootstrap proof.'
+echo 'Workflow: recreate the initialized application.'
 UPAFFE_IMAGE="$check_image" UPAFFE_PORT="$check_port" \
   docker compose -p "$check_project" -f docker-compose.yml -f docker-compose.test.yml up -d --wait
-rm secrets/bootstrap_proof
 UPAFFE_IMAGE="$check_image" UPAFFE_PORT="$check_port" \
   docker compose -p "$check_project" -f docker-compose.yml -f docker-compose.test.yml up -d --wait --force-recreate
-curl --fail --silent "http://127.0.0.1:$check_port/api/bootstrap" | grep -q '"required":false,"available":false'
+curl --fail --silent "http://127.0.0.1:$check_port/api/bootstrap" | grep -q '"required":false'
 curl --fail --silent --cookie browser.cookies \
   "$base_url/api/projects/fixture-project" > project-after.json
 [ "$(jq -r .id project-after.json)" = "$project_id" ]
@@ -242,7 +252,7 @@ UPAFFE_PORT="$restore_port" UPAFFE_TRUSTED_PROXY_IPS='' UPAFFE_PUBLIC_ORIGIN='' 
   docker compose -p "$restore_project" -f docker-compose.yml -f docker-compose.verify-restore.yml up -d --wait app
 restored_url="http://127.0.0.1:$restore_port"
 curl --fail --silent "$restored_url/api/health/ready" | grep -q '"status":"ready"'
-curl --fail --silent "$restored_url/api/bootstrap" | grep -q '"required":false,"available":false'
+curl --fail --silent "$restored_url/api/bootstrap" | grep -q '"required":false'
 [ "$(curl --silent --output /dev/null --write-out '%{http_code}' "$restored_url/api/health/progress")" = 503 ]
 curl --fail --silent --cookie-jar restored.cookies \
   --header 'Content-Type: application/json' \

@@ -41,12 +41,12 @@ cp -p .env docker-compose.yml docker-compose.verify-restore.yml \
   backup-production.sh restore-production.sh "$backup/"
 mkdir -m 0700 "$backup/secrets"
 cp -p secrets/postgres_password "$backup/secrets/"
-for optional in docker-compose.bootstrap.yml docker-compose.heartbeat.yml; do
+for optional in docker-compose.heartbeat.yml; do
   if [ -f "$optional" ]; then
     cp -p "$optional" "$backup/"
   fi
 done
-for optional in bootstrap_proof heartbeat_url; do
+for optional in heartbeat_url; do
   if [ -f "secrets/$optional" ]; then
     cp -p "secrets/$optional" "$backup/secrets/"
   fi

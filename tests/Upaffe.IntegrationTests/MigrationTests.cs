@@ -1,5 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using System.Net;
+using System.Net.Http.Json;
 using Npgsql;
+using Upaffe.Api.Http;
+using Upaffe.Domain.Access;
 using Upaffe.Infrastructure.Persistence;
 
 namespace Upaffe.IntegrationTests;
@@ -32,6 +36,35 @@ public sealed class MigrationTests(PostgresFixture postgres)
         await using var second = AnInstance.ContextFor(connectionString);
         await AnInstance.MigratorFor(second).ApplyAsync(TestContext.Current.CancellationToken);
         Assert.Empty(await second.Database.GetPendingMigrationsAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task An_initialized_v0_1_database_starts_without_reopening_bootstrap()
+    {
+        var connection = await postgres.CreateDatabaseAsync();
+        await using (var old = AnInstance.ContextFor(connection))
+        {
+            await old.Database.MigrateAsync(
+                "20260919164529_RecordHttpCheckApplicability", TestContext.Current.CancellationToken);
+            var now = new DateTimeOffset(2026, 9, 19, 12, 0, 0, TimeSpan.Zero);
+            var person = Operator.Establish("operator@example.test", "$argon2id$existing-hash", now);
+            var credential = ManagementCredential.Create(person.Id, "existing agent", now);
+            var secret = ManagementCredentialSecret.Issue(credential.Id, now).Secret;
+            old.AddRange(person, credential, secret);
+            await old.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        await using var instance = AnInstance.Against(connection);
+        using var client = instance.CreateClient();
+        Assert.Equal(new BootstrapStateResponse(false),
+            await client.GetFromJsonAsync<BootstrapStateResponse>(
+                "/api/bootstrap", TestContext.Current.CancellationToken));
+        using var ready = await client.GetAsync("/api/health/ready", TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, ready.StatusCode);
+        await using var current = AnInstance.ContextFor(connection);
+        Assert.Equal(1, await current.Operators.CountAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(1, await current.ManagementCredentials.CountAsync(TestContext.Current.CancellationToken));
+        Assert.Empty(await current.Database.GetPendingMigrationsAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]

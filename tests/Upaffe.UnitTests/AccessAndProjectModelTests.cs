@@ -20,20 +20,6 @@ public sealed class AccessAndProjectModelTests
     }
 
     [Fact]
-    public void A_bootstrap_grant_is_one_use_and_time_bounded()
-    {
-        var hash = SecretValue.Hash("a-bootstrap-secret-long-enough-for-the-installer");
-        var grant = BootstrapGrant.Arm(hash, Noon);
-
-        Assert.True(grant.Accepts(hash, Noon.AddMinutes(29)));
-        Assert.False(grant.Accepts(hash, Noon.Add(BootstrapGrant.Lifetime)));
-
-        grant.Consume(Noon.AddMinutes(1));
-        Assert.False(grant.Accepts(hash, Noon.AddMinutes(2)));
-        Assert.Throws<InvalidOperationException>(() => grant.Consume(Noon.AddMinutes(3)));
-    }
-
-    [Fact]
     public void A_browser_session_keeps_only_a_digest_and_obeys_both_lifetimes()
     {
         var (session, secret) = BrowserSession.Begin(Guid.NewGuid(), " test browser ", Noon);

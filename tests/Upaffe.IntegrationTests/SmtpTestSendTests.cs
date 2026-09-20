@@ -20,15 +20,10 @@ public sealed class SmtpTestSendTests(PostgresFixture postgres)
     public async Task Test_send_reports_smtp_acceptance_and_sanitized_failure()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var instance = AnInstance.Against(await postgres.CreateDatabaseAsync(),
-            new Dictionary<string, string?>
-            { [BootstrapSettings.Variable] = "a-valid-bootstrap-proof-for-smtp-tests" });
+        await using var instance = AnInstance.Against(await postgres.CreateDatabaseAsync());
         using var client = instance.CreateClient(new WebApplicationFactoryClientOptions
         { HandleCookies = false });
-        using var bootstrap = await client.PostAsJsonAsync("/api/bootstrap",
-            new BootstrapRequest("a-valid-bootstrap-proof-for-smtp-tests",
-                "operator@example.test", "a long operator password"), Json, ct);
-        Assert.Equal(HttpStatusCode.NoContent, bootstrap.StatusCode);
+        await instance.EstablishAsync("operator@example.test", "a long operator password");
         using var signin = await client.PostAsJsonAsync("/api/session",
             new SignInRequest("operator@example.test", "a long operator password"), Json, ct);
         var cookie = Assert.Single(signin.Headers.GetValues("Set-Cookie")).Split(';')[0];

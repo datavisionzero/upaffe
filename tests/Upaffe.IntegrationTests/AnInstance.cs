@@ -9,6 +9,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Text.Json;
+using Upaffe.Api.Hosting;
 using Upaffe.Application.Ports;
 using Upaffe.Infrastructure.Persistence;
 
@@ -55,6 +57,19 @@ internal sealed class AnInstance(
 
     public static UpaffeDbContext ContextFor(string connectionString) =>
         new(new DbContextOptionsBuilder<UpaffeDbContext>().UseNpgsql(connectionString).Options);
+
+    public async Task<string> EstablishAsync(string email, string password, string credentialName = "initial agent")
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?> { ["ConnectionStrings:Postgres"] = connectionString }).Build();
+        using var output = new StringWriter();
+        var code = await LocalAccessCommand.RunAsync(
+            ["bootstrap", "--email", email, "--credential-name", credentialName, "--password-stdin"],
+            configuration, new StringReader(password + "\n"), output, TestContext.Current.CancellationToken);
+        Assert.Equal(0, code);
+        using var document = JsonDocument.Parse(output.ToString());
+        return document.RootElement.GetProperty("token").GetString()!;
+    }
 
     public static SchemaMigrator MigratorFor(UpaffeDbContext context) =>
         new(context, NullLogger<SchemaMigrator>.Instance);

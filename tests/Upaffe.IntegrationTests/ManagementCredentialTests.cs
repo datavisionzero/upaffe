@@ -13,7 +13,6 @@ namespace Upaffe.IntegrationTests;
 [Collection(nameof(PostgresCollection))]
 public sealed class ManagementCredentialTests(PostgresFixture postgres)
 {
-    private const string BootstrapProof = "a-credential-test-bootstrap-proof-with-enough-entropy";
     private const string Email = "operator@example.test";
     private const string Password = "a long operator password";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
@@ -49,7 +48,8 @@ public sealed class ManagementCredentialTests(PostgresFixture postgres)
             Assert.DoesNotContain(issued.Token, listBody, StringComparison.Ordinal);
             Assert.DoesNotContain(issued.Token[(issued.Token.LastIndexOf('_') + 1)..], listBody, StringComparison.Ordinal);
             var rows = JsonSerializer.Deserialize<CredentialResponse[]>(listBody, Json);
-            var metadata = Assert.Single(rows!);
+            Assert.Equal(2, rows!.Length);
+            var metadata = rows.Single(row => row.Name == "deployment agent");
             Assert.Equal("deployment agent", metadata.Name);
 
             using var bearerList = await AuthorizedAsync(
@@ -61,6 +61,7 @@ public sealed class ManagementCredentialTests(PostgresFixture postgres)
 
             await using var context = AnInstance.ContextFor(connection);
             var stored = await context.ManagementCredentialSecrets.SingleAsync(
+                value => value.CredentialId == issued.Id,
                 TestContext.Current.CancellationToken);
             Assert.Equal(tokenHash, stored.SecretHash);
             Assert.DoesNotContain(logs.Messages, message => message.Contains(issued.Token, StringComparison.Ordinal));
@@ -182,17 +183,9 @@ public sealed class ManagementCredentialTests(PostgresFixture postgres)
         CollectingLoggerProvider? logs = null)
     {
         var connection = await postgres.CreateDatabaseAsync();
-        var instance = AnInstance.Against(
-            connection,
-            new Dictionary<string, string?> { [BootstrapSettings.Variable] = BootstrapProof },
-            clock,
-            logs);
+        var instance = AnInstance.Against(connection, clock: clock, logProvider: logs);
         using var client = instance.CreateClient();
-        using var response = await client.PostAsJsonAsync(
-            "/api/bootstrap",
-            new BootstrapRequest(BootstrapProof, Email, Password),
-            TestContext.Current.CancellationToken);
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        await instance.EstablishAsync(Email, Password);
         return (instance, connection);
     }
 

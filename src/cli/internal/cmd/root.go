@@ -185,12 +185,12 @@ func knownProblemCode(code string, status int) bool {
 	switch code {
 	case "validation":
 		return status == http.StatusBadRequest
-	case "bootstrap_rejected", "sign_in_rejected", "authentication_required",
+	case "sign_in_rejected", "authentication_required",
 		"authentication_rejected", "reporting_rejected":
 		return status == http.StatusUnauthorized
 	case "forbidden":
 		return status == http.StatusForbidden
-	case "bootstrap_closed", "conflict", "report_id_conflict", "email_not_configured":
+	case "conflict", "report_id_conflict", "email_not_configured":
 		return status == http.StatusConflict
 	case "not_found":
 		return status == http.StatusNotFound

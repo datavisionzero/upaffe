@@ -9,10 +9,8 @@ using Upaffe.Application.Access;
 namespace Upaffe.IntegrationTests;
 
 [Collection(nameof(PostgresCollection))]
-public sealed class DeploymentSecretsTests(PostgresFixture postgres)
+public sealed class DeploymentSecretsTests
 {
-    private const string Proof = "file-backed-bootstrap-proof-with-enough-characters";
-
     [Fact]
     public void Database_password_file_is_used_without_exposing_its_value()
     {
@@ -86,76 +84,6 @@ public sealed class DeploymentSecretsTests(PostgresFixture postgres)
                 })));
             Assert.Contains("cannot be read", malformed.Message, StringComparison.Ordinal);
             Assert.DoesNotContain(path, malformed.Message, StringComparison.Ordinal);
-        }
-        finally
-        {
-            File.Delete(path);
-        }
-    }
-
-    [Fact]
-    public async Task Bootstrap_file_is_one_use_and_can_be_removed_after_establishment()
-    {
-        var connection = await postgres.CreateDatabaseAsync();
-        var parsed = new NpgsqlConnectionStringBuilder(connection);
-        var databasePasswordPath = TemporaryFile(parsed.Password + "\n");
-        var path = TemporaryFile(Proof + "\n");
-        var settings = new Dictionary<string, string?>
-        {
-            [DeploymentSecrets.PostgresPasswordFile] = databasePasswordPath,
-            ["UPAFFE_DB_HOST"] = parsed.Host,
-            ["UPAFFE_DB_PORT"] = parsed.Port.ToString(),
-            ["UPAFFE_DB_NAME"] = parsed.Database,
-            ["UPAFFE_DB_USER"] = parsed.Username,
-            [DeploymentSecrets.BootstrapSecretFile] = path,
-        };
-        var logs = new CollectingLoggerProvider();
-        try
-        {
-            await using (var instance = AnInstance.AgainstFileBackedDatabase(connection, settings, logs))
-            {
-                using var client = instance.CreateClient();
-                Assert.Equal(new BootstrapStateResponse(true, true),
-                    await client.GetFromJsonAsync<BootstrapStateResponse>(
-                        "/api/bootstrap", TestContext.Current.CancellationToken));
-                using var response = await client.PostAsJsonAsync(
-                    "/api/bootstrap",
-                    new BootstrapRequest(Proof, "operator@example.test", "a long operator password"),
-                    TestContext.Current.CancellationToken);
-                Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-            }
-
-            File.Delete(path);
-            await using var restarted = AnInstance.AgainstFileBackedDatabase(connection, settings, logs);
-            using var restartedClient = restarted.CreateClient();
-            Assert.Equal(new BootstrapStateResponse(false, false),
-                await restartedClient.GetFromJsonAsync<BootstrapStateResponse>(
-                    "/api/bootstrap", TestContext.Current.CancellationToken));
-            Assert.DoesNotContain(logs.Messages, message =>
-                message.Contains(Proof, StringComparison.Ordinal)
-                || message.Contains(path, StringComparison.Ordinal));
-        }
-        finally
-        {
-            File.Delete(path);
-            File.Delete(databasePasswordPath);
-        }
-    }
-
-    [Fact]
-    public void Bootstrap_conflict_never_reports_a_secret_or_path()
-    {
-        var path = TemporaryFile(Proof);
-        try
-        {
-            var failure = Assert.Throws<InvalidOperationException>(() =>
-                DeploymentSecrets.BootstrapProof(Configuration(new()
-                {
-                    [BootstrapSettings.Variable] = Proof,
-                    [DeploymentSecrets.BootstrapSecretFile] = path,
-                })));
-            Assert.DoesNotContain(Proof, failure.Message, StringComparison.Ordinal);
-            Assert.DoesNotContain(path, failure.Message, StringComparison.Ordinal);
         }
         finally
         {

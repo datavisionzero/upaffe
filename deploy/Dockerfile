@@ -24,7 +24,7 @@ RUN dotnet publish src/Upaffe.Api/Upaffe.Api.csproj \
     -p:Version=${APP_VERSION}
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime
-RUN apk add --no-cache curl
+RUN apk add --no-cache curl krb5-libs
 WORKDIR /app
 COPY --from=build /app/ ./
 ARG VCS_REF=unknown
