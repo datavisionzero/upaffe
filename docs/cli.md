@@ -129,6 +129,7 @@ ua project list [--deleted] [--url ADDRESS] [--credential TOKEN] [--json]
 ua project rename KEY --name NAME --version VERSION [--url ADDRESS] [--credential TOKEN] [--json]
 ua project delete KEY --version VERSION [--url ADDRESS] [--credential TOKEN] [--json]
 ua project restore KEY --version VERSION [--url ADDRESS] [--credential TOKEN] [--json]
+ua inventory [--project KEY] [--state healthy|failing|untested|paused] [--type http|push] [--search TEXT] [--limit N] [--offset N] [--url ADDRESS] [--credential TOKEN] [--json]
 ua monitor create PROJECT_KEY --file PATH|- [--url ADDRESS] [--credential TOKEN] [--json]
 ua monitor list PROJECT_KEY [--url ADDRESS] [--credential TOKEN] [--json]
 ua monitor get PROJECT_KEY MONITOR_KEY [--url ADDRESS] [--credential TOKEN] [--json]
@@ -194,6 +195,16 @@ commands, including issuing a replacement credential before revoking itself.
 Missing credentials exit with code 7 and `authentication_required`; invalid,
 expired, and revoked credentials use the same code with
 `authentication_rejected`.
+
+### Monitor inventory
+
+`ua inventory` reads the same bounded cross-project inventory as the web view.
+Filters compose, with `--limit` 1–100 (default 50) and `--offset` 0–1,000,000.
+JSON output preserves the API page and all safe item fields. Text output writes
+one tab-separated line per monitor, quotes free text and the safe target, and
+ends with a `page` line containing `total`, `limit`, `offset`, and `has_more`.
+Use another offset when `has_more=true`. No target query, request-header value,
+reporting credential, or remote response body appears in either format.
 
 ### Projects
 

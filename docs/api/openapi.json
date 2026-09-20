@@ -263,6 +263,93 @@
         }
       }
     },
+    "/api/monitors": {
+      "get": {
+        "tags": [
+          "upaffe"
+        ],
+        "summary": "Search current HTTP and push monitors across live projects.",
+        "operationId": "ReadMonitorInventory",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonitorInventoryPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/projects/{key}/email-summary": {
       "get": {
         "tags": [
@@ -5572,6 +5659,154 @@
             "type": "array",
             "items": {
               "type": "string"
+            }
+          }
+        }
+      },
+      "MonitorInventoryItem": {
+        "required": [
+          "project_key",
+          "project_name",
+          "id",
+          "type",
+          "key",
+          "name",
+          "purpose",
+          "mode",
+          "target_url",
+          "interval_seconds",
+          "tolerance_seconds",
+          "state",
+          "overdue",
+          "incident_open",
+          "latest_observation_at",
+          "last_success_at",
+          "next_due_at",
+          "maintenance_until"
+        ],
+        "type": "object",
+        "properties": {
+          "project_key": {
+            "type": "string"
+          },
+          "project_name": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "mode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "target_url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "interval_seconds": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tolerance_seconds": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "state": {
+            "type": "string"
+          },
+          "overdue": {
+            "type": "boolean"
+          },
+          "incident_open": {
+            "type": "boolean"
+          },
+          "latest_observation_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "last_success_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "next_due_at": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "maintenance_until": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "MonitorInventoryPage": {
+        "required": [
+          "generated_at",
+          "total",
+          "limit",
+          "offset",
+          "has_more",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "generated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "limit": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "offset": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MonitorInventoryItem"
             }
           }
         }

@@ -4,7 +4,7 @@ import type { components } from "@/api/schema";
 import { api } from "@/api/client";
 import { problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
-import { monitorPath, projectPath, withReturn } from "@/shell/routes";
+import { inventoryPath, monitorPath, projectPath, withReturn } from "@/shell/routes";
 
 type Project = components["schemas"]["ProjectResponse"];
 type Report = components["schemas"]["ProjectReport"];
@@ -63,6 +63,7 @@ export function ProjectOverviewView({ project, onNavigate, onSignedOut }: {
     </header>
 
     <nav aria-label="Project actions" className="project-action-nav">
+      {link(inventoryPath(project.key), "Browse all project monitors")}
       {link(`${base}/http-monitors`, "Manage HTTP monitors")}
       {link(`${base}/push-monitors`, "Manage push monitors")}
       {link(withReturn(`${base}/settings/email`, base), "Recipients and maintenance")}

@@ -186,6 +186,52 @@ h2 {
   white-space: nowrap;
 }
 
+.inventory-filters {
+  display: grid;
+  grid-template-columns: minmax(12rem, 2fr) repeat(3, minmax(8rem, 1fr)) auto;
+  align-items: end;
+  gap: 0.75rem;
+}
+
+.inventory-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 0.86rem;
+}
+
+.inventory-table th,
+.inventory-table td {
+  padding: 0.8rem 0.55rem;
+  border-bottom: 1px solid var(--color-line);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.inventory-table th {
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
+
+.inventory-table td small {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--color-muted);
+}
+
+.inventory-target,
+.inventory-purpose {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.inventory-pages {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.2rem;
+}
+
 .panel {
   width: min(58rem, 100%);
   box-sizing: border-box;
@@ -797,6 +843,49 @@ h2 {
 }
 
 @media (max-width: 700px) {
+  .inventory-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .inventory-table,
+  .inventory-table tbody,
+  .inventory-table tr,
+  .inventory-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .inventory-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+
+  .inventory-table tr {
+    margin-bottom: 1rem;
+    padding: 0.6rem;
+    border: 1px solid var(--color-line);
+    border-radius: 0.7rem;
+  }
+
+  .inventory-table td {
+    box-sizing: border-box;
+    padding: 0.45rem;
+    border-bottom: 0;
+  }
+
+  .inventory-table td::before {
+    display: block;
+    margin-bottom: 0.15rem;
+    color: var(--color-muted);
+    content: attr(data-label);
+    font-size: 0.72rem;
+  }
+
   .project-operation,
   .project-healthy-list {
     grid-template-columns: 1fr;

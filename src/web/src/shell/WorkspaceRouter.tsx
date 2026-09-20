@@ -6,6 +6,7 @@ import { problemMessage } from "@/api/problems";
 import { DashboardView } from "@/shell/DashboardView";
 import { InstanceEmailView, ProjectEmailView } from "@/shell/EmailSettingsView";
 import { MonitorsView } from "@/shell/MonitorsView";
+import { MonitorInventoryView } from "@/shell/MonitorInventoryView";
 import { ProjectOverviewView } from "@/shell/ProjectOverviewView";
 import { ProjectsView } from "@/shell/ProjectsView";
 import { PushMonitorsView } from "@/shell/PushMonitorsView";
@@ -48,6 +49,7 @@ export function WorkspaceRouter({ session, onSignedOut }: {
   useEffect(() => {
     const title = route.kind === "project" ? monitorKey ?? projectLoad?.project?.name ?? "Project"
       : route.kind === "dashboard" ? "Dashboard"
+      : route.kind === "inventory" ? "Monitors"
       : route.kind === "settings" ? "Settings"
       : route.kind === "missing" ? "Page unavailable" : "Projects";
     document.title = `${title} · upaffe`;
@@ -83,6 +85,8 @@ export function WorkspaceRouter({ session, onSignedOut }: {
     content = <DashboardView onNavigate={navigate} onSignedOut={onSignedOut} />;
   } else if (route.kind === "projects") {
     content = <ProjectsView onNavigate={navigate} onSignedOut={onSignedOut} session={session} />;
+  } else if (route.kind === "inventory") {
+    content = <MonitorInventoryView key={search} search={search} onNavigate={navigate} onSignedOut={onSignedOut} />;
   } else if (route.kind === "settings") {
     content = <InstanceEmailView onBack={() => navigate(returnPath(search, "/projects"))}
       onSignedOut={onSignedOut} />;
@@ -134,6 +138,7 @@ export function WorkspaceRouter({ session, onSignedOut }: {
       <span className="brand">upaffe</span>
       {link("/dashboard", "Dashboard", route.kind === "dashboard")}
       {link("/projects", "Projects", route.kind === "projects")}
+      {link("/monitors", "Monitors", route.kind === "inventory")}
       {link(route.kind === "settings" ? "/settings/email" : withReturn("/settings/email", path),
         "Settings", route.kind === "settings")}
     </nav>
