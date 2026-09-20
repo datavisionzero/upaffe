@@ -1,6 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2086
 set -eu
+umask 077
 
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 smoke_project="upaffe-smoke-$$"
@@ -12,9 +13,6 @@ smoke_http_target=${UPAFFE_SMOKE_HTTP_TARGET:-https://example.com/}
 compose_file="$root/deploy/docker-compose.dev.yml"
 smoke_compose_file="$root/deploy/docker-compose.smoke.yml"
 system_dir=$(mktemp -d "${TMPDIR:-/tmp}/upaffe-system.XXXXXX")
-bootstrap_proof=$(
-  node -e 'process.stdout.write("test_" + require("node:crypto").randomBytes(32).toString("base64url"))'
-)
 operator_password=$(
   node -e 'process.stdout.write("test_" + require("node:crypto").randomBytes(24).toString("base64url"))'
 )
@@ -35,6 +33,8 @@ cleanup() {
   UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
     docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" down --volumes >/dev/null 2>&1 || true
   rm -rf "$system_dir"
+  trap - EXIT
+  exit "$result"
 }
 trap cleanup EXIT
 
@@ -63,10 +63,19 @@ assert_absent() {
   done
 }
 
-UPAFFE_BOOTSTRAP_SECRET="$bootstrap_proof" \
-UPAFFE_DEV_PORT="$smoke_app_port" \
-UPAFFE_DEV_DB_PORT="$smoke_db_port" \
-  docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" up --build --wait
+UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
+  docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" build app
+UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
+  docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" up -d --wait db
+printf '%s\n' "$operator_password" > "$system_dir/operator-password"
+UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
+  docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" \
+  run --rm --no-deps -T app bootstrap --email "$operator_email" \
+  --credential-name smoke-agent --password-stdin \
+  < "$system_dir/operator-password" > "$system_dir/initial-credential.json"
+[ "$(json_value status < "$system_dir/initial-credential.json")" = created ]
+UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
+  docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" up -d --wait
 
 base_url="http://localhost:$smoke_app_port"
 origin="http://localhost:$smoke_app_port"
@@ -78,30 +87,28 @@ grep '<div id="root"></div>' "$system_dir/web.html" >/dev/null
 curl --fail --silent --show-error "$base_url/api/health/live" | grep '"status":"live"' >/dev/null
 curl --fail --silent --show-error "$base_url/api/health/ready" | grep '"status":"ready"' >/dev/null
 
-# Begin from the empty database and establish exactly one operator.
-curl --fail --silent --show-error "$base_url/api/bootstrap" >"$system_dir/bootstrap-before.json"
-grep '"required":true' "$system_dir/bootstrap-before.json" >/dev/null
-grep '"available":true' "$system_dir/bootstrap-before.json" >/dev/null
-curl --fail --silent --show-error \
-  --request POST \
-  --header 'Content-Type: application/json' \
-  --data-binary @- \
-  "$base_url/api/bootstrap" >"$system_dir/bootstrap-response.txt" <<EOF
-{"proof":"$bootstrap_proof","email":"$operator_email","password":"$operator_password"}
-EOF
+# A repeated command cannot reveal another credential or change the operator.
+if UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
+  docker compose -p "$smoke_project" -f "$compose_file" -f "$smoke_compose_file" \
+  run --rm --no-deps -T app bootstrap --email "$operator_email" \
+  --credential-name smoke-agent --password-stdin \
+  < "$system_dir/operator-password" > "$system_dir/bootstrap-second.json"; then
+  echo 'Repeated bootstrap unexpectedly succeeded.' >&2; exit 1
+else
+  [ "$?" = 3 ]
+fi
+[ "$(json_value status < "$system_dir/bootstrap-second.json")" = already_initialized ]
+curl --fail --silent --show-error "$base_url/api/bootstrap" >"$system_dir/bootstrap-state.json"
+grep '"required":false' "$system_dir/bootstrap-state.json" >/dev/null
 
-second_status=$(curl --silent --show-error \
-  --output "$system_dir/bootstrap-second.json" \
-  --write-out '%{http_code}' \
-  --request POST \
-  --header 'Content-Type: application/json' \
-  --data-binary @- \
-  "$base_url/api/bootstrap" <<EOF
-{"proof":"$bootstrap_proof","email":"second@example.test","password":"$operator_password"}
-EOF
-)
-[ "$second_status" = "409" ]
-grep '"code":"bootstrap_closed"' "$system_dir/bootstrap-second.json" >/dev/null
+# The initial token can administer through the real CLI before any browser sign-in.
+initial_token=$(json_value token < "$system_dir/initial-credential.json")
+go -C "$root/src/cli" generate ./...
+go -C "$root/src/cli" build -o "$ua" ./cmd/ua
+UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$initial_token" \
+  "$ua" project create --key bootstrap-project --name 'Bootstrap project' --json \
+  > "$system_dir/bootstrap-project.json"
+[ "$(json_value key < "$system_dir/bootstrap-project.json")" = bootstrap-project ]
 
 # Sign in on the browser path. This cookie is the web application's access path.
 curl --fail --silent --show-error \
@@ -118,7 +125,7 @@ curl --fail --silent --show-error \
 grep '"access_path":"browser_session"' "$system_dir/session.json" >/dev/null
 session_secret=$(awk 'NF >= 7 { print $7 }' "$cookie_jar" | tail -n 1)
 
-# The browser path creates the first credential explicitly, then creates the project used by all surfaces.
+# The browser path creates another credential, then creates the project used by all surfaces.
 curl --fail --silent --show-error \
   --cookie "$cookie_jar" \
   --request POST \
@@ -141,8 +148,6 @@ curl --fail --silent --show-error \
 project_id=$(json_value id <"$system_dir/project-browser-create.json")
 
 # The real generated CLI reads and renames that same project.
-go -C "$root/src/cli" generate ./...
-go -C "$root/src/cli" build -o "$ua" ./cmd/ua
 UPAFFE_URL="$base_url" UPAFFE_CREDENTIAL="$credential_token" \
   "$ua" project get system-project --json >"$system_dir/project-cli-get.json"
 [ "$(json_value id <"$system_dir/project-cli-get.json")" = "$project_id" ]
@@ -1279,9 +1284,9 @@ UPAFFE_DEV_PORT="$smoke_app_port" UPAFFE_DEV_DB_PORT="$smoke_db_port" \
 # Explicit create/rotate files are the only allowed token-revealing artifacts and are excluded here.
 ordinary_files="
 $system_dir/web.html
-$system_dir/bootstrap-before.json
-$system_dir/bootstrap-response.txt
+$system_dir/bootstrap-state.json
 $system_dir/bootstrap-second.json
+$system_dir/bootstrap-project.json
 $system_dir/sign-in-response.txt
 $system_dir/session.json
 $system_dir/project-browser-create.json
@@ -1386,8 +1391,8 @@ email_ordinary_files=$(find "$system_dir" -maxdepth 1 -type f \( -name 'email-*.
 ordinary_files="$ordinary_files
 $email_ordinary_files"
 # The newline-delimited variable is intentionally split into path arguments.
-assert_absent "$bootstrap_proof" $ordinary_files
 assert_absent "$operator_password" $ordinary_files
+assert_absent "$initial_token" $ordinary_files
 assert_absent "$session_secret" $ordinary_files
 assert_absent "$credential_token" $ordinary_files
 assert_absent "$rotated_token" $ordinary_files

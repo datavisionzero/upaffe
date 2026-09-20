@@ -9,6 +9,13 @@ using Upaffe.Application.Ports;
 using Upaffe.Application.Projects;
 using Upaffe.Infrastructure;
 
+if (args.Length > 0 && args[0] is "bootstrap" or "recover-credential")
+{
+    var configuration = new ConfigurationBuilder().AddEnvironmentVariables().Build();
+    Environment.ExitCode = await LocalAccessCommand.RunAsync(args, configuration, Console.In, Console.Out);
+    return;
+}
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Secret reporting URLs must not be emitted by the framework's request-start log.
@@ -28,9 +35,9 @@ builder.Services.AddSingleton(_ => new HttpClient(new SocketsHttpHandler
     UseProxy = false,
 }) { Timeout = HeartbeatSender.Timeout });
 builder.Services.AddSingleton<HeartbeatSender>();
-builder.Services.AddScoped<ArmBootstrap>();
 builder.Services.AddScoped<ReadBootstrapState>();
 builder.Services.AddScoped<EstablishOperator>();
+builder.Services.AddScoped<RecoverManagementCredential>();
 builder.Services.AddScoped<SignIn>();
 builder.Services.AddScoped<SignOut>();
 builder.Services.AddScoped<CreateManagementCredential>();
@@ -87,7 +94,6 @@ builder.Services.AddScoped<ListPushIncidentHistory>();
 builder.Services.AddScoped<ReadPushIncidentEvidence>();
 builder.Services.AddScoped<PrunePushMonitorHistory>();
 builder.Services.AddHostedService<SchemaMigrationService>();
-builder.Services.AddHostedService<BootstrapService>();
 builder.Services.AddHostedService<HttpMonitoringService>();
 builder.Services.AddHostedService<PushMonitoringService>();
 builder.Services.AddHostedService<HeartbeatService>();

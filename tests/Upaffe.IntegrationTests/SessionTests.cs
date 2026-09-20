@@ -12,7 +12,6 @@ namespace Upaffe.IntegrationTests;
 [Collection(nameof(PostgresCollection))]
 public sealed class SessionTests(PostgresFixture postgres)
 {
-    private const string BootstrapProof = "a-session-test-bootstrap-proof-with-enough-entropy";
     private const string Email = "operator@example.test";
     private const string Password = "a long operator password";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
@@ -245,17 +244,9 @@ public sealed class SessionTests(PostgresFixture postgres)
         CollectingLoggerProvider? logs = null)
     {
         var connection = await postgres.CreateDatabaseAsync();
-        var instance = AnInstance.Against(
-            connection,
-            Settings(BootstrapProof),
-            clock,
-            logs);
+        var instance = AnInstance.Against(connection, clock: clock, logProvider: logs);
         using var client = instance.CreateClient();
-        using var response = await client.PostAsJsonAsync(
-            "/api/bootstrap",
-            new BootstrapRequest(BootstrapProof, Email, Password),
-            TestContext.Current.CancellationToken);
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        await instance.EstablishAsync(Email, Password);
         return (instance, connection);
     }
 
@@ -297,8 +288,4 @@ public sealed class SessionTests(PostgresFixture postgres)
     private static string CookieValue(string setCookie) =>
         setCookie.Split(';', 2)[0].Split('=', 2)[1];
 
-    private static Dictionary<string, string?> Settings(string proof) => new()
-    {
-        [BootstrapSettings.Variable] = proof,
-    };
 }

@@ -2,8 +2,8 @@
 
 Status: accepted
 
-The production Compose stack supplies the PostgreSQL password and the one-time
-bootstrap proof as mounted UTF-8 files. It passes file locations, not values,
+The production Compose stack supplies the PostgreSQL password as a mounted
+UTF-8 file. It passes the file location, not the value,
 to the application. PostgreSQL uses its `POSTGRES_PASSWORD_FILE` convention for
 the same password. The API assembles its connection string in memory after
 reading `UPAFFE_POSTGRES_PASSWORD_FILE`; nonsecret host, port, database, and
@@ -17,18 +17,15 @@ password-bearing connection string in Compose interpolation or container
 environment. Diagnostic rendering of database settings is a fixed redacted
 message because connection-string values can contain quoted semicolons.
 
-`UPAFFE_BOOTSTRAP_SECRET_FILE` replaces `UPAFFE_BOOTSTRAP_SECRET` for a fresh
-production installation. Supplying both is an error, even if an operator
-already exists. The API reads the proof file only while bootstrap is needed;
-after establishment, removing the file does not prevent the application from
-starting. The operator identity and consumed grant remain in PostgreSQL.
-Compose configuration must also remove the obsolete secret mount before its
-source file is deleted. The API still permits the original environment
-variable for local development and existing integrations.
+The initial operator password is instead read by the local `upaffe bootstrap`
+command from standard input or a protected file. Its one-time token output is
+redirected to another protected host file. Neither value is passed as a
+command argument or placed in Compose environment values. The prior bootstrap
+proof setting and mount are removed from fresh installations.
 
 File locations must be absolute. Each file contains one nonempty UTF-8 line,
-optionally ending in LF or CRLF. The password is at most 1024 characters, as
-is the bootstrap proof, whose existing minimum is 32 characters. Read size is
+optionally ending in LF or CRLF. The database password is at most 1024
+characters; the operator password is 12–200 characters. Read size is
 bounded. Missing, unreadable, malformed, and conflicting inputs fail with
 short setting-name errors that omit the path and secret. File contents never
 enter ordinary logs, health responses, or status output.

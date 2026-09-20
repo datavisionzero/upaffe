@@ -1,6 +1,5 @@
 using System.Text;
 using Npgsql;
-using Upaffe.Application.Access;
 using Upaffe.Application.Ports;
 
 namespace Upaffe.Api.Hosting;
@@ -9,7 +8,6 @@ namespace Upaffe.Api.Hosting;
 public static class DeploymentSecrets
 {
     public const string PostgresPasswordFile = "UPAFFE_POSTGRES_PASSWORD_FILE";
-    public const string BootstrapSecretFile = "UPAFFE_BOOTSTRAP_SECRET_FILE";
     public const string HeartbeatUrlFile = "UPAFFE_HEARTBEAT_URL_FILE";
 
     public static DatabaseSettings Database(IConfiguration configuration)
@@ -46,14 +44,6 @@ public static class DeploymentSecrets
         return DatabaseSettings.FromConnectionString(builder.ConnectionString);
     }
 
-    public static string? BootstrapProof(IConfiguration configuration)
-    {
-        ValidateBootstrapSource(configuration);
-        var direct = configuration[BootstrapSettings.Variable];
-        var path = configuration[BootstrapSecretFile];
-        return path is null ? direct : ReadFile(BootstrapSecretFile, path, BootstrapSettings.MaximumLength);
-    }
-
     public static HeartbeatDestination Heartbeat(IConfiguration configuration)
     {
         var path = configuration[HeartbeatUrlFile];
@@ -77,17 +67,6 @@ public static class DeploymentSecrets
         }
 
         return new HeartbeatDestination(uri);
-    }
-
-    public static void ValidateBootstrapSource(IConfiguration configuration)
-    {
-        var direct = configuration[BootstrapSettings.Variable];
-        var path = configuration[BootstrapSecretFile];
-        if (direct is not null && path is not null)
-        {
-            throw new InvalidOperationException(
-                $"Configure either {BootstrapSettings.Variable} or {BootstrapSecretFile}, not both.");
-        }
     }
 
     public static string ReadFile(string settingName, string path, int maximumLength)

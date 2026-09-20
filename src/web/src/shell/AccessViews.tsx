@@ -4,68 +4,14 @@ import { api } from "@/api/client";
 import { problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
 
-type BootstrapProps = {
-  available: boolean;
-  onEstablished: () => void;
-  onRefresh: () => void;
-};
-
-export function BootstrapView({ available, onEstablished, onRefresh }: BootstrapProps) {
-  const [email, setEmail] = useState("");
-  const [proof, setProof] = useState("");
-  const [password, setPassword] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string>();
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    const body = { email, proof, password };
-    setProof("");
-    setPassword("");
-    setError(undefined);
-    setSubmitting(true);
-    try {
-      const { response, error: problem } = await api.POST("/api/bootstrap", { body });
-      if (response.status === 204) onEstablished();
-      else setError(problemMessage(problem, response.status));
-    } catch {
-      setError("The instance could not be reached.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
+export function BootstrapView({ onRefresh }: { onRefresh: () => void }) {
   return (
     <section aria-labelledby="bootstrap-title" className="panel">
       <p className="eyebrow">First start</p>
       <h1 id="bootstrap-title">Establish the operator</h1>
-      <p className="lede">Create the one human operator for this instance. The proof and password are cleared as soon as they are submitted.</p>
-
-      {!available && (
-        <div className="notice" role="status">
-          No live bootstrap proof is available. Arm a fresh proof on the instance, then check again.
-        </div>
-      )}
-      {error && <div className="error" role="alert">{error}</div>}
-
-      <form className="form-stack" onSubmit={submit}>
-        <label>
-          <span>Email</span>
-          <input autoComplete="username" name="email" required type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
-        </label>
-        <label>
-          <span>Bootstrap proof</span>
-          <input autoComplete="off" name="proof" required type="password" value={proof} onChange={(event) => setProof(event.target.value)} />
-        </label>
-        <label>
-          <span>Password</span>
-          <input autoComplete="new-password" minLength={12} name="password" required type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
-        </label>
-        <div className="actions">
-          <Button disabled={!available || submitting} type="submit">{submitting ? "Establishing…" : "Establish operator"}</Button>
-          {!available && <Button onClick={onRefresh} type="button">Check again</Button>}
-        </div>
-      </form>
+      <p className="lede">Run the local bootstrap command from the installation host. It creates the operator and the first management credential together.</p>
+      <p>Follow the <a href="https://github.com/datavisionzero/upaffe/blob/main/docs/operations.md#production-compose-startup">production startup guide</a> on the installation host, then check again here to sign in.</p>
+      <Button onClick={onRefresh} type="button">Check again</Button>
     </section>
   );
 }

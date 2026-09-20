@@ -46,17 +46,12 @@ public sealed class EmailStatusTests(PostgresFixture postgres)
             incidentId = await complete.Incidents.Select(value => value.Id).SingleAsync(ct);
         }
 
-        await using var instance = AnInstance.Against(connection,
-            new Dictionary<string, string?>
-            { [BootstrapSettings.Variable] = "a-valid-bootstrap-proof-for-status-tests" });
+        await using var instance = AnInstance.Against(connection);
         using var anonymous = instance.CreateClient();
         using var denied = await anonymous.GetAsync("/api/email/deliveries", ct);
         Assert.Equal(HttpStatusCode.Unauthorized, denied.StatusCode);
         using var client = instance.CreateClient();
-        using var bootstrap = await client.PostAsJsonAsync("/api/bootstrap",
-            new BootstrapRequest("a-valid-bootstrap-proof-for-status-tests",
-                "operator@example.test", "a long operator password"), Json, ct);
-        Assert.Equal(HttpStatusCode.NoContent, bootstrap.StatusCode);
+        await instance.EstablishAsync("operator@example.test", "a long operator password");
         using var signIn = await client.PostAsJsonAsync("/api/session",
             new SignInRequest("operator@example.test", "a long operator password"), Json, ct);
         Assert.Equal(HttpStatusCode.NoContent, signIn.StatusCode);

@@ -12,7 +12,6 @@ namespace Upaffe.IntegrationTests;
 [Collection(nameof(PostgresCollection))]
 public sealed class PushReportTests(PostgresFixture postgres)
 {
-    private const string Proof = "a-push-report-bootstrap-proof-with-enough-entropy";
     private static readonly DateTimeOffset Noon = new(2026, 9, 18, 12, 0, 0, TimeSpan.Zero);
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
 
@@ -415,10 +414,9 @@ public sealed class PushReportTests(PostgresFixture postgres)
     private async Task<Setup> EstablishedAsync(MutableTimeProvider clock, CollectingLoggerProvider? logs = null)
     {
         var connection = await postgres.CreateDatabaseAsync();
-        var instance = AnInstance.Against(connection, new Dictionary<string, string?> { [BootstrapSettings.Variable] = Proof }, clock, logs);
+        var instance = AnInstance.Against(connection, clock: clock, logProvider: logs);
         var setupClient = instance.CreateClient();
-        Assert.Equal(HttpStatusCode.NoContent, (await setupClient.PostAsJsonAsync("/api/bootstrap",
-            new BootstrapRequest(Proof, "operator@example.test", "a long operator password"), TestContext.Current.CancellationToken)).StatusCode);
+        await instance.EstablishAsync("operator@example.test", "a long operator password");
         setupClient.Dispose();
         var client = instance.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
         var signIn = await client.PostAsJsonAsync("/api/session", new SignInRequest("operator@example.test", "a long operator password"), TestContext.Current.CancellationToken);

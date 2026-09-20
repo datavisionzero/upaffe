@@ -6,20 +6,17 @@ sh -n deploy/backup-production.sh deploy/restore-production.sh \
 
 export UPAFFE_IMAGE="${UPAFFE_IMAGE:-ghcr.io/datavisionzero/upaffe:sha-validation-only}"
 base_config=$(mktemp)
-bootstrap_config=$(mktemp)
 heartbeat_config=$(mktemp)
 restore_config=$(mktemp)
-trap 'rm -f "$base_config" "$bootstrap_config" "$heartbeat_config" "$restore_config"' EXIT
+trap 'rm -f "$base_config" "$heartbeat_config" "$restore_config"' EXIT
 
 docker compose -f deploy/docker-compose.yml config --format json > "$base_config"
-docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.bootstrap.yml \
-  config --format json > "$bootstrap_config"
 docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.heartbeat.yml \
   config --format json > "$heartbeat_config"
 docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.verify-restore.yml \
   config --format json > "$restore_config"
 
-python3 - "$base_config" "$bootstrap_config" "$heartbeat_config" "$restore_config" <<'PY'
+python3 - "$base_config" "$heartbeat_config" "$restore_config" <<'PY'
 import json
 import os
 import sys
@@ -27,10 +24,8 @@ import sys
 with open(sys.argv[1], encoding="utf-8") as source:
     base = json.load(source)
 with open(sys.argv[2], encoding="utf-8") as source:
-    bootstrap = json.load(source)
-with open(sys.argv[3], encoding="utf-8") as source:
     heartbeat = json.load(source)
-with open(sys.argv[4], encoding="utf-8") as source:
+with open(sys.argv[3], encoding="utf-8") as source:
     restore = json.load(source)
 
 app = base["services"]["app"]
@@ -55,13 +50,6 @@ assert "postgres-data" in base["volumes"]
 assert database.get("depends_on") is None
 assert app["depends_on"]["db"]["condition"] == "service_healthy"
 assert "health/ready" in " ".join(app["healthcheck"]["test"])
-
-bootstrap_app = bootstrap["services"]["app"]
-assert bootstrap_app["environment"]["UPAFFE_BOOTSTRAP_SECRET_FILE"] == "/run/secrets/bootstrap_proof"
-assert {secret["source"] for secret in bootstrap_app["secrets"]} == {
-    "postgres_password", "bootstrap_proof"
-}
-assert "bootstrap_proof" not in base["secrets"]
 
 heartbeat_app = heartbeat["services"]["app"]
 assert heartbeat_app["environment"]["UPAFFE_HEARTBEAT_URL_FILE"] == "/run/secrets/heartbeat_url"

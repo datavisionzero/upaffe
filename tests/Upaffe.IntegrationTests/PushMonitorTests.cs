@@ -11,17 +11,14 @@ namespace Upaffe.IntegrationTests;
 [Collection(nameof(PostgresCollection))]
 public sealed class PushMonitorTests(PostgresFixture postgres)
 {
-    private const string Proof = "a-push-monitor-bootstrap-proof-with-enough-entropy";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
 
     [Fact]
     public async Task Authenticated_push_monitor_lifecycle_is_idempotent_versioned_and_secret_free()
     {
-        await using var instance = AnInstance.Against(await postgres.CreateDatabaseAsync(),
-            new Dictionary<string, string?> { [BootstrapSettings.Variable] = Proof });
+        await using var instance = AnInstance.Against(await postgres.CreateDatabaseAsync());
         using var setup = instance.CreateClient();
-        Assert.Equal(HttpStatusCode.NoContent, (await setup.PostAsJsonAsync("/api/bootstrap",
-            new BootstrapRequest(Proof, "operator@example.test", "a long operator password"), TestContext.Current.CancellationToken)).StatusCode);
+        await instance.EstablishAsync("operator@example.test", "a long operator password");
         using var client = instance.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
         var browserResponse = await client.PostAsJsonAsync("/api/session", new SignInRequest("operator@example.test", "a long operator password"), TestContext.Current.CancellationToken);
         var browser = Assert.Single(browserResponse.Headers.GetValues("Set-Cookie")).Split(';', 2)[0].Split('=', 2)[1];

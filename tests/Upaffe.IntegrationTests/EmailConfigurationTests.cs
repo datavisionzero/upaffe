@@ -18,14 +18,9 @@ public sealed class EmailConfigurationTests(PostgresFixture postgres)
     public async Task Settings_and_recipients_are_versioned_and_password_is_write_only()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var instance = AnInstance.Against(await postgres.CreateDatabaseAsync(),
-            new Dictionary<string, string?>
-            { [BootstrapSettings.Variable] = "a-valid-bootstrap-proof-for-email-tests" });
+        await using var instance = AnInstance.Against(await postgres.CreateDatabaseAsync());
         using var client = instance.CreateClient();
-        using var bootstrap = await client.PostAsJsonAsync("/api/bootstrap",
-            new BootstrapRequest("a-valid-bootstrap-proof-for-email-tests",
-                "operator@example.test", "a long operator password"), Json, ct);
-        Assert.Equal(HttpStatusCode.NoContent, bootstrap.StatusCode);
+        await instance.EstablishAsync("operator@example.test", "a long operator password");
         using var signIn = await client.PostAsJsonAsync("/api/session",
             new SignInRequest("operator@example.test", "a long operator password"), Json, ct);
         var cookie = Assert.Single(signIn.Headers.GetValues("Set-Cookie")).Split(';')[0];

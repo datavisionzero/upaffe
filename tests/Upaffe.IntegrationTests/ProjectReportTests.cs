@@ -30,20 +30,12 @@ public sealed class ProjectReportTests(PostgresFixture postgres)
     {
         var connection = await postgres.CreateDatabaseAsync();
         var clock = new MutableTimeProvider(Now);
-        await using var instance = AnInstance.Against(connection,
-            new Dictionary<string, string?>
-            {
-                [BootstrapSettings.Variable] = "a-project-report-bootstrap-proof-with-enough-entropy",
-            }, clock);
+        await using var instance = AnInstance.Against(connection, clock: clock);
         using var client = instance.CreateClient(new WebApplicationFactoryClientOptions
         {
             HandleCookies = false,
         });
-        using (var bootstrap = await client.PostAsJsonAsync("/api/bootstrap",
-            new BootstrapRequest("a-project-report-bootstrap-proof-with-enough-entropy",
-                "operator@example.test", "a long operator password"),
-            TestContext.Current.CancellationToken))
-            Assert.Equal(HttpStatusCode.NoContent, bootstrap.StatusCode);
+        await instance.EstablishAsync("operator@example.test", "a long operator password");
 
         await SeedAsync(connection);
         using var signIn = await client.PostAsJsonAsync("/api/session",

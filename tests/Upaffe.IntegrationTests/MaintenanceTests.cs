@@ -47,15 +47,10 @@ public sealed class MaintenanceTests(PostgresFixture postgres)
         var ct = TestContext.Current.CancellationToken;
         var connection = await postgres.CreateDatabaseAsync();
         var clock = new MutableTimeProvider(new DateTimeOffset(2026, 9, 19, 12, 0, 0, TimeSpan.Zero));
-        await using var instance = AnInstance.Against(connection,
-            new Dictionary<string, string?>
-            { [BootstrapSettings.Variable] = "a-valid-bootstrap-proof-for-maintenance" }, clock);
+        await using var instance = AnInstance.Against(connection, clock: clock);
         using var client = instance.CreateClient(new WebApplicationFactoryClientOptions
         { HandleCookies = false });
-        using var bootstrap = await client.PostAsJsonAsync("/api/bootstrap",
-            new BootstrapRequest("a-valid-bootstrap-proof-for-maintenance",
-                "operator@example.test", "a long operator password"), Json, ct);
-        Assert.Equal(HttpStatusCode.NoContent, bootstrap.StatusCode);
+        await instance.EstablishAsync("operator@example.test", "a long operator password");
         using var signin = await client.PostAsJsonAsync("/api/session",
             new SignInRequest("operator@example.test", "a long operator password"), Json, ct);
         var cookie = Assert.Single(signin.Headers.GetValues("Set-Cookie")).Split(';')[0];

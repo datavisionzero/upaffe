@@ -12,7 +12,6 @@ namespace Upaffe.IntegrationTests;
 [Collection(nameof(PostgresCollection))]
 public sealed class HttpMonitorTests(PostgresFixture postgres)
 {
-    private const string BootstrapProof = "an-http-monitor-test-bootstrap-proof-with-enough-entropy";
     private const string Email = "operator@example.test";
     private const string Password = "a long operator password";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
@@ -450,16 +449,9 @@ public sealed class HttpMonitorTests(PostgresFixture postgres)
 
     private async Task<AnInstance> EstablishedAsync(IHttpCheckExecutor executor)
     {
-        var instance = AnInstance.Against(
-            await postgres.CreateDatabaseAsync(),
-            new Dictionary<string, string?> { [BootstrapSettings.Variable] = BootstrapProof },
-            checkExecutor: executor);
+        var instance = AnInstance.Against(await postgres.CreateDatabaseAsync(), checkExecutor: executor);
         using var client = instance.CreateClient();
-        using var response = await client.PostAsJsonAsync(
-            "/api/bootstrap",
-            new BootstrapRequest(BootstrapProof, Email, Password),
-            TestContext.Current.CancellationToken);
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        await instance.EstablishAsync(Email, Password);
         return instance;
     }
 

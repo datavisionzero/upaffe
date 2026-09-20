@@ -9,7 +9,7 @@ import { WorkspaceRouter } from "@/shell/WorkspaceRouter";
 type Session = components["schemas"]["CurrentSessionResponse"];
 type Screen =
   | { state: "loading" }
-  | { state: "bootstrap"; available: boolean }
+  | { state: "bootstrap" }
   | { state: "signin" }
   | { state: "projects"; session: Session }
   | { state: "failed"; reason: string };
@@ -25,7 +25,7 @@ export function App() {
         return;
       }
       if (bootstrap.data.required) {
-        setScreen({ state: "bootstrap", available: bootstrap.data.available });
+        setScreen({ state: "bootstrap" });
         return;
       }
 
@@ -53,7 +53,7 @@ export function App() {
     <main className="app-shell">
       {screen.state === "loading" && <p className="loading" role="status">Opening the instance…</p>}
       {screen.state === "bootstrap" && (
-        <BootstrapView available={screen.available} onEstablished={() => setScreen({ state: "signin" })} onRefresh={reenter} />
+        <BootstrapView onRefresh={reenter} />
       )}
       {screen.state === "signin" && <SignInView onSignedIn={reenter} />}
       {screen.state === "projects" && <WorkspaceRouter onSignedOut={signedOut} session={screen.session} />}

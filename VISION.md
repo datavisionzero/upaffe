@@ -169,7 +169,9 @@ configuration or read projects. Tokens can be revoked and rotated. Management
 credentials remain separate, and automation credentials can be revoked
 independently without changing the operator's login.
 
-Initial installation establishes trust through a secure bootstrap procedure.
+Initial installation establishes trust through a local, host-authorized
+bootstrap command that creates the sole operator and first management
+credential together. It does not expose a public bootstrap write endpoint.
 After that, configuration must not require a manual detour through the browser.
 An authorized management credential can administer the instance through the CLI.
 Secrets are supplied and revealed only through explicit credential operations,

@@ -11,8 +11,8 @@ keys and the versions returned by reads.
 
 This example uses the installed release binary, `curl`, `jq`, `uuidgen`, and a
 protected directory outside the checkout. Bootstrap and the first management
-credential are completed through the [production bootstrap](./operations.md#production-compose-startup)
-and [browser workflow](./operations.md#browser-workflow). Set `UPAFFE_URL` to
+credential are completed through the [production bootstrap](./operations.md#production-compose-startup).
+Set `UPAFFE_URL` to
 the trusted HTTPS origin, load `UPAFFE_CREDENTIAL` from a secret store, and set
 `UPAFFE_SECRET_DIR` to an existing directory readable only by the sender and
 operator. Do not enable shell tracing while handling credentials.
@@ -112,7 +112,7 @@ All current web administration calls use the same API as these commands:
 | Send a test message and inspect delivery summary, rows, and incident status | `ua email test/summary/deliveries/incident` |
 | Read, start, and end project or monitor maintenance | `ua maintenance get/start/end --scope project\|http\|push` |
 
-The browser-only bootstrap and session operations establish and use the human
+The local bootstrap command and browser-only session operations establish and use the human
 identity; they are not administrative actions delegated to a management bearer.
 Management credential create/list/rotate/revoke are available through the CLI
 after the first browser-authenticated credential is issued. Reporting sends

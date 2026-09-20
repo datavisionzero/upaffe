@@ -60,8 +60,9 @@ Never edit an already published migration. Add another one on top.
 `operator_identity` has a checked singleton value with a unique index, so the
 database can contain at most one operator even when two callers race or bypass
 application code. Its password is a self-describing hash; plaintext is never a
-column. `bootstrap_grant` likewise has one row at most and stores a 32-byte
-digest, expiry, and consumption time.
+column. The local bootstrap command inserts this operator and the first
+management credential in one transaction. The migration after v0.1.0 drops the
+obsolete `bootstrap_grant` table; existing operator and credential rows remain.
 
 Browser sessions and management-credential secrets store unique 32-byte
 digests. Session rows carry idle-use, absolute-expiry, and revocation facts.

@@ -24,28 +24,6 @@ internal sealed class OperatorConfiguration : IEntityTypeConfiguration<Operator>
     }
 }
 
-internal sealed class BootstrapGrantConfiguration : IEntityTypeConfiguration<BootstrapGrant>
-{
-    public void Configure(EntityTypeBuilder<BootstrapGrant> builder)
-    {
-        builder.ToTable("bootstrap_grant", table =>
-        {
-            table.HasCheckConstraint("ck_bootstrap_singleton", "is_singleton = true");
-            table.HasCheckConstraint("ck_bootstrap_hash", "octet_length(secret_hash) = 32");
-            table.HasCheckConstraint("ck_bootstrap_expiry", "expires_at > armed_at");
-            table.HasCheckConstraint("ck_bootstrap_consumed", "consumed_at is null or consumed_at >= armed_at");
-        });
-        builder.HasKey(value => value.Id).HasName("pk_bootstrap_grant");
-        builder.Property(value => value.Id).HasColumnName("id").ValueGeneratedNever();
-        builder.Property(value => value.IsSingleton).HasColumnName("is_singleton");
-        builder.Property(value => value.SecretHash).HasColumnName("secret_hash");
-        builder.Property(value => value.ArmedAt).HasColumnName("armed_at");
-        builder.Property(value => value.ExpiresAt).HasColumnName("expires_at");
-        builder.Property(value => value.ConsumedAt).HasColumnName("consumed_at");
-        builder.HasIndex(value => value.IsSingleton).IsUnique().HasDatabaseName("bootstrap_singleton");
-    }
-}
-
 internal sealed class BrowserSessionConfiguration : IEntityTypeConfiguration<BrowserSession>
 {
     public void Configure(EntityTypeBuilder<BrowserSession> builder)

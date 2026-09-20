@@ -25,9 +25,11 @@ describe technical startup and database readiness. The independent
 monitoring-progress endpoint has a separate meaning and must not be replaced
 by these checks.
 
-Initial bootstrap uses a small optional Compose overlay that mounts the proof
-file only while the operator is established. Removing the overlay recreates
-the application without the proof mount. The password secret remains on both
-services. Local secret source files live next to the deployment definitions
-in a host directory restricted to the operator; they are never included in
-the application image or the named database volume.
+Initial setup starts PostgreSQL first, runs the application image once with
+`upaffe bootstrap` and a protected password file redirected through standard
+input, then starts the application service. The command writes its one-time
+credential JSON to a protected host file. No bootstrap overlay or proof mount
+is needed. The database password secret remains on both services. Local secret
+source files live next to the deployment definitions in a host directory
+restricted to the operator; they are never included in the application image
+or the named database volume.

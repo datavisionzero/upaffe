@@ -12,25 +12,22 @@ organizations, invitations, users, or roles that the vision excludes.
 ## Trust establishment and recovery
 
 A fresh installation has no operator and does not accept a default password.
-The installer supplies a high-entropy `UPAFFE_BOOTSTRAP_SECRET` through the
-process environment or an orchestrator secret. The running instance retains
-only its SHA-256 digest and accepts it for 30 minutes. Restarting an instance
-that still has no operator may arm a newly supplied secret; once an operator
-exists, bootstrap can never be armed again.
+The installer runs `upaffe bootstrap` locally in a one-off container with
+database access, supplying the operator password by standard input or a
+protected file. The command applies migrations without starting HTTP or
+workers. It validates the email, password, and first credential name using the
+application rules. One database transaction creates the singleton operator,
+Argon2id password hash, and first named management credential. An advisory
+lock and the singleton uniqueness constraint serialize competing attempts.
+A repeat reports `already_initialized` without changing credentials or
+revealing a token. The public API exposes only read-only initialization state;
+the former `POST /api/bootstrap` route is removed after v0.1.0.
 
-Bootstrap receives the secret in the request body, never in a URL. A successful
-transaction consumes it while creating the singleton operator with an email
-address and Argon2id password hash. A database uniqueness constraint makes two
-operators impossible even when bootstrap requests race. Missing, wrong, and
-expired secrets all produce `bootstrap_rejected`; a completed bootstrap
-produces `bootstrap_closed`. Neither response repeats the secret.
-
-Losing every remote access path requires host access. The application binary
-will expose a local recovery command that reads a new password from standard
-input, changes the existing operator rather than creating one, and revokes all
-browser sessions and management credentials. Recovery is not an HTTP operation
-and therefore cannot be granted to a credential. Its authority is the same host
-and database access needed to restore a backup.
+If the first token output is lost, a host operator can run the local
+`upaffe recover-credential --name` command to rotate that named credential.
+This path does not reopen bootstrap or create another operator. It invalidates
+all previous tokens immediately, including any rotation overlap. It requires host and
+database access and is never granted to an HTTP credential.
 
 ## Secrets and access paths
 
@@ -75,7 +72,7 @@ transports for one application identity, not interchangeable secret formats.
 
 Endpoints are classified explicitly:
 
-- **Public**: liveness, readiness, version, bootstrap state, bootstrap, and
+- **Public**: liveness, readiness, version, read-only bootstrap state, and
   sign-in.
 - **Browser-only**: current-session inspection, sign-out, and future changes to
   the operator's own login.
@@ -89,12 +86,12 @@ management endpoint must opt into the management policy; an authenticated
 fallback policy closes any omitted classification rather than making it
 anonymously accessible.
 
-No credential value, cookie, password, bootstrap secret, or remote response
+No credential value, cookie, password, or remote response
 content is logged. Logs may contain an operation name, outcome, access path,
 credential ID, project key, and correlation ID. The design assumes TLS at the
 deployment boundary and a trusted database/host administrator. It defends
 against database disclosure of reusable secrets, credential replay after
-revocation, concurrent bootstrap, session fixation, CSRF, login enumeration,
+revocation, concurrent setup, session fixation, CSRF, login enumeration,
 and routine brute force. It does not defend against a compromised running
 process, host root, or an operator who deliberately discloses a secret.
 
@@ -127,7 +124,7 @@ reimplementing their rules:
 
 | Area | Operations |
 | --- | --- |
-| Bootstrap | inspect whether bootstrap is needed and available; establish the operator once |
+| Bootstrap | inspect whether local setup is needed; establish the operator and first credential once |
 | Browser session | sign in; inspect the current identity; sign out |
 | Management credential | create, list, rotate, and revoke |
 | Project | create idempotently; get; list live or deleted; rename; delete; restore |

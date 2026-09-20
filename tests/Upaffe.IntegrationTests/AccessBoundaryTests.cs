@@ -16,7 +16,6 @@ namespace Upaffe.IntegrationTests;
 [Collection(nameof(PostgresCollection))]
 public sealed class AccessBoundaryTests(PostgresFixture postgres)
 {
-    private const string BootstrapProof = "an-access-boundary-bootstrap-proof-with-enough-entropy";
     private const string Email = "operator@example.test";
     private const string Password = "a long operator password";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
@@ -45,7 +44,7 @@ public sealed class AccessBoundaryTests(PostgresFixture postgres)
         }
 
         AssertBoundary(routes, "/api/version", "GET", AccessBoundary.Public);
-        AssertBoundary(routes, "/api/bootstrap", "POST", AccessBoundary.Public);
+        AssertBoundary(routes, "/api/bootstrap", "GET", AccessBoundary.Public);
         AssertBoundary(routes, "/api/session", "POST", AccessBoundary.Public);
         AssertBoundary(routes, "/api/session", "GET", AccessBoundary.Browser);
         AssertBoundary(routes, "/api/session", "DELETE", AccessBoundary.Browser);
@@ -143,17 +142,9 @@ public sealed class AccessBoundaryTests(PostgresFixture postgres)
         MutableTimeProvider? clock = null,
         CollectingLoggerProvider? logs = null)
     {
-        var instance = AnInstance.Against(
-            await postgres.CreateDatabaseAsync(),
-            new Dictionary<string, string?> { [BootstrapSettings.Variable] = BootstrapProof },
-            clock,
-            logs);
+        var instance = AnInstance.Against(await postgres.CreateDatabaseAsync(), clock: clock, logProvider: logs);
         using var client = instance.CreateClient();
-        using var response = await client.PostAsJsonAsync(
-            "/api/bootstrap",
-            new BootstrapRequest(BootstrapProof, Email, Password),
-            TestContext.Current.CancellationToken);
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        await instance.EstablishAsync(Email, Password);
         return instance;
     }
 

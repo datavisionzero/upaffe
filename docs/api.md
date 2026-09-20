@@ -6,10 +6,9 @@ no API-version segment. Each response carries `Upaffe-Version`: `0.1.0` for a
 v0.1.0 image, `0.0.0-rev.<full-commit-sha>` for a revision image, or
 `0.0.0-dev` for a local build without an explicit version.
 
-The product-facing API covers bootstrap, browser sessions, management
-credentials, projects, and HTTP monitor administration. Bootstrap is public
-only while establishing the sole operator; the proof itself is a high-entropy
-secret supplied in the request body.
+The product-facing API covers read-only initialization state, browser sessions,
+management credentials, projects, and monitor administration. Initial operator
+setup uses a local container command with database access, not an HTTP write.
 
 | Method and path | Purpose |
 | --- | --- |
@@ -17,8 +16,7 @@ secret supplied in the request body.
 | `GET /api/health/live` | Whether the process can answer; it touches no dependency. |
 | `GET /api/health/progress` | Whether both monitoring workers completed a successful idle or active iteration within two minutes. |
 | `GET /api/health/ready` | Whether PostgreSQL answers with exactly the schema this binary knows. |
-| `GET /api/bootstrap` | Whether an operator is still required and whether a live bootstrap proof is available. |
-| `POST /api/bootstrap` | Establish the sole operator with the bootstrap proof, email, and password. |
+| `GET /api/bootstrap` | Whether local operator setup is still required. |
 | `POST /api/session` | Sign in and receive a fresh server-side browser session cookie. |
 | `GET /api/session` | Inspect the operator identity admitted by the browser session. |
 | `DELETE /api/session` | Revoke the current browser session and expire its cookies. |
@@ -80,19 +78,20 @@ secret supplied in the request body.
 | `GET /api/openapi/v1.json` | The generated OpenAPI document. It does not list itself. |
 
 Every routed endpoint declares exactly one access boundary. Version, health,
-OpenAPI, bootstrap, sign-in, and non-API fallbacks are public; bootstrap is
-nevertheless authorized by its one-use proof. Reading or deleting a session is
+OpenAPI, read-only bootstrap state, sign-in, and non-API fallbacks are public.
+Reading or deleting a session is
 browser-only. Management operations accept either that browser session or
 `Authorization: Bearer <token>`. The host has an authenticated fallback policy,
 so an endpoint without an explicit public declaration is closed rather than
 accidentally anonymous. Liveness and readiness are technical deployment checks;
 neither asserts that the monitoring loop is progressing.
 
-`POST /api/bootstrap` returns `204` and no body on success. Expected refusals use
-`application/problem+json` with a stable `code`: `validation` (`400`),
-`bootstrap_rejected` (`401`) for missing, wrong, or expired proofs, and
-`bootstrap_closed` (`409`) after an operator exists. The proof and password are
-never returned.
+`POST /api/bootstrap` was removed after v0.1.0. On upgrade, previously
+initialized databases continue to start, but installers must use the local
+`upaffe bootstrap` command for a new database. The command returns a stable
+JSON status and exits `0` on success, `2` on invalid input, `3` when already
+initialized, `4` when a recovery target is absent, and `1` on infrastructure
+failure. Only successful bootstrap or recovery output contains a token.
 
 ## Browser session
 
@@ -139,7 +138,7 @@ names return `400 validation`.
 
 Authentication audit messages contain the HTTP operation, outcome, access path,
 and public session or credential ID when available. They never contain the
-presented bearer token, cookie secret, bootstrap proof, or password.
+presented bearer token, cookie secret, or password.
 
 ## Projects
 

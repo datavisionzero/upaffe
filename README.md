@@ -59,10 +59,10 @@ through a mounted URL file.
 The [operations guide](./docs/operations.md#back-up-a-production-installation)
 also covers protected backups and isolated restoration of the production stack.
 
-A fresh database needs a one-time operator bootstrap. Set a locally generated
-`UPAFFE_BOOTSTRAP_SECRET` for one startup and follow the request documented in
-[`docs/operations.md`](./docs/operations.md#establish-the-operator). Do not put
-that value in a committed file or URL.
+A fresh database needs a one-time local operator bootstrap. Run the application
+image as a one-off command with a protected password file and capture the first
+management credential in a protected output file. Follow the
+[production procedure](./docs/operations.md#production-compose-startup).
 
 ## API contract and generated clients
 

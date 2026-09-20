@@ -2,24 +2,14 @@ using Upaffe.Domain.Access;
 
 namespace Upaffe.Application.Ports;
 
-public sealed record BootstrapState(bool Required, bool Available);
+public sealed record BootstrapState(bool Required);
 
-public enum BootstrapProof
-{
-    Accepted,
-    Rejected,
-    Closed,
-}
-
-/// <summary>The transactional boundary around the one-time bootstrap.</summary>
+/// <summary>The transactional boundary for local operator setup and recovery.</summary>
 public interface IBootstrapStore
 {
-    Task ArmAsync(byte[]? secretHash, DateTimeOffset now, CancellationToken cancellationToken);
-    Task<BootstrapState> ReadAsync(DateTimeOffset now, CancellationToken cancellationToken);
-    Task<BootstrapProof> CheckAsync(byte[] secretHash, DateTimeOffset now, CancellationToken cancellationToken);
-    Task<BootstrapProof> EstablishAsync(
-        byte[] secretHash,
-        Operator @operator,
-        DateTimeOffset now,
-        CancellationToken cancellationToken);
+    Task<BootstrapState> ReadAsync(CancellationToken cancellationToken);
+    Task<IssuedCredential?> EstablishAsync(
+        Operator @operator, string credentialName, DateTimeOffset now, CancellationToken cancellationToken);
+    Task<IssuedCredential?> RecoverCredentialAsync(
+        string name, DateTimeOffset now, CancellationToken cancellationToken);
 }

@@ -12,11 +12,8 @@ public sealed class Refusal(
     public static Refusal Validation(IReadOnlyDictionary<string, string[]> errors) =>
         new("validation", "One or more values are not acceptable.", errors);
 
-    public static Refusal BootstrapRejected() =>
-        new("bootstrap_rejected", "The bootstrap proof was rejected.");
-
-    public static Refusal BootstrapClosed() =>
-        new("bootstrap_closed", "This instance already has its operator.");
+    public static Refusal AlreadyInitialized() =>
+        new("already_initialized", "This instance already has its operator.");
 
     public static Refusal SignInRejected() =>
         new("sign_in_rejected", "The email address or password is not correct.");
