@@ -37,3 +37,11 @@ project comes from the URL. On narrow screens the same navigation opens as a
 focus-managed drawer. The project selector changes the URL to the selected
 project overview. Appearance and sign-out controls stay in the sidebar.
 Monitoring keeps its own route hierarchy and omits tracker-specific navigation.
+
+Dashboard and project overviews use compact page and section headers, dense
+count tiles, text-bearing status badges, and bordered lists. Failure and overdue
+work come before healthy monitors. Maintenance and pause remain independent of
+health, and email acceptance is described separately from inbox delivery.
+The brand accent has a darker light-theme text companion so small links and
+labels remain readable on warm surfaces; health and warning colors have their
+own tokens. Long purpose and operator guidance text wraps within cards.

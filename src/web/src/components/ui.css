@@ -19,7 +19,7 @@
 .ui-button[data-variant="destructive"] {
   border-color: color-mix(in oklab, var(--danger), transparent 65%);
   background: color-mix(in oklab, var(--danger), transparent 90%);
-  color: var(--danger);
+  color: var(--danger-ink);
 }
 .ui-button:not(:disabled):hover { border-color: var(--muted-foreground); background: var(--subtle); color: var(--foreground); }
 .ui-button[data-variant="primary"]:not(:disabled):hover {
@@ -27,7 +27,7 @@
   color: var(--background);
 }
 .ui-button[data-variant="destructive"]:not(:disabled):hover {
-  border-color: var(--danger); background: color-mix(in oklab, var(--danger), transparent 80%); color: var(--danger);
+  border-color: var(--danger); background: color-mix(in oklab, var(--danger), transparent 80%); color: var(--danger-ink);
 }
 .ui-button:focus-visible, .ui-input:focus-visible, .ui-checkbox input:focus-visible {
   outline: 2px solid var(--brand); outline-offset: 2px;
@@ -45,18 +45,19 @@
 }
 .ui-input[aria-invalid="true"] { border-color: var(--danger); }
 .ui-field-description { color: var(--muted-foreground); font-size: 0.78rem; }
-.ui-field-error { color: var(--danger); font-size: 0.78rem; }
+.ui-field-error { color: var(--danger-ink); font-size: 0.78rem; }
 .ui-checkbox { display: flex; align-items: flex-start; gap: 0.5rem; }
 .ui-checkbox > span { display: inline; margin: 0; color: var(--foreground); font-size: 0.85rem; }
 .ui-checkbox input { width: auto; margin-top: 0.2rem; accent-color: var(--brand); }
 
 .ui-badge {
-  display: inline-flex; align-items: center; min-height: 1.3rem;
+  display: inline-flex; align-items: center; gap: 0.25rem; min-height: 1.3rem;
   border: 1px solid var(--border); border-radius: 999px;
   padding: 0.1rem 0.5rem; font-size: 0.75rem; font-weight: 600; line-height: 1.25;
 }
-.ui-badge[data-tone="healthy"] { border-color: var(--success); color: var(--success); }
-.ui-badge[data-tone="failing"], .ui-badge[data-tone="overdue"] { border-color: var(--danger); color: var(--danger); }
+.ui-badge svg { flex: none; }
+.ui-badge[data-tone="healthy"] { border-color: var(--success); color: var(--success-ink); }
+.ui-badge[data-tone="failing"], .ui-badge[data-tone="overdue"] { border-color: var(--danger); color: var(--danger-ink); }
 .ui-badge[data-tone="warning"], .ui-badge[data-tone="maintenance"] { border-color: var(--warning); }
 .ui-badge[data-tone="paused"], .ui-badge[data-tone="untested"] { color: var(--muted-foreground); }
 

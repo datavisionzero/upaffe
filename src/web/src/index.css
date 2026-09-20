@@ -5,6 +5,7 @@
 @import "@fontsource/ibm-plex-mono/400.css";
 @import "./components/ui.css";
 @import "./shell/shell.css";
+@import "./shell/overview.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -18,8 +19,8 @@
   --color-paper: var(--background);
   --color-muted: var(--muted-foreground);
   --color-line: var(--border);
-  --color-accent: var(--brand);
-  --color-danger: var(--danger);
+  --color-accent: var(--brand-ink);
+  --color-danger: var(--danger-ink);
   --color-surface: var(--surface);
   --color-subtle: var(--subtle);
   --color-success: var(--success);
@@ -38,10 +39,14 @@
   --muted-foreground: #6b6f68;
   --border: #e4e5e1;
   --brand: oklch(0.62 0.11 190);
+  --brand-ink: oklch(0.43 0.1 190);
   --brand-soft: #e6f1ef;
   --danger: oklch(0.577 0.245 27.325);
+  --danger-ink: oklch(0.45 0.17 27.325);
   --success: oklch(0.6 0.13 150);
+  --success-ink: oklch(0.43 0.12 150);
   --warning: oklch(0.68 0.16 55);
+  --warning-ink: oklch(0.44 0.12 55);
   --radius: 0.375rem;
 }
 
@@ -54,10 +59,14 @@
   --muted-foreground: #9a9e96;
   --border: #2c302c;
   --brand: oklch(0.7 0.1 190);
+  --brand-ink: oklch(0.78 0.09 190);
   --brand-soft: #243230;
   --danger: oklch(0.704 0.191 22.216);
+  --danger-ink: oklch(0.78 0.14 22.216);
   --success: oklch(0.68 0.12 150);
+  --success-ink: oklch(0.78 0.1 150);
   --warning: oklch(0.74 0.14 55);
+  --warning-ink: oklch(0.82 0.1 55);
 }
 
 body {
@@ -798,7 +807,7 @@ h2 {
 }
 
 .maintenance-note {
-  color: var(--color-accent);
+  color: var(--warning-ink);
   font-size: 0.82rem;
   font-weight: 650;
 }

@@ -1,0 +1,40 @@
+.dashboard .snapshot-time, .project-overview .snapshot-time { margin: 0 0 1rem; }
+.project-overview > .project-key { margin: 0.5rem 0 0.2rem; }
+.dashboard .health-counts, .project-overview .health-counts { gap: 0.5rem; margin-bottom: 1rem; }
+.dashboard .health-count, .project-overview .health-count {
+  border-radius: var(--radius); background: var(--surface); padding: 0.7rem 0.85rem;
+}
+.dashboard .health-count strong, .project-overview .health-count strong { font-size: 1.55rem; }
+.dashboard .delivery-strip { display: block; border-radius: var(--radius); background: var(--surface); padding: 0.7rem 0.85rem; margin-bottom: 1.2rem; }
+.dashboard .delivery-strip .ui-section-header { padding-top: 0; }
+.dashboard .delivery-strip .ui-section-header h2 { margin: 0; }
+.dashboard .delivery-strip p { margin-bottom: 0.25rem; }
+.dashboard .dashboard-columns { gap: 1.25rem; }
+.dashboard .attention-list, .dashboard .project-summary-list,
+.project-overview .project-monitor-list, .project-overview .project-healthy-list { gap: 0.5rem; }
+.dashboard .attention-card, .dashboard .project-summary,
+.project-overview .attention-card, .project-overview .project-healthy-card {
+  border-radius: var(--radius); background: var(--surface); padding: 0.85rem;
+}
+.dashboard .attention-card:has(.ui-badge[data-tone="paused"]),
+.project-overview .attention-card:has(.ui-badge[data-tone="paused"]) { border-left-color: var(--muted-foreground); }
+.dashboard .attention-card:has(.ui-badge[data-tone="untested"]),
+.project-overview .attention-card:has(.ui-badge[data-tone="untested"]) { border-left-color: var(--border); }
+.dashboard .attention-card h3, .dashboard .project-summary h3,
+.project-overview .attention-card h3, .project-overview .project-healthy-card h3 { overflow-wrap: anywhere; font-size: 0.9rem; }
+.dashboard .attention-card p, .dashboard .project-summary p,
+.project-overview .attention-card p, .project-overview .project-healthy-card p { margin-bottom: 0.35rem; }
+.dashboard .attention-card .card-purpose, .project-overview .card-purpose { max-width: 64ch; }
+.dashboard .attention-card .operator-guidance, .project-overview .operator-guidance { overflow-wrap: anywhere; }
+.project-overview .project-action-nav { margin-bottom: 1rem; }
+.project-overview .project-operation { gap: 0.5rem; margin-bottom: 1rem; }
+.project-overview .project-operation > div { border-radius: var(--radius); background: var(--surface); padding: 0.85rem; }
+.project-overview .project-monitor-section { margin-bottom: 1.2rem; }
+.dashboard .ui-section-header, .project-overview .ui-section-header { margin-bottom: 0.65rem; }
+.dashboard .ui-section-header .eyebrow, .project-overview .ui-section-header .eyebrow { margin: 0 0 0.2rem; }
+
+@media (max-width: 700px) {
+  .dashboard .dashboard-columns { gap: 1rem; }
+  .dashboard .health-counts, .project-overview .health-counts { gap: 0.45rem; }
+  .dashboard .health-count, .project-overview .health-count { padding: 0.65rem; }
+}

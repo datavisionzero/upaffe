@@ -1,9 +1,13 @@
 import type { ReactNode } from "react";
+import { CalendarClock, CircleAlert, CircleCheck, CircleHelp, Clock3, Pause, TriangleAlert } from "lucide-react";
+import type { StatusTone } from "./status";
 
-type Tone = "neutral" | "healthy" | "failing" | "untested" | "paused" | "overdue" | "maintenance" | "warning";
+const icons = { healthy: CircleCheck, failing: CircleAlert, untested: CircleHelp,
+  paused: Pause, overdue: Clock3, maintenance: CalendarClock, warning: TriangleAlert };
 
-export function StatusBadge({ tone, children }: { tone: Tone; children: ReactNode }) {
-  return <span className="ui-badge" data-tone={tone}>{children}</span>;
+export function StatusBadge({ tone, children }: { tone: StatusTone; children: ReactNode }) {
+  const Icon = tone === "neutral" ? null : icons[tone];
+  return <span className="ui-badge" data-tone={tone}>{Icon && <Icon aria-hidden="true" size={12} />}{children}</span>;
 }
 
 export function Alert({ tone = "neutral", children }: { tone?: "neutral" | "warning" | "danger"; children: ReactNode }) {
@@ -11,7 +15,7 @@ export function Alert({ tone = "neutral", children }: { tone?: "neutral" | "warn
 }
 
 export function EmptyState({ children }: { children: ReactNode }) {
-  return <p className="ui-empty">{children}</p>;
+  return <p className="ui-empty" role="status">{children}</p>;
 }
 
 export function LoadingState({ children = "Loading…" }: { children?: ReactNode }) {
@@ -25,4 +29,11 @@ export function PageHeader({ title, detail, actions }: { title: ReactNode; detai
 
 export function Section({ title, actions, children }: { title: ReactNode; actions?: ReactNode; children: ReactNode }) {
   return <section className="ui-section"><header className="ui-section-header"><h2>{title}</h2>{actions}</header>{children}</section>;
+}
+
+export function SectionHeading({ title, titleId, eyebrow, action }: {
+  title: ReactNode; titleId: string; eyebrow?: string; action?: ReactNode;
+}) {
+  return <header className="ui-section-header"><div>{eyebrow && <p className="eyebrow">{eyebrow}</p>}
+    <h2 id={titleId}>{title}</h2></div>{action}</header>;
 }
