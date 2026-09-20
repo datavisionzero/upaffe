@@ -19,7 +19,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 12
-      start_period: 30s
+      start_period: 120s
 
   app:
     image: ${UPAFFE_IMAGE:?Set UPAFFE_IMAGE to a published revision tag or digest}

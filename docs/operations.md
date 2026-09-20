@@ -108,6 +108,12 @@ UPAFFE_CREDENTIAL="$(jq -r .token secrets/initial-credential.json)" \
   ua project list --json
 ```
 
+On an empty database volume, the first PostgreSQL initialization can take
+longer than a routine restart. The database health check allows two minutes
+for initialization before failed probes count; a successful probe ends that
+grace period immediately. The same allowance applies when a restore starts
+with a new volume.
+
 `upaffe bootstrap` runs migrations without opening an HTTP listener or starting
 workers. It creates the sole operator and first management credential in one
 transaction. Its only success output is one JSON line containing `status`,
