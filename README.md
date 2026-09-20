@@ -7,7 +7,7 @@ HTTP and push monitoring, incident email, and a noninteractive `ua` CLI.
 For an installation without a source build, follow the
 [production Compose guide](./docs/operations.md#production-compose-startup) and
 pin the image digest from the
-[v0.1.0 release](https://github.com/datavisionzero/upaffe/releases/tag/v0.1.0).
+[v0.1.1 release](https://github.com/datavisionzero/upaffe/releases/tag/v0.1.1).
 Download a [supported CLI archive](./docs/cli.md#install-a-release-binary),
 verify its checksum, and use the [agent workflow](./docs/agent-workflow.md) for
 unattended administration. The release notes describe the shipped scope.
@@ -123,8 +123,8 @@ UPAFFE_URL=http://localhost:5000 ./ua status --json
 Version and help are offline. `status` is the technical end-to-end diagnostic;
 it does not claim that any monitor exists or is healthy.
 
-After an initial management credential has been issued through a signed-in
-browser request, use it for noninteractive administration:
+After local bootstrap has issued the first management credential, use it for
+noninteractive administration:
 
 ```sh
 UPAFFE_URL=http://localhost:5000 \

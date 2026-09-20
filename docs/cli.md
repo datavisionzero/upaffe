@@ -6,7 +6,7 @@ pager. A command reads stdin only when `--file -` explicitly says so.
 
 ## Install a release binary
 
-The [v0.1.0 release](https://github.com/datavisionzero/upaffe/releases/tag/v0.1.0)
+The [v0.1.1 release](https://github.com/datavisionzero/upaffe/releases/tag/v0.1.1)
 provides standalone `ua` archives for Linux amd64/arm64 and macOS
 amd64/arm64. Each ZIP contains only `ua`. Choose the archive matching the host,
 download `SHA256SUMS` from the same release, and check the selected file before
@@ -14,7 +14,7 @@ extracting it. For example, on Linux amd64:
 
 ```sh
 set -eu
-UPAFFE_VERSION=0.1.0
+UPAFFE_VERSION=0.1.1
 UPAFFE_PLATFORM=linux_amd64
 UPAFFE_ARCHIVE="ua_${UPAFFE_VERSION}_${UPAFFE_PLATFORM}.zip"
 UPAFFE_RELEASE="https://github.com/datavisionzero/upaffe/releases/download/v${UPAFFE_VERSION}"

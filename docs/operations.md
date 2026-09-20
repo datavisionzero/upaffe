@@ -5,25 +5,25 @@ of this guide. Local development procedures follow them.
 
 ## Production image identity
 
-The v0.1.0 application image is published as
-`ghcr.io/datavisionzero/upaffe:v0.1.0`; its release asset
+The v0.1.1 application image is published as
+`ghcr.io/datavisionzero/upaffe:v0.1.1`; its release asset
 `image-digest.txt` gives the complete immutable image reference to pin in
 `.env`. Validated `main` commits also publish
 `ghcr.io/datavisionzero/upaffe:sha-<full-commit-sha>` for candidate rehearsal.
 The published images support Linux amd64 and arm64 hosts. Each contains the
 compiled React application, .NET API, and embedded forward migrations. It
-listens on port `8080` as a non-root user and reports `0.1.0` for the release or
+listens on port `8080` as a non-root user and reports `0.1.1` for the release or
 `0.0.0-rev.<full-commit-sha>` for a revision image in the `Upaffe-Version`
 response header. A local build uses `0.0.0-dev` unless an
 `APP_VERSION` build argument is supplied. The publication workflow needs only
 the scoped GitHub Actions package token; deployment secrets are supplied at
 runtime and never enter the image build.
 
-The production Compose installation procedure below requires an image built
-with the local bootstrap command. The v0.1.0 release predates that command;
-existing v0.1.0 installations can upgrade without creating a new operator.
-Use deployment files from the same later release tag as the image. Its
-`source-revision.txt` identifies the exact source commit.
+The production Compose installation procedure below requires v0.1.1 or later,
+which includes the local bootstrap command. Existing v0.1.0 installations can
+upgrade without creating a new operator. Use deployment files from the same
+release tag as the image. Its `source-revision.txt` identifies the exact source
+commit.
 
 ## Production secret inputs
 
@@ -218,9 +218,9 @@ pending notification there. It also rejects reused restore destinations and
 tampered archives. The script prints each phase and exits nonzero on any
 failed assertion.
 
-After publication, pass the final `:v0.1.0` image or the release's complete
+After publication, pass the final `:v0.1.1` image or the release's complete
 `image-digest.txt` reference as the current image. For a digest reference, add
-`0.1.0` as the third argument. The rehearsal checks both `/api/version` and
+`0.1.1` as the third argument. The rehearsal checks both `/api/version` and
 `Upaffe-Version` after the update.
 
 The PostgreSQL fault tests make the interruption boundaries repeatable:
