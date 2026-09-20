@@ -1,8 +1,10 @@
-import { useEffect, useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import type { components } from "@/api/schema";
+import { Activity, ChevronRight, FolderOpen, Gauge, Globe, LogOut, Mail, Menu, Radio, Settings, X, type LucideIcon } from "lucide-react";
 
 import { api } from "@/api/client";
-import { problemMessage } from "@/api/problems";
+import { csrfHeaders, problemMessage } from "@/api/problems";
+import { Button } from "@/components/Button";
 import { DashboardView } from "@/shell/DashboardView";
 import { InstanceEmailView, ProjectEmailView } from "@/shell/EmailSettingsView";
 import { MonitorsView } from "@/shell/MonitorsView";
@@ -11,6 +13,7 @@ import { ProjectOverviewView } from "@/shell/ProjectOverviewView";
 import { ProjectsView } from "@/shell/ProjectsView";
 import { PushMonitorsView } from "@/shell/PushMonitorsView";
 import { monitorPath, projectPath, returnPath, useAppRoute, withReturn } from "@/shell/routes";
+import { useTheme } from "@/theme/ThemeProvider";
 
 type Session = components["schemas"]["CurrentSessionResponse"];
 type Project = components["schemas"]["ProjectResponse"];
@@ -24,6 +27,24 @@ export function WorkspaceRouter({ session, onSignedOut }: {
   const projectKey = route.kind === "project" ? route.projectKey : undefined;
   const monitorKey = route.kind === "project" ? route.monitorKey : undefined;
   const [projectLoad, setProjectLoad] = useState<ProjectLoad>();
+  const [projectOptions, setProjectOptions] = useState<Project[]>([]);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [narrow, setNarrow] = useState(() => window.matchMedia?.("(max-width: 800px)")?.matches ?? false);
+  const [signingOut, setSigningOut] = useState(false);
+  const [shellError, setShellError] = useState<string>();
+  const navToggle = useRef<HTMLButtonElement>(null);
+  const sidebar = useRef<HTMLElement>(null);
+  const { theme, setTheme } = useTheme();
+
+  useEffect(() => {
+    const preference = window.matchMedia?.("(max-width: 800px)");
+    const onChange = () => {
+      setNarrow(!!preference?.matches);
+      if (!preference?.matches) setMobileOpen(false);
+    };
+    preference?.addEventListener?.("change", onChange);
+    return () => preference?.removeEventListener?.("change", onChange);
+  }, []);
 
   useEffect(() => {
     if (!projectKey) return;
@@ -33,8 +54,11 @@ export function WorkspaceRouter({ session, onSignedOut }: {
       try {
         const result = await api.GET("/api/projects", { params: { query: { deleted: false } } });
         if (!active) return;
-        if (result.data) setProjectLoad({ key: projectKey, loading: false,
-          project: result.data.find((value) => value.key === projectKey) });
+        if (result.data) {
+          setProjectOptions(result.data);
+          setProjectLoad({ key: projectKey, loading: false,
+            project: result.data.find((value) => value.key === projectKey) });
+        }
         else if (result.response.status === 401) onSignedOut();
         else setProjectLoad({ key: projectKey, loading: false,
           error: problemMessage(result.error, result.response.status) });
@@ -45,6 +69,44 @@ export function WorkspaceRouter({ session, onSignedOut }: {
     }, 0);
     return () => { active = false; window.clearTimeout(start); };
   }, [projectKey, onSignedOut]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const focus = window.setTimeout(() => sidebar.current?.querySelector<HTMLAnchorElement>("nav a")?.focus(), 0);
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMobileOpen(false);
+        window.setTimeout(() => navToggle.current?.focus(), 0);
+      } else if (event.key === "Tab" && narrow) {
+        const controls = Array.from(sidebar.current?.querySelectorAll<HTMLElement>("a,button,select") ?? [])
+          .filter((element) => !element.hasAttribute("disabled"));
+        const first = controls[0];
+        const last = controls.at(-1);
+        if (!first || !last) return;
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault(); last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault(); first.focus();
+        }
+      }
+    };
+    window.addEventListener("keydown", onEscape);
+    return () => { window.clearTimeout(focus); window.removeEventListener("keydown", onEscape); };
+  }, [mobileOpen, narrow]);
+
+  async function signOut() {
+    setSigningOut(true);
+    setShellError(undefined);
+    try {
+      const { response, error } = await api.DELETE("/api/session", { headers: csrfHeaders });
+      if (response.status === 204 || response.status === 401) onSignedOut();
+      else setShellError(problemMessage(error, response.status));
+    } catch {
+      setShellError("Sign-out could not be completed.");
+    } finally {
+      setSigningOut(false);
+    }
+  }
 
   useEffect(() => {
     const title = route.kind === "project" ? monitorKey ?? projectLoad?.project?.name ?? "Project"
@@ -71,13 +133,20 @@ export function WorkspaceRouter({ session, onSignedOut }: {
     return () => { window.clearTimeout(timer); observer?.disconnect(); if (expiry) window.clearTimeout(expiry); };
   }, [path, route.kind, monitorKey, projectLoad?.project?.name]);
 
-  function link(path: string, label: string, current: boolean) {
-    return <a aria-current={current ? "page" : undefined} href={path}
+  function link(path: string, label: string, current: boolean, Icon?: LucideIcon) {
+    return <a aria-current={current ? "page" : undefined} className={Icon ? "sidebar-link" : undefined} href={path}
       onClick={(event: MouseEvent<HTMLAnchorElement>) => {
         if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
         event.preventDefault();
+        const sameDestination = window.location.pathname + window.location.search === path;
+        setMobileOpen(false);
         navigate(path);
-      }}>{label}</a>;
+        if (sameDestination && mobileOpen) window.setTimeout(() => navToggle.current?.focus(), 0);
+      }}>{Icon && <Icon aria-hidden="true" size={16} strokeWidth={1.8} />}{label}</a>;
+  }
+
+  function navLink(path: string, label: string, current: boolean, Icon: LucideIcon) {
+    return link(path, label, current, Icon);
   }
 
   let content;
@@ -133,26 +202,76 @@ export function WorkspaceRouter({ session, onSignedOut }: {
     }
   }
 
-  return <>
-    <nav aria-label="Primary" className="primary-nav">
-      <span className="brand">upaffe</span>
-      {link("/dashboard", "Dashboard", route.kind === "dashboard")}
-      {link("/projects", "Projects", route.kind === "projects")}
-      {link("/monitors", "Monitors", route.kind === "inventory")}
-      {link(route.kind === "settings" ? "/settings/email" : withReturn("/settings/email", path),
-        "Settings", route.kind === "settings")}
-    </nav>
-    {route.kind === "project" && <nav aria-label="Breadcrumb" className="breadcrumbs">
-      {link("/projects", "Projects", false)}<span aria-hidden="true">/</span>
-      {link(projectPath(route.projectKey), projectLoad?.project?.name ?? route.projectKey,
-        route.section === "overview")}
-      {route.section === "http" && <><span aria-hidden="true">/</span>
-        {link(`${projectPath(route.projectKey)}/http-monitors`, "HTTP monitors", !route.monitorKey)}</>}
-      {route.section === "email" && <><span aria-hidden="true">/</span><span aria-current="page">Settings</span></>}
-      {route.section === "push" && <><span aria-hidden="true">/</span>
-        {link(`${projectPath(route.projectKey)}/push-monitors`, "Push monitors", !route.monitorKey)}</>}
-      {route.monitorKey && <><span aria-hidden="true">/</span><span aria-current="page">{route.monitorKey}</span></>}
-    </nav>}
-    {content}
-  </>;
+  const locationLabel = route.kind === "project" ? projectLoad?.project?.name ?? route.projectKey
+    : route.kind === "dashboard" ? "Dashboard" : route.kind === "inventory" ? "Monitors"
+    : route.kind === "settings" ? "Settings" : route.kind === "missing" ? "Page unavailable" : "Projects";
+
+  return <div className="workspace-layout">
+    {mobileOpen && <button aria-label="Close navigation" className="sidebar-scrim" onClick={() => {
+      setMobileOpen(false); window.setTimeout(() => navToggle.current?.focus(), 0);
+    }} type="button" />}
+    <aside aria-hidden={narrow && !mobileOpen} aria-label={narrow && mobileOpen ? "Navigation" : undefined}
+      aria-modal={narrow && mobileOpen ? true : undefined} className="app-sidebar" data-open={mobileOpen}
+      id="workspace-nav" inert={narrow && !mobileOpen} ref={sidebar}
+      role={narrow && mobileOpen ? "dialog" : undefined}>
+      <div className="sidebar-brand"><span aria-hidden="true" className="brand-mark" />upaffe</div>
+      <nav aria-label="Primary" className="sidebar-nav">
+        <p className="sidebar-label">Overview</p>
+        {navLink("/dashboard", "Dashboard", route.kind === "dashboard", Gauge)}
+        {navLink("/projects", "Projects", route.kind === "projects", FolderOpen)}
+        {navLink("/monitors", "Monitors", route.kind === "inventory", Activity)}
+        {route.kind === "project" && <>
+          <p className="sidebar-label sidebar-project-name">{projectLoad?.project?.name ?? route.projectKey}</p>
+          {navLink(projectPath(route.projectKey), "Project overview", route.section === "overview", Gauge)}
+          {navLink(`${projectPath(route.projectKey)}/http-monitors`, "HTTP monitors", route.section === "http", Globe)}
+          {navLink(`${projectPath(route.projectKey)}/push-monitors`, "Push monitors", route.section === "push", Radio)}
+          {navLink(`${projectPath(route.projectKey)}/settings/email`, "Project email", route.section === "email", Mail)}
+        </>}
+        <p className="sidebar-label">Instance</p>
+        {navLink(route.kind === "settings" ? "/settings/email" : withReturn("/settings/email", path),
+          "Settings", route.kind === "settings", Settings)}
+      </nav>
+      <div className="sidebar-footer">
+        <label className="sidebar-theme">Appearance
+          <select aria-label="Appearance" onChange={(event) => setTheme(event.target.value as typeof theme)} value={theme}>
+            <option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option>
+          </select>
+        </label>
+        <p className="sidebar-operator">{session.email}</p>
+        {shellError && <p role="alert">{shellError}</p>}
+        <Button onClick={() => void signOut()} pending={signingOut} type="button" variant="subtle">
+          <LogOut aria-hidden="true" size={16} />Sign out
+        </Button>
+      </div>
+    </aside>
+    <div aria-hidden={narrow && mobileOpen} className="workspace-body" inert={narrow && mobileOpen}>
+      <header className="workspace-topbar">
+        <button aria-controls="workspace-nav" aria-expanded={mobileOpen} aria-label={mobileOpen ? "Close menu" : "Open menu"}
+          className="nav-toggle" onClick={() => setMobileOpen((open) => !open)} ref={navToggle} type="button">
+          {mobileOpen ? <X aria-hidden="true" size={18} /> : <Menu aria-hidden="true" size={18} />}
+        </button>
+        <span className="topbar-location">{locationLabel}</span>
+        {route.kind === "project" && <label className="project-switcher">Project
+          <select aria-label="Switch project" disabled={projectLoad?.key !== route.projectKey || projectLoad.loading}
+            onChange={(event) => navigate(projectPath(event.target.value))}
+            value={projectOptions.some((project) => project.key === route.projectKey) ? route.projectKey : ""}>
+            <option value="">{projectLoad?.loading ? "Loading project…" : "Project unavailable"}</option>
+            {projectOptions.map((project) => <option key={project.key} value={project.key}>{project.name}</option>)}
+          </select>
+        </label>}
+      </header>
+      {route.kind === "project" && <nav aria-label="Breadcrumb" className="breadcrumbs">
+        {link("/projects", "Projects", false)}<ChevronRight aria-hidden="true" size={13} />
+        {link(projectPath(route.projectKey), projectLoad?.project?.name ?? route.projectKey,
+          route.section === "overview")}
+        {route.section === "http" && <><ChevronRight aria-hidden="true" size={13} />
+          {link(`${projectPath(route.projectKey)}/http-monitors`, "HTTP monitors", !route.monitorKey)}</>}
+        {route.section === "email" && <><ChevronRight aria-hidden="true" size={13} /><span aria-current="page">Settings</span></>}
+        {route.section === "push" && <><ChevronRight aria-hidden="true" size={13} />
+          {link(`${projectPath(route.projectKey)}/push-monitors`, "Push monitors", !route.monitorKey)}</>}
+        {route.monitorKey && <><ChevronRight aria-hidden="true" size={13} /><span aria-current="page">{route.monitorKey}</span></>}
+      </nav>}
+      <main className="workspace-main" id="main-content">{content}</main>
+    </div>
+  </div>;
 }

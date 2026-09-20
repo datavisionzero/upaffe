@@ -17,6 +17,7 @@ export default defineConfig({
     proxy: { "/api": "http://localhost:5000" },
   },
   test: {
+    include: ["src/**/*.test.{ts,tsx}"],
     environment: "jsdom",
     setupFiles: ["./src/shared/setupTests.ts"],
   },

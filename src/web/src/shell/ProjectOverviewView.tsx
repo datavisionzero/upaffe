@@ -4,6 +4,8 @@ import type { components } from "@/api/schema";
 import { api } from "@/api/client";
 import { problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
+import { Alert, EmptyState, LoadingState, PageHeader, SectionHeading, StatusBadge } from "@/components/Presentation";
+import { monitorStateTone } from "@/components/status";
 import { MonitorPurpose } from "@/shell/MonitorPurpose";
 import { inventoryPath, monitorPath, projectPath, withReturn } from "@/shell/routes";
 
@@ -53,15 +55,10 @@ export function ProjectOverviewView({ project, onNavigate, onSignedOut }: {
 
   const base = projectPath(project.key);
   return <div className="workspace project-overview">
-    <header className="workspace-header">
-      <div>
-        <p className="eyebrow">Project · {project.key}</p>
-        <h1>{project.name}</h1>
-        <p className="muted">Current HTTP and push monitor health.</p>
-        {report && <p className="snapshot-time">Snapshot generated {dateLabel(report.generated_at)}</p>}
-      </div>
-      <Button disabled={loading} onClick={() => void load()} type="button">Refresh health</Button>
-    </header>
+    <PageHeader title={project.name} detail="Current HTTP and push monitor health."
+      actions={<Button disabled={loading} onClick={() => void load()} type="button">Refresh health</Button>} />
+    <p className="project-key">Project · {project.key}</p>
+    {report && <p className="snapshot-time">Snapshot generated {dateLabel(report.generated_at)}</p>}
 
     <nav aria-label="Project actions" className="project-action-nav">
       {link(inventoryPath(project.key), "Browse all project monitors")}
@@ -70,8 +67,8 @@ export function ProjectOverviewView({ project, onNavigate, onSignedOut }: {
       {link(withReturn(`${base}/settings/email`, base), "Recipients and maintenance")}
     </nav>
 
-    {loading && !report && <div className="panel" role="status">Loading project health…</div>}
-    {error && <div className="error" role="alert">{error} <Button onClick={() => void load()} type="button">Try again</Button></div>}
+    {loading && !report && <LoadingState>Loading project health…</LoadingState>}
+    {error && <Alert tone="danger">{error} <Button onClick={() => void load()} type="button">Try again</Button></Alert>}
     {report && <>
       <section aria-label="Project health counts" className="health-counts">
         <div className="health-count health-count-urgent"><strong>{report.counts.failing}</strong><span>Failing</span></div>
@@ -81,11 +78,9 @@ export function ProjectOverviewView({ project, onNavigate, onSignedOut }: {
       </section>
 
       <section aria-labelledby="project-attention-title" className="project-monitor-section">
-        <div className="dashboard-section-heading">
-          <div><p className="eyebrow">Investigate first</p><h2 id="project-attention-title">Needs attention</h2></div>
-          <span className="count-pill">{report.attention.length}</span>
-        </div>
-        {report.attention.length === 0 && <p className="empty" role="status">No monitors need attention in this snapshot.</p>}
+        <SectionHeading action={<span className="count-pill">{report.attention.length}</span>}
+          eyebrow="Investigate first" title="Needs attention" titleId="project-attention-title" />
+        {report.attention.length === 0 && <EmptyState>No monitors need attention in this snapshot.</EmptyState>}
         <div className="project-monitor-list">{report.attention.map((monitor) =>
           <AttentionCard key={`${monitor.type}:${monitor.key}`} monitor={monitor} generatedAt={report.generated_at}
             link={link} projectKey={project.key} />)}</div>
@@ -109,16 +104,14 @@ export function ProjectOverviewView({ project, onNavigate, onSignedOut }: {
       </section>
 
       <section aria-labelledby="project-healthy-title" className="project-monitor-section">
-        <div className="dashboard-section-heading">
-          <div><p className="eyebrow">Current observations</p><h2 id="project-healthy-title">Healthy</h2></div>
-          <span className="count-pill">{report.healthy.length}</span>
-        </div>
-        {report.healthy.length === 0 && <p className="empty">No healthy monitors in this snapshot.</p>}
+        <SectionHeading action={<span className="count-pill">{report.healthy.length}</span>}
+          eyebrow="Current observations" title="Healthy" titleId="project-healthy-title" />
+        {report.healthy.length === 0 && <EmptyState>No healthy monitors in this snapshot.</EmptyState>}
         <div className="project-healthy-list">{report.healthy.map((monitor) =>
           <HealthyCard key={`${monitor.type}:${monitor.key}`} monitor={monitor} link={link}
             projectKey={project.key} />)}</div>
       </section>
-      {report.counts.total === 0 && <p className="empty">This project has no monitors. Use a management link above to create one.</p>}
+      {report.counts.total === 0 && <EmptyState>This project has no monitors. Use a management link above to create one.</EmptyState>}
     </>}
   </div>;
 }
@@ -132,9 +125,9 @@ function AttentionCard({ monitor, generatedAt, projectKey, link }: {
   return <article className="attention-card">
     <div className="attention-card-main">
       <div className="attention-tags">
-        <span className={`state state-${monitor.state}`}>{stateLabel(monitor.state)}</span>
-        {monitor.overdue && <span className="state state-overdue">Overdue</span>}
-        {monitor.effective_maintenance_until && <span className="state state-maintenance">Maintenance</span>}
+        <StatusBadge tone={monitorStateTone(monitor.state)}>{stateLabel(monitor.state)}</StatusBadge>
+        {monitor.overdue && <StatusBadge tone="overdue">Overdue</StatusBadge>}
+        {monitor.effective_maintenance_until && <StatusBadge tone="maintenance">Maintenance</StatusBadge>}
       </div>
       <h3>{link(path, monitor.name, "monitor-name-link")}</h3>
       <MonitorPurpose purpose={monitor.purpose} />
@@ -160,7 +153,7 @@ function HealthyCard({ monitor, projectKey, link }: {
   const path = monitorPath(projectKey, monitor.type as "http" | "push", monitor.key);
   return <article className="project-healthy-card">
     <div>
-      <span className="state state-healthy">Healthy</span>
+      <StatusBadge tone="healthy">Healthy</StatusBadge>
       <h3>{link(path, monitor.name, "monitor-name-link")}</h3>
       <MonitorPurpose purpose={monitor.purpose} />
       <p className="monitor-context">{monitor.type === "http" ? "HTTP check" : modeLabel(monitor.mode)} · {monitor.key}</p>

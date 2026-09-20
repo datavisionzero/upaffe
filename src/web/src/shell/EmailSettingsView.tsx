@@ -4,6 +4,8 @@ import type { components } from "@/api/schema";
 import { api } from "@/api/client";
 import { csrfHeaders, problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
+import { SelectField, TextField } from "@/components/Fields";
+import { Alert, LoadingState, PageHeader } from "@/components/Presentation";
 import { DeliveryHistoryPanel, MaintenancePanel } from "@/shell/EmailPanels";
 
 type Settings = components["schemas"]["EmailConfigurationSnapshot"];
@@ -30,11 +32,11 @@ export function InstanceEmailView({ onBack, onSignedOut }: { onBack: () => void;
     finally { setLoading(false); }
   }, [onSignedOut]);
   useEffect(() => { const start = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(start); }, [load]);
-  return <div className="workspace">
-    <header className="workspace-header"><div><p className="eyebrow">upaffe</p><h1>Instance email</h1><p className="muted">One shared SMTP relay and defaults for new projects.</p></div><Button onClick={onBack} type="button">Back to investigation</Button></header>
-    {loading && !settings && <p role="status">Loading email settings…</p>}
-    {error && <div className="error" role="alert">{error}</div>}
-    {notice && <p className="notice" role="status">{notice}</p>}
+  return <div className="workspace settings-workspace">
+    <PageHeader title="Instance email" detail="One shared SMTP relay and defaults for new projects." actions={<Button onClick={onBack} type="button">Back to investigation</Button>} />
+    {loading && !settings && <LoadingState>Loading email settings…</LoadingState>}
+    {error && <Alert tone="danger">{error}</Alert>}
+    {notice && <Alert>{notice}</Alert>}
     <DeliveryHistoryPanel onSignedOut={onSignedOut} />
     {settings && <SettingsForms key={settings.version} settings={settings} onSaved={(value, message) => { setSettings(value); setError(undefined); setNotice(message); }} onConflict={setError} onRefresh={load} onSignedOut={onSignedOut} />}
   </div>;
@@ -116,32 +118,32 @@ function SettingsForms({ settings, onSaved, onConflict, onRefresh, onSignedOut }
   }
 
   return <>
-    {error && <div className="error" role="alert">{error}</div>}
-    {notice && <p className="notice" role="status">{notice}</p>}
+    {error && <Alert tone="danger">{error}</Alert>}
+    {notice && <Alert>{notice}</Alert>}
     <section className="panel" aria-labelledby="smtp-title"><h2 id="smtp-title">SMTP settings</h2>
       <p className="muted">Version {settings.version}. Password: {settings.has_password ? "configured" : "not configured"}.</p>
       <form className="monitor-form" onSubmit={saveSettings}>
-        <label><span>Relay host</span><input required value={host} onChange={(event) => setHost(event.target.value)} /></label>
-        <label><span>Relay port</span><input min={1} max={65535} required type="number" value={port} onChange={(event) => setPort(event.target.valueAsNumber)} /></label>
-        <label><span>Security</span><select value={security} onChange={(event) => setSecurity(event.target.value)}><option value="starttls">STARTTLS</option><option value="tls">TLS from start</option><option value="none">None</option></select></label>
-        <label><span>Sender address</span><input required type="email" value={sender} onChange={(event) => setSender(event.target.value)} /></label>
-        <label><span>Sender name</span><input value={senderName} onChange={(event) => setSenderName(event.target.value)} /></label>
-        <label><span>Public detail URL</span><input required type="url" value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} /></label>
-        <label><span>Authentication username</span><input autoComplete="off" value={username} onChange={(event) => setUsername(event.target.value)} /></label>
-        <Button disabled={busy !== undefined} type="submit">Save SMTP settings</Button>
+        <TextField label="Relay host" required value={host} onChange={(event) => setHost(event.target.value)} />
+        <TextField label="Relay port" min={1} max={65535} required type="number" value={port} onChange={(event) => setPort(event.target.valueAsNumber)} />
+        <SelectField label="Security" value={security} onChange={(event) => setSecurity(event.target.value)}><option value="starttls">STARTTLS</option><option value="tls">TLS from start</option><option value="none">None</option></SelectField>
+        <TextField label="Sender address" required type="email" value={sender} onChange={(event) => setSender(event.target.value)} />
+        <TextField label="Sender name" value={senderName} onChange={(event) => setSenderName(event.target.value)} />
+        <TextField label="Public detail URL" required type="url" value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} />
+        <TextField label="Authentication username" autoComplete="off" value={username} onChange={(event) => setUsername(event.target.value)} />
+        <Button disabled={busy !== undefined} type="submit" variant="primary">Save SMTP settings</Button>
       </form>
     </section>
     <section className="panel" aria-labelledby="password-title"><h2 id="password-title">SMTP password</h2>
       <p className="muted">The saved value is never displayed. Replace it explicitly, then send a test message.</p>
-      <form className="actions" onSubmit={savePassword}><label><span>New SMTP password</span><input autoComplete="new-password" required type="password" value={password} onChange={(event) => setPassword(event.target.value)} /></label><Button disabled={busy !== undefined} type="submit">Replace password</Button></form>
-      {settings.has_password && <Button disabled={busy !== undefined} onClick={clearPassword} type="button">Clear password</Button>}
+      <form className="actions" onSubmit={savePassword}><TextField label="New SMTP password" autoComplete="new-password" required type="password" value={password} onChange={(event) => setPassword(event.target.value)} /><Button disabled={busy !== undefined} type="submit" variant="primary">Replace password</Button></form>
+      {settings.has_password && <Button disabled={busy !== undefined} onClick={clearPassword} type="button" variant="destructive">Clear password</Button>}
     </section>
     <section className="panel" aria-labelledby="defaults-title"><h2 id="defaults-title">Default recipients</h2>
       <p className="muted">Copied to new projects only. Enter one address per line.</p>
-      <form onSubmit={saveDefaults}><label><span>Recipients</span><textarea value={defaults} onChange={(event) => setDefaults(event.target.value)} /></label><div className="actions"><Button disabled={busy !== undefined} type="submit">Save defaults</Button></div></form>
+      <form onSubmit={saveDefaults}><label><span>Recipients</span><textarea value={defaults} onChange={(event) => setDefaults(event.target.value)} /></label><div className="actions"><Button disabled={busy !== undefined} type="submit" variant="primary">Save defaults</Button></div></form>
     </section>
     <section className="panel" aria-labelledby="test-title"><h2 id="test-title">Test the relay</h2>
-      <form className="actions" onSubmit={(event) => void sendTest(event)}><label><span>Test recipient</span><input required type="email" value={testRecipient} onChange={(event) => setTestRecipient(event.target.value)} /></label><Button disabled={busy !== undefined} type="submit">Send test email</Button></form>
+      <form className="actions" onSubmit={(event) => void sendTest(event)}><TextField label="Test recipient" required type="email" value={testRecipient} onChange={(event) => setTestRecipient(event.target.value)} /><Button disabled={busy !== undefined} type="submit" variant="primary">Send test email</Button></form>
     </section>
   </>;
 }
@@ -181,14 +183,14 @@ export function ProjectEmailView({ project, onBack, onSignedOut }: { project: Pr
     finally { setBusy(false); }
   }
 
-  return <div className="workspace">
-    <header className="workspace-header"><div><p className="eyebrow">Project · {project.key}</p><h1>Email and maintenance</h1><p className="muted">{project.name}</p></div><Button onClick={onBack} type="button">Back to investigation</Button></header>
+  return <div className="workspace settings-workspace">
+    <PageHeader title="Email and maintenance" detail={`${project.name} · ${project.key}`} actions={<Button onClick={onBack} type="button">Back to investigation</Button>} />
     <DeliveryHistoryPanel projectKey={project.key} onSignedOut={onSignedOut} />
     <section className="panel" aria-labelledby="project-recipients-title"><h2 id="project-recipients-title">Project recipients</h2><p className="muted">Live list for future alerts. An empty list opts this project out.</p>
-      {loading && !recipients && <p role="status">Loading recipients…</p>}
-      {error && <div className="error" role="alert">{error}</div>}
-      {notice && <p className="notice" role="status">{notice}</p>}
-      {recipients && <form onSubmit={(event) => void save(event)}><p>Version {recipients.version}</p><label><span>One address per line</span><textarea value={draft} onChange={(event) => setDraft(event.target.value)} /></label><div className="actions"><Button disabled={busy} type="submit">Save project recipients</Button><Button disabled={loading} onClick={() => void load()} type="button">Refresh recipients</Button></div></form>}
+      {loading && !recipients && <LoadingState>Loading recipients…</LoadingState>}
+      {error && <Alert tone="danger">{error}</Alert>}
+      {notice && <Alert>{notice}</Alert>}
+      {recipients && <form onSubmit={(event) => void save(event)}><p>Version {recipients.version}</p><label><span>One address per line</span><textarea value={draft} onChange={(event) => setDraft(event.target.value)} /></label><div className="actions"><Button disabled={busy} type="submit" variant="primary">Save project recipients</Button><Button disabled={loading} onClick={() => void load()} type="button">Refresh recipients</Button></div></form>}
     </section>
     <MaintenancePanel projectKey={project.key} onSignedOut={onSignedOut} />
   </div>;

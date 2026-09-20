@@ -1,0 +1,66 @@
+.monitor-inventory > .panel,
+.monitor-workspace > .panel {
+  width: 100%;
+  max-width: none;
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 1rem 1.2rem;
+}
+
+.monitor-inventory .inventory-filters {
+  grid-template-columns: minmax(13rem, 2fr) repeat(3, minmax(8rem, 1fr)) auto;
+  gap: 0.65rem;
+}
+.monitor-inventory .inventory-filters .ui-button { white-space: nowrap; }
+.monitor-inventory .inventory-table { font-size: 0.8rem; }
+.monitor-inventory .inventory-table th,
+.monitor-inventory .inventory-table td { padding: 0.55rem 0.45rem; }
+.monitor-inventory .inventory-table td:first-child { font-weight: 500; }
+.monitor-inventory .inventory-pages { margin-top: 0.85rem; }
+
+.monitor-workspace .monitor-list { gap: 0.45rem; }
+.monitor-workspace .monitor-card {
+  min-width: 0; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--background); padding: 0.75rem 0.85rem;
+}
+.monitor-workspace .monitor-card > div:first-child { min-width: 0; }
+.monitor-workspace .monitor-card h3 { margin: 0.35rem 0 0.15rem; font-size: 0.95rem; overflow-wrap: anywhere; }
+.monitor-workspace .monitor-card code { font-size: 0.75rem; }
+.monitor-workspace .monitor-card .monitor-target { margin-top: 0.35rem; font-size: 0.8rem; }
+.monitor-workspace .monitor-card .version { color: var(--muted-foreground); font-size: 0.72rem; }
+.monitor-workspace .monitor-form { gap: 0.75rem; }
+.monitor-workspace .monitor-form input:not([type="checkbox"]),
+.monitor-workspace .monitor-form select,
+.monitor-workspace .monitor-form textarea,
+.monitor-workspace .header-row input {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); color: var(--foreground);
+  padding: 0.4rem 0.6rem;
+}
+.monitor-workspace .monitor-form input:focus-visible,
+.monitor-workspace .monitor-form select:focus-visible,
+.monitor-workspace .monitor-form textarea:focus-visible,
+.monitor-workspace .header-row input:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.monitor-workspace .monitor-form > label > span,
+.monitor-workspace .header-row label > span { font-size: 0.8rem; font-weight: 600; }
+.monitor-workspace .monitor-form textarea { min-height: 4rem; }
+.monitor-workspace .mode-explanation { border-radius: var(--radius); background: var(--subtle); }
+.monitor-workspace .fact-grid { gap: 0.7rem 1rem; }
+.monitor-workspace .fact-grid > div { padding-top: 0.5rem; }
+.monitor-workspace .history-list { margin: 0.5rem 0; }
+.monitor-workspace .history-list li { padding: 0.55rem 0; overflow-wrap: anywhere; }
+.monitor-workspace .history-list span { font-size: 0.8rem; }
+.monitor-workspace .secret-reveal { background: var(--subtle); }
+.monitor-workspace .ui-page-actions { align-items: center; }
+
+@media (max-width: 1050px) {
+  .monitor-inventory .inventory-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .monitor-inventory .inventory-filters .ui-button { justify-self: start; }
+}
+@media (max-width: 700px) {
+  .monitor-inventory .inventory-filters { grid-template-columns: minmax(0, 1fr); }
+  .monitor-inventory > .panel, .monitor-workspace > .panel { padding: 0.85rem; }
+  .monitor-inventory .inventory-table tr { border-radius: var(--radius); background: var(--background); }
+  .monitor-workspace .monitor-card { align-items: stretch; }
+  .monitor-workspace .monitor-card-actions { display: flex; align-items: center; justify-content: space-between; }
+}

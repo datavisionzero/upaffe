@@ -4,6 +4,8 @@ import type { components } from "@/api/schema";
 import { api } from "@/api/client";
 import { problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
+import { Alert, EmptyState, LoadingState, PageHeader, SectionHeading, StatusBadge } from "@/components/Presentation";
+import { monitorStateTone, type StatusTone } from "@/components/status";
 import { MonitorPurpose } from "@/shell/MonitorPurpose";
 import { monitorPath, projectPath, withReturn } from "@/shell/routes";
 
@@ -52,20 +54,14 @@ export function DashboardView({ onNavigate, onSignedOut }: {
   const otherAttention = (overview?.attention.length ?? 0) - openIncidents;
 
   return <div className="workspace dashboard">
-    <header className="dashboard-header">
-      <div>
-        <p className="eyebrow">Instance overview</p>
-        <h1>Health dashboard</h1>
-        <p className="muted">Current monitoring evidence across your projects.</p>
-        {generatedAt && <p className="snapshot-time">Snapshot generated {dateLabel(generatedAt)}</p>}
-      </div>
-      <Button disabled={loading} onClick={() => void load()} type="button">
+    <PageHeader title="Health dashboard" detail="Current monitoring evidence across your projects."
+      actions={<Button disabled={loading} onClick={() => void load()} type="button">
         {loading && overview ? "Refreshing…" : "Refresh"}
-      </Button>
-    </header>
+      </Button>} />
+    {generatedAt && <p className="snapshot-time">Snapshot generated {dateLabel(generatedAt)}</p>}
 
-    {loading && !overview && <div className="panel" role="status">Loading instance health…</div>}
-    {error && <div className="error" role="alert">{error} <Button onClick={() => void load()} type="button">Try again</Button></div>}
+    {loading && !overview && <LoadingState>Loading instance health…</LoadingState>}
+    {error && <Alert tone="danger">{error} <Button onClick={() => void load()} type="button">Try again</Button></Alert>}
     {overview && <>
       <section aria-label="Health counts" className="health-counts">
         <div className="health-count health-count-urgent"><strong>{openIncidents}</strong><span>Open incidents</span></div>
@@ -75,9 +71,8 @@ export function DashboardView({ onNavigate, onSignedOut }: {
       </section>
 
       <section aria-labelledby="delivery-title" className="delivery-strip">
-        <div>
-          <p className="eyebrow">Notifications</p>
-          <h2 id="delivery-title">Email delivery</h2>
+        <SectionHeading action={link(withReturn("/settings/email", "/dashboard"), "Open email status and settings", "text-link")}
+          eyebrow="Notifications" title="Email delivery" titleId="delivery-title" />
           <p>
             {overview.delivery.terminal_failure} terminal failures · {overview.delivery.retrying} retrying · {overview.delivery.overdue} overdue · {overview.delivery.pending} pending
           </p>
@@ -85,19 +80,13 @@ export function DashboardView({ onNavigate, onSignedOut }: {
             {overview.delivery.accepted} accepted by SMTP; inbox receipt is not confirmed.
             {overview.delivery.oldest_pending_at && ` Oldest pending: ${ageLabel(overview.generated_at, overview.delivery.oldest_pending_at)}.`}
           </p>
-        </div>
-        {link(withReturn("/settings/email", "/dashboard"), "Open email status and settings", "text-link")}
       </section>
 
       <div className="dashboard-columns">
         <section aria-labelledby="attention-title" className="dashboard-attention">
-          <div className="dashboard-section-heading">
-            <div><p className="eyebrow">Investigate</p><h2 id="attention-title">Needs attention</h2></div>
-            <span className="count-pill">{overview.attention.length}</span>
-          </div>
-          {overview.attention.length === 0 && <p className="empty" role="status">
-            No monitors need attention in this snapshot.
-          </p>}
+          <SectionHeading action={<span className="count-pill">{overview.attention.length}</span>}
+            eyebrow="Investigate" title="Needs attention" titleId="attention-title" />
+          {overview.attention.length === 0 && <EmptyState>No monitors need attention in this snapshot.</EmptyState>}
           <div className="attention-list">
             {overview.attention.map((monitor) => {
               const path = monitorPath(monitor.project_key, monitor.type as "http" | "push", monitor.key);
@@ -105,9 +94,9 @@ export function DashboardView({ onNavigate, onSignedOut }: {
               return <article className="attention-card" key={`${monitor.project_key}:${monitor.type}:${monitor.key}`}>
                 <div className="attention-card-main">
                   <div className="attention-tags">
-                    <span className={`state state-${monitor.state}`}>{stateLabel(monitor.state)}</span>
-                    {monitor.overdue && <span className="state state-overdue">Overdue</span>}
-                    {monitor.effective_maintenance_until && <span className="state state-maintenance">Maintenance</span>}
+                    <StatusBadge tone={monitorStateTone(monitor.state)}>{stateLabel(monitor.state)}</StatusBadge>
+                    {monitor.overdue && <StatusBadge tone="overdue">Overdue</StatusBadge>}
+                    {monitor.effective_maintenance_until && <StatusBadge tone="maintenance">Maintenance</StatusBadge>}
                   </div>
                   <h3>{link(path, monitor.name, "monitor-name-link")}</h3>
                   <MonitorPurpose purpose={monitor.purpose} />
@@ -126,11 +115,9 @@ export function DashboardView({ onNavigate, onSignedOut }: {
         </section>
 
         <section aria-labelledby="projects-title" className="dashboard-projects">
-          <div className="dashboard-section-heading">
-            <div><p className="eyebrow">Across the instance</p><h2 id="projects-title">Projects</h2></div>
-            {link("/projects", "Manage projects", "text-link")}
-          </div>
-          {overview.projects.length === 0 && <p className="empty">No projects yet. Create one from Projects.</p>}
+          <SectionHeading action={link("/projects", "Manage projects", "text-link")}
+            eyebrow="Across the instance" title="Projects" titleId="projects-title" />
+          {overview.projects.length === 0 && <EmptyState>No projects yet. Create one from Projects.</EmptyState>}
           <div className="project-summary-list">
             {overview.projects.map((project) => <ProjectSummary key={project.key}
               project={project} hasOpenIncident={overview.attention.some((monitor) =>
@@ -151,7 +138,7 @@ function ProjectSummary({ project, hasOpenIncident, link }: {
   return <article className="project-summary">
     <div className="project-summary-top">
       <h3>{link(projectPath(project.key), project.name, "project-name-link")}</h3>
-      <span className={`state state-${status.tone}`}>{status.label}</span>
+      <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
     </div>
     <p className="project-key">{project.key}</p>
     <p className="project-counts">{project.counts.total} monitors · {project.counts.healthy} healthy · {project.counts.failing} failing · {project.counts.untested} untested · {project.counts.paused} paused</p>
@@ -162,7 +149,7 @@ function ProjectSummary({ project, hasOpenIncident, link }: {
   </article>;
 }
 
-function projectStatus(project: Project, hasOpenIncident: boolean): { label: string; tone: string } {
+function projectStatus(project: Project, hasOpenIncident: boolean): { label: string; tone: StatusTone } {
   if (project.counts.total === 0) return { label: "Empty", tone: "untested" };
   if (hasOpenIncident || project.counts.failing > 0 || project.delivery.terminal_failure > 0)
     return { label: "Needs attention", tone: "failing" };
