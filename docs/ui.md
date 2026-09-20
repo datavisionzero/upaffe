@@ -21,3 +21,11 @@ dashboard keeps failures first, and the CLI and API retain their existing rules.
 The theme foundation initially preserves legacy class names as token aliases.
 View migrations replace those styles incrementally; no route needs a backend
 change to adopt the visual language. Fonts are bundled by the web build.
+
+Shared controls live in `src/web/src/components/`: `Button` has primary,
+secondary, subtle, and destructive variants; `TextField`, `SelectField`, and
+`CheckboxField` associate labels, guidance, and errors with controls. The
+presentation components provide text-bearing status badges, alerts, empty and
+loading states, compact page headers, and sections. Tables use `ui-table` for
+consistent density. Use native control semantics and Base UI interaction
+primitives for focus-sensitive dialogs and menus when a workflow needs them.
