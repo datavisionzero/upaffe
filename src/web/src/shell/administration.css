@@ -1,0 +1,48 @@
+.app-shell > .panel,
+.projects-workspace > .panel,
+.settings-workspace > .panel {
+  border-radius: var(--radius); background: var(--surface);
+  padding: 1rem 1.2rem;
+}
+.app-shell > .panel { max-width: 38rem; }
+.app-shell > .panel h1 { font-size: 1.3rem; }
+.app-shell > .panel .lede { font-size: 0.9rem; line-height: 1.55; }
+.app-shell > .panel .form-stack { gap: 0.8rem; margin-top: 1rem; }
+
+.projects-workspace .create-grid { gap: 0.7rem; }
+.projects-workspace .project-list { gap: 0.55rem; }
+.projects-workspace .project-card {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--background); padding: 0.85rem;
+}
+.projects-workspace .project-card h3 { font-size: 0.95rem; }
+.projects-workspace .project-facts { gap: 0.5rem; }
+.projects-workspace .project-card .version { font-size: 0.72rem; }
+.projects-workspace .project-card .actions { justify-content: flex-start; flex-wrap: wrap; gap: 0.45rem; }
+.projects-workspace .manage-button { margin-top: 0.55rem; }
+.projects-workspace .rename-row { gap: 0.45rem; margin-top: 0.65rem; }
+.projects-workspace .rename-row .ui-field { flex: 1; }
+.projects-workspace .rename-row .ui-field > label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+
+.settings-workspace .monitor-form { gap: 0.7rem; }
+.settings-workspace .panel > h2, .projects-workspace .panel > h2 { margin-bottom: 0.55rem; font-size: 0.95rem; }
+.settings-workspace .panel > p { font-size: 0.83rem; }
+.settings-workspace .panel form > label > span { font-size: 0.8rem; font-weight: 600; }
+.settings-workspace textarea { width: 100%; min-height: 5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--foreground); padding: 0.45rem 0.6rem; }
+.settings-workspace textarea:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.settings-workspace .actions { justify-content: flex-start; flex-wrap: wrap; gap: 0.5rem; }
+.settings-workspace form.actions { align-items: end; }
+.settings-workspace form.actions .ui-field { min-width: min(15rem, 100%); }
+.settings-workspace .history-list li { overflow-wrap: anywhere; }
+.projects-workspace .panel-description,
+.settings-workspace .panel-description,
+.monitor-workspace .panel-description { margin: 0.4rem 0 0.7rem; font-size: 0.8rem; }
+.settings-workspace .ui-section-header .eyebrow,
+.monitor-workspace .ui-section-header .eyebrow { margin: 0 0 0.25rem; letter-spacing: 0; text-transform: none; font-size: 0.75rem; font-weight: 400; color: var(--muted-foreground); }
+
+@media (max-width: 700px) {
+  .app-shell > .panel, .projects-workspace > .panel, .settings-workspace > .panel { padding: 0.85rem; }
+  .projects-workspace .rename-row { align-items: stretch; }
+  .projects-workspace .rename-row .ui-field { width: 100%; }
+  .settings-workspace form.actions .ui-field { width: 100%; }
+}

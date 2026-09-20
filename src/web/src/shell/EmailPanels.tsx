@@ -4,6 +4,8 @@ import type { components } from "@/api/schema";
 import { api } from "@/api/client";
 import { csrfHeaders, problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
+import { TextField } from "@/components/Fields";
+import { Alert, EmptyState, LoadingState, SectionHeading, StatusBadge } from "@/components/Presentation";
 import { monitorPath } from "@/shell/routes";
 
 type Maintenance = components["schemas"]["MaintenanceSnapshot"];
@@ -15,6 +17,12 @@ type DeliveryScope = { projectKey?: string; monitorType?: "http" | "push"; monit
 
 function date(value: string | null | undefined): string {
   return value ? new Date(value).toLocaleString() : "—";
+}
+
+function deliveryTone(state: string): "healthy" | "warning" | "neutral" {
+  if (state === "smtp_accepted") return "healthy";
+  if (state.includes("failure") || state === "retrying") return "warning";
+  return "neutral";
 }
 
 export function MaintenancePanel({ projectKey, monitorType, monitorKey, onSignedOut }: Scope & { onSignedOut: () => void }) {
@@ -87,17 +95,18 @@ export function MaintenancePanel({ projectKey, monitorType, monitorKey, onSigned
   const direct = snapshot?.direct_active && (now === null || !snapshot.ends_at || Date.parse(snapshot.ends_at) > now);
   const title = monitorType ? `${monitorType.toUpperCase()} monitor maintenance` : "Project maintenance";
   return <section className="panel" aria-label={title}>
-    <div className="section-heading"><div><h2>{title}</h2><p className="muted">Email is held while maintenance applies. Checks, reports, and incident history continue.</p></div><Button disabled={loading} onClick={() => void load()} type="button">Refresh maintenance</Button></div>
-    {loading && !snapshot && <p role="status">Loading maintenance…</p>}
-    {error && <div className="error" role="alert">{error}</div>}
-    {notice && <p className="notice" role="status">{notice}</p>}
+    <SectionHeading title={title} titleId="maintenance-title" action={<Button disabled={loading} onClick={() => void load()} type="button">Refresh maintenance</Button>} />
+    <p className="muted panel-description">Email is held while maintenance applies. Checks, reports, and incident history continue.</p>
+    {loading && !snapshot && <LoadingState>Loading maintenance…</LoadingState>}
+    {error && <Alert tone="danger">{error}</Alert>}
+    {notice && <Alert>{notice}</Alert>}
     {snapshot && <>
       <p><strong>Effective: {effective ? "Active" : "Inactive"}</strong>{effective ? ` · until ${date(snapshot.effective_ends_at)}` : ""}</p>
       <p>Direct scope: {direct ? `active until ${date(snapshot.ends_at)}` : "inactive"} · version {snapshot.version}</p>
       {monitorType && <p>Active scopes: {effective ? snapshot.active_scopes.join(", ") : "none"}</p>}
       <form className="actions" onSubmit={(event: FormEvent) => { event.preventDefault(); void change("start"); }}>
-        <label><span>Duration in minutes</span><input aria-label={`${title} duration in minutes`} min={1} max={43200} required type="number" value={duration} onChange={(event) => setDuration(event.target.valueAsNumber)} /></label>
-        <Button disabled={busy} type="submit">{direct ? "Extend maintenance" : "Start maintenance"}</Button>
+        <TextField label="Duration in minutes" aria-label={`${title} duration in minutes`} min={1} max={43200} required type="number" value={duration} onChange={(event) => setDuration(event.target.valueAsNumber)} />
+        <Button disabled={busy} type="submit" variant="primary">{direct ? "Extend maintenance" : "Start maintenance"}</Button>
         {direct && <Button disabled={busy} onClick={() => void change("end")} type="button">End direct maintenance</Button>}
       </form>
     </>}
@@ -140,13 +149,14 @@ export function DeliveryHistoryPanel({ projectKey, monitorType, monitorKey, onSi
 
   const title = projectKey ? "Email delivery" : "Instance email delivery";
   return <section className="panel" aria-label={title}>
-    <div className="section-heading"><div><h2>{title}</h2><p className="muted">SMTP acceptance confirms relay submission, not inbox delivery. History is retained for 90 days.</p></div><Button disabled={loading} onClick={() => void load()} type="button">Refresh delivery</Button></div>
+    <SectionHeading title={title} titleId="delivery-title" action={<Button disabled={loading} onClick={() => void load()} type="button">Refresh delivery</Button>} />
+    <p className="muted panel-description">SMTP acceptance confirms relay submission, not inbox delivery. History is retained for 90 days.</p>
     {summary && <p>Pending {summary.pending_count} · retrying {summary.retrying_count} · terminal failures {summary.terminal_failure_count} · SMTP accepted {summary.smtp_accepted_count}</p>}
-    {error && <div className="error" role="alert">{error}</div>}
-    {loading && items.length === 0 && <p role="status">Loading email deliveries…</p>}
-    {!loading && items.length === 0 && <div className="empty">No email deliveries recorded.</div>}
+    {error && <Alert tone="danger">{error}</Alert>}
+    {loading && items.length === 0 && <LoadingState>Loading email deliveries…</LoadingState>}
+    {!loading && items.length === 0 && <EmptyState>No email deliveries recorded.</EmptyState>}
     {items.length > 0 && <ol className="history-list">{items.map((item) => <li key={item.id}>
-      <strong>{item.kind} · {item.state}</strong> · {item.recipient}
+      <StatusBadge tone={deliveryTone(item.state)}>{item.kind} · {item.state}</StatusBadge> · {item.recipient}
       <span>{item.monitor_type}/{item.monitor_key} · incident {item.incident_id} · attempts {item.attempt_count} · created {date(item.created_at)}</span>
       {(item.last_error_code || item.suppression_reason) && <span>{item.last_error_code ? `Failure code ${item.last_error_code}` : ""}{item.suppression_reason ? ` · Suppressed by ${item.suppression_reason}` : ""}</span>}
       {item.next_attempt_at && <span>Next attempt {date(item.next_attempt_at)}</span>}
@@ -173,13 +183,13 @@ export function IncidentEmailPanel({ incidentId, monitorType, onSignedOut }: { i
   }, [incidentId, monitorType, onSignedOut]);
   useEffect(() => { const start = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(start); }, [load]);
   return <section className="panel" aria-label="Incident email status">
-    <div className="section-heading"><h2>Incident email status</h2><Button disabled={loading} onClick={() => void load()} type="button">Refresh email status</Button></div>
-    {loading && !status && <p role="status">Loading incident email status…</p>}
-    {error && <div className="error" role="alert">{error}</div>}
+    <SectionHeading title="Incident email status" titleId="incident-email-title" action={<Button disabled={loading} onClick={() => void load()} type="button">Refresh email status</Button>} />
+    {loading && !status && <LoadingState>Loading incident email status…</LoadingState>}
+    {error && <Alert tone="danger">{error}</Alert>}
     {status && <>
       <p><strong>Announcement: {status.announcement_state}</strong>{status.suppression_reason ? ` · ${status.suppression_reason}` : ""}</p>
-      {status.deliveries.length === 0 ? <div className="empty">No recipient delivery was queued.</div> : <ol className="history-list">{status.deliveries.map((item) => <li key={item.id}>
-        <strong>{item.kind} · {item.state}</strong> · {item.recipient}
+      {status.deliveries.length === 0 ? <EmptyState>No recipient delivery was queued.</EmptyState> : <ol className="history-list">{status.deliveries.map((item) => <li key={item.id}>
+        <StatusBadge tone={deliveryTone(item.state)}>{item.kind} · {item.state}</StatusBadge> · {item.recipient}
         <span>Attempts {item.attempt_count} · last {date(item.last_attempt_at)} · next {date(item.next_attempt_at)} · SMTP accepted {date(item.accepted_at)}</span>
         {item.last_error_code && <span>Failure code {item.last_error_code}</span>}
         {item.suppression_reason && <span>Suppressed by {item.suppression_reason}</span>}

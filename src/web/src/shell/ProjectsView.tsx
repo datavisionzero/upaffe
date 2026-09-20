@@ -4,6 +4,8 @@ import type { components } from "@/api/schema";
 import { api } from "@/api/client";
 import { csrfHeaders, problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
+import { TextField } from "@/components/Fields";
+import { Alert, EmptyState, LoadingState, PageHeader, SectionHeading } from "@/components/Presentation";
 import { projectPath, withReturn } from "@/shell/routes";
 
 type Project = components["schemas"]["ProjectResponse"];
@@ -110,52 +112,36 @@ export function ProjectsView({ session, onSignedOut, onNavigate }: Props) {
   }
 
   return (
-    <div className="workspace">
-      <header className="workspace-header">
-        <div>
-          <p className="eyebrow">upaffe</p>
-          <h1>Projects</h1>
-          <p className="muted">Signed in as {session.email}</p>
-        </div>
-        <div className="actions"><Button onClick={() => onNavigate(withReturn("/settings/email", "/projects"))} type="button">Instance email</Button></div>
-      </header>
+    <div className="workspace projects-workspace">
+      <PageHeader title="Projects" detail={`Signed in as ${session.email}`}
+        actions={<Button onClick={() => onNavigate(withReturn("/settings/email", "/projects"))} type="button">Instance email</Button>} />
 
       <section aria-labelledby="create-title" className="panel">
         <h2 id="create-title">Create a project</h2>
         <form className="create-grid" onSubmit={create}>
-          <label>
-            <span>Immutable key</span>
-            <input name="key" pattern="[a-z][a-z0-9-]{1,39}" placeholder="backup-jobs" required value={key} onChange={(event) => setKey(event.target.value)} />
-          </label>
-          <label>
-            <span>Display name</span>
-            <input maxLength={100} name="name" placeholder="Backup jobs" required value={name} onChange={(event) => setName(event.target.value)} />
-          </label>
-          <Button disabled={busy === "create"} type="submit">{busy === "create" ? "Creating…" : "Create"}</Button>
+          <TextField label="Immutable key" name="key" pattern="[a-z][a-z0-9-]{1,39}" placeholder="backup-jobs" required value={key} onChange={(event) => setKey(event.target.value)} />
+          <TextField label="Display name" maxLength={100} name="name" placeholder="Backup jobs" required value={name} onChange={(event) => setName(event.target.value)} />
+          <Button disabled={busy === "create"} type="submit" variant="primary">{busy === "create" ? "Creating…" : "Create"}</Button>
         </form>
       </section>
 
       <section aria-labelledby="list-title" className="panel">
-        <div className="section-heading">
-          <div>
-            <h2 id="list-title">{deleted ? "Deleted projects" : "Live projects"}</h2>
-            <p className="muted">Changes use the version currently shown.</p>
-          </div>
-          <Button onClick={() => {
+        <SectionHeading title={deleted ? "Deleted projects" : "Live projects"} titleId="list-title"
+          action={<Button onClick={() => {
             setError(undefined);
             setLoading(true);
             setDeleted((value) => !value);
           }} type="button">
             {deleted ? "Show live" : "Show deleted"}
-          </Button>
-        </div>
+          </Button>} />
+        <p className="muted panel-description">Changes use the version currently shown.</p>
 
-        {error && <div className="error" role="alert">{error}</div>}
-        {loading && <p role="status">Loading projects…</p>}
+        {error && <Alert tone="danger">{error}</Alert>}
+        {loading && <LoadingState>Loading projects…</LoadingState>}
         {!loading && projects.length === 0 && (
-          <div className="empty" role="status">
+          <EmptyState>
             {deleted ? "No deleted projects." : "No projects yet. Create the first one above."}
-          </div>
+          </EmptyState>
         )}
         {!loading && projects.length > 0 && (
           <div className="project-list">
@@ -210,12 +196,9 @@ function ProjectRow({ project, busy, onManage, onManageEmail, onMutate }: RowPro
             event.preventDefault();
             void onMutate(project, "rename", name);
           }}>
-            <label>
-              <span className="sr-only">New display name for {project.key}</span>
-              <input aria-label={`New display name for ${project.key}`} maxLength={100} required value={name} onChange={(event) => setName(event.target.value)} />
-            </label>
+            <TextField label={`New display name for ${project.key}`} maxLength={100} required value={name} onChange={(event) => setName(event.target.value)} />
             <Button disabled={working || name === project.name} type="submit">Rename</Button>
-            <Button className="danger" disabled={working} onClick={() => void onMutate(project, "delete")} type="button">Delete</Button>
+            <Button variant="destructive" disabled={working} onClick={() => void onMutate(project, "delete")} type="button">Delete</Button>
           </form>
         </>
       )}

@@ -52,3 +52,10 @@ links. HTTP and push monitor lists and details share headers, status badges,
 alerts, and form styling. Their domain-specific controls and histories remain
 separate: HTTP targets and secret headers, push reporting modes and one-time
 credential handoff, and each monitor's pause, maintenance, and removal actions.
+
+Project administration and email settings use the same compact panels, labeled
+controls, loading and error states, and clear primary or destructive actions.
+Delivery history keeps relay acceptance separate from inbox delivery. SMTP
+passwords remain write-only in ordinary settings, and test-send feedback says
+when the relay accepted a message without implying inbox receipt. The local
+bootstrap screen still directs the operator to the installation host.
