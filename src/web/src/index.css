@@ -175,6 +175,17 @@ h2 {
   margin-bottom: 2rem;
 }
 
+.monitor-purpose {
+  max-width: 42rem;
+  margin: 0.5rem 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.monitor-purpose a {
+  white-space: nowrap;
+}
+
 .panel {
   width: min(58rem, 100%);
   box-sizing: border-box;

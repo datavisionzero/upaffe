@@ -19,6 +19,7 @@ const baseMonitor = {
   project_key: project.key,
   key: "homepage",
   name: "Homepage",
+  purpose: null as string | null,
   target_url: "https://status.example.test/health",
   has_target_query: true,
   expected_status_code: 200,
@@ -110,6 +111,29 @@ function history(request: Request) {
 describe("HTTP monitor administration", () => {
   afterEach(() => { vi.unstubAllGlobals(); window.history.replaceState({}, "", "/"); });
 
+  it("shows purpose as text and lets an existing monitor clear it", async () => {
+    let current = { ...baseMonitor, purpose: "<b>Checks the homepage</b>" };
+    answering(async (request) => {
+      const path = new URL(request.url).pathname;
+      if (path.endsWith("/http-monitors/homepage") && request.method === "GET") return json(current);
+      if (path.endsWith("/http-monitors/homepage") && request.method === "PUT") {
+        expect(await request.json()).toMatchObject({ purpose: null, version: 1, target_url: null });
+        current = { ...current, purpose: "", version: 2 };
+        return json({ ...current, purpose: null });
+      }
+      return history(request) ?? json({ code: "not_found", status: 404, title: "ignored" }, 404);
+    });
+    render(<MonitorsView onBack={vi.fn()} onOpenPush={vi.fn()} onSignedOut={vi.fn()}
+      project={project} routeMonitorKey="homepage" />);
+    expect(await screen.findByText("<b>Checks the homepage</b>", { selector: ".monitor-purpose" })).toBeInTheDocument();
+    expect(document.querySelector(".monitor-purpose b")).toBeNull();
+    const user = userEvent.setup();
+    await user.clear(screen.getByLabelText("Purpose (optional)"));
+    await user.click(screen.getByRole("button", { name: "Save configuration" }));
+    expect(await screen.findByText(/Purpose not documented/, { selector: ".monitor-purpose" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Add purpose" })).toHaveAttribute("href", "#configuration-title");
+  });
+
   it("loads old pointer evidence and a deep-linked incident beyond the first history page", async () => {
     const incidentId = "dcf2cf4b-1070-45b7-bd39-dfd12f1fb901";
     const oldSuccess = { ...lastSuccess, sequence: 1, applied_to_current_state: true };
@@ -188,6 +212,7 @@ describe("HTTP monitor administration", () => {
         expect(await request.json()).toEqual({
           key: "homepage",
           name: "Homepage",
+          purpose: "Checks the public homepage.",
           target_url: "https://status.example.test/health?access=secret-query",
           expected_status_code: 204,
           text_condition: "forbidden",
@@ -199,7 +224,7 @@ describe("HTTP monitor administration", () => {
           runbook_url: "https://docs.example.test/runbook",
           headers: [{ name: "Authorization", value: "Bearer submitted-secret" }],
         });
-        stored = { ...baseMonitor };
+        stored = { ...baseMonitor, purpose: "Checks the public homepage." };
         return submitted.promise;
       }
       if (path.endsWith("/http-monitors/homepage")) return json(stored);
@@ -211,6 +236,7 @@ describe("HTTP monitor administration", () => {
 
     await user.type(screen.getByLabelText("Immutable key"), "homepage");
     await user.type(screen.getByLabelText("Display name"), "Homepage");
+    await user.type(screen.getByLabelText("Purpose (optional)"), "Checks the public homepage.");
     await user.type(screen.getByLabelText("Target URL"), "https://status.example.test/health?access=secret-query");
     await user.clear(screen.getByLabelText("Expected status"));
     await user.type(screen.getByLabelText("Expected status"), "204");
@@ -233,6 +259,7 @@ describe("HTTP monitor administration", () => {
     expect(screen.getByLabelText("Target URL")).toHaveValue("");
     submitted.resolve(json(stored, 201));
     expect(await screen.findByRole("heading", { name: "Homepage", level: 1 })).toBeInTheDocument();
+    expect(screen.getByText("Checks the public homepage.", { selector: ".monitor-purpose" })).toBeInTheDocument();
     expect(screen.queryByDisplayValue("Bearer submitted-secret")).not.toBeInTheDocument();
     expect(screen.queryByText("secret-query")).not.toBeInTheDocument();
   });
@@ -306,9 +333,9 @@ describe("HTTP monitor administration", () => {
       }
       if (path.endsWith("/http-monitors/homepage") && request.method === "PUT") {
         const body = await request.json();
-        expect(body).toMatchObject({ name: "Homepage status", target_url: null, version: 4 });
+        expect(body).toMatchObject({ name: "Homepage status", purpose: "Checks the site.", target_url: null, version: 4 });
         operations.push("update");
-        current = { ...current, name: "Homepage status", version: 5 };
+        current = { ...current, name: "Homepage status", purpose: "Checks the site.", version: 5 };
         return json(current);
       }
       if (path.endsWith("/http-monitors/homepage") && request.method === "DELETE") {
@@ -341,9 +368,11 @@ describe("HTTP monitor administration", () => {
     const name = screen.getByLabelText("Display name");
     await user.clear(name);
     await user.type(name, "Homepage status");
+    await user.type(screen.getByLabelText("Purpose (optional)"), "Checks the site.");
     expect(screen.getByLabelText(/Replace the complete target URL/)).not.toBeChecked();
     await user.click(screen.getByRole("button", { name: "Save configuration" }));
     expect(await screen.findByText("Configuration saved.")).toBeInTheDocument();
+    expect(screen.getByText("Checks the site.", { selector: ".monitor-purpose" })).toBeInTheDocument();
 
     await user.type(screen.getByLabelText("Header name"), "X-Api-Key");
     await user.type(screen.getByLabelText("New secret value"), "header-secret");
