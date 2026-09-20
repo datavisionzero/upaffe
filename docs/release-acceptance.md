@@ -33,6 +33,20 @@ check. Its sanitized diagnostic showed PostgreSQL `23505`: a requested check and
 scheduled work could allocate the same monitor-local sequence. Requested starts
 now take the scheduler's monitor row lock before reading that sequence. A
 concurrent-start integration test reproduced the unique-key failure before the
-fix and passed after it. The final candidate must still pass the full gate.
+fix and passed after it. The final candidate passed the gate below.
 
-This record establishes the matrix before release automation and final documentation land. Repeat the gate against the final candidate commit; a passing earlier revision does not sign off a later one.
+## v0.1.0 release sign-off (2026-09-20)
+
+- The immutable `v0.1.0` tag points to `d4205518af9d494b94a421293f8350b476efc935`. [Main CI](https://github.com/datavisionzero/upaffe/actions/runs/35476727776) passed every job on that exact commit, including 103 unit, 136 PostgreSQL integration, and 33 web tests, the composed monitoring system test, CLI checks, and both image architectures. Local `scripts/check.sh`, `scripts/smoke.sh`, and `scripts/check-production-compose.sh` passed from the clean candidate tree. The [nonpublishing candidate workflow](https://github.com/datavisionzero/upaffe/actions/runs/35477019484) passed four native CLI archive executions, the two-architecture OCI layout check, and packaging.
+- The [public release](https://github.com/datavisionzero/upaffe/releases/tag/v0.1.0) contains the reviewed notes, four CLI ZIPs, `SHA256SUMS`, `source-revision.txt`, and `image-digest.txt`. All downloaded ZIPs passed `shasum -a 256 -c SHA256SUMS`; the bundle verifier found the exact file set and source revision. The macOS arm64 binary reported version `0.1.0` and the tagged source revision in its Go build metadata.
+- `ghcr.io/datavisionzero/upaffe:v0.1.0` resolves to immutable index digest `sha256:2d3fce5597a105737fe096f170ec8b7540239c0da073eb63e092eab171f79495`. The image verifier checked Linux amd64 and arm64 manifests, version and revision labels, and the native application's version response. The release body and `image-digest.txt` name that same digest.
+- `scripts/check-production-workflow.sh` passed using previous published image `sha-43d195909048ec829d53fbe92280e3fbeb021dea` and final `v0.1.0`, with expected version `0.1.0`. It observed optional HTTPS heartbeat delivery, silence during stopped monitoring, resumed sends, empty-volume bootstrap, persistence after recreation, a failed-pull rollback, the version response after upgrade, future-schema rejection, protected backup, and isolated restore. No application source was built on the test host.
+- A separate disposable installation used the downloaded macOS arm64 CLI and tagged image to create a project, configure and test SMTP against a local fixture, create and test an HTTP monitor, create a push monitor, submit one completion report with curl, and read the resulting failure through `ua project report`. It built no application or CLI source on the test host. The composed system test and matrix above cover the remaining incident, email, maintenance, restart, and dashboard behaviors.
+- The first [tagged workflow run](https://github.com/datavisionzero/upaffe/actions/runs/35492822172) published the correct image but stopped before the GitHub release because its runner Docker CLI lacked `image inspect --platform`. [PR #26](https://github.com/datavisionzero/upaffe/pull/26) fixed image inspection through pinned architecture manifests. The [guarded recovery workflow](https://github.com/datavisionzero/upaffe/actions/runs/35493443844) then verified the existing tag, image, and original CLI bundle and published the release without moving the tag or replacing the image. Its first attempt created a draft that was briefly absent from the release list API; the idempotent second attempt completed. The release publisher now waits briefly for a newly created draft to become visible. No release-gate deviation remains open.
+
+| CLI archive | SHA-256 |
+| --- | --- |
+| `ua_0.1.0_darwin_amd64.zip` | `423fefedec6f688231cbe9aa3bd431b7c6b6968b63f0277ab1bc2734249f5b14` |
+| `ua_0.1.0_darwin_arm64.zip` | `196d17a97cd0196f67742af8591625cade5426550e83b6cf1e73518ee302fe87` |
+| `ua_0.1.0_linux_amd64.zip` | `ed4cc402a3e78e05a3fcd9f953a482fe16a54ef3f2e27323a226c41ba501b153` |
+| `ua_0.1.0_linux_arm64.zip` | `929cda8d20ca427bb5be02298bc5637b2dc9a27f1b2cee24cddf5b5b84de9161` |

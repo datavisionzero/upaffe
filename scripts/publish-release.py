@@ -11,6 +11,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 
 PLATFORMS = ("linux_amd64", "linux_arm64", "darwin_amd64", "darwin_arm64")
 
@@ -28,6 +29,17 @@ def release(repo: str, tag: str) -> dict | None:
     if len(matches) > 1:
         raise SystemExit("Multiple releases have the same tag")
     return matches[0] if matches else None
+
+
+def wait_for_created_release(repo: str, tag: str) -> dict:
+    # The list endpoint can lag behind a successful draft creation.
+    for attempt in range(20):
+        current = release(repo, tag)
+        if current is not None:
+            return current
+        if attempt < 19:
+            time.sleep(1)
+    raise SystemExit("Draft release was not found after creation")
 
 
 def verify_assets(existing: dict, paths: dict[str, pathlib.Path], allow_missing: bool) -> set[str]:
@@ -80,9 +92,7 @@ def main() -> None:
         if current is None:
             gh("release", "create", tag, "--draft", "--verify-tag", "--title",
                f"upaffe {tag}", "--notes-file", notes.name)
-            current = release(repo, tag)
-            if current is None:
-                raise SystemExit("Draft release was not found after creation")
+            current = wait_for_created_release(repo, tag)
         if current["body"].rstrip() != body.rstrip():
             raise SystemExit("Release notes differ from the reviewed source and digest")
         uploaded = verify_assets(current, paths, allow_missing=current["draft"])

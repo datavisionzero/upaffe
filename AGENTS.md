@@ -4,9 +4,9 @@ Instructions for coding agents working in this repository. See
 [`VISION.md`](VISION.md) for the product direction, committed MVP and deliberate
 boundaries.
 
-upaffe is under active implementation and has no released product. Distinguish
-the technical foundation that exists from monitoring behavior that is still
-only committed in the vision. Keep this file and the relevant technical
+upaffe v0.1.0 is the first public MVP release and remains under active
+development. Distinguish implemented monitoring behavior from later roadmap
+commitments in the vision. Keep this file and the relevant technical
 documentation current with the repository.
 
 ## Language
