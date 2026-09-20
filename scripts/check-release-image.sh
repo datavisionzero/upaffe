@@ -9,15 +9,25 @@ image=$1
 version=$2
 revision=$3
 
-docker buildx imagetools inspect --raw "$image" \
+index=$(docker buildx imagetools inspect --raw "$image")
+printf '%s\n' "$index" \
   | jq -e '[.manifests[] | select(.platform.os == "linux") |
       .platform.architecture] | sort == ["amd64", "arm64"]' >/dev/null || {
     echo 'Release image index lacks exactly Linux amd64 and arm64.' >&2; exit 1;
   }
 
+case "$image" in
+  *@sha256:*) repository=${image%@sha256:*} ;;
+  *:*) repository=${image%:*} ;;
+  *) repository=$image ;;
+esac
 for architecture in amd64 arm64; do
-  docker pull --quiet --platform "linux/$architecture" "$image" >/dev/null
-  actual=$(docker image inspect --platform "linux/$architecture" "$image" --format \
+  manifest_digest=$(printf '%s\n' "$index" | jq -er --arg architecture "$architecture" \
+    '.manifests[] | select(.platform.os == "linux" and
+      .platform.architecture == $architecture) | .digest')
+  manifest_image="$repository@$manifest_digest"
+  docker pull --quiet --platform "linux/$architecture" "$manifest_image" >/dev/null
+  actual=$(docker image inspect "$manifest_image" --format \
     '{{.Os}}/{{.Architecture}} {{index .Config.Labels "org.opencontainers.image.version"}} {{index .Config.Labels "org.opencontainers.image.revision"}}')
   [ "$actual" = "linux/$architecture $version $revision" ] || {
     echo "Wrong metadata for the $architecture release image." >&2; exit 1;

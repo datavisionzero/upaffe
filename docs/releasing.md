@@ -1,6 +1,6 @@
 # Release publication
 
-The [release workflow](../.github/workflows/release.yml) is the only path that publishes a versioned image and GitHub release. It accepts a nonpublishing candidate dispatch from current `main` or a stable `vX.Y.Z` tag on a validated `main` commit. A tag is the maintainer's publication action; dispatching a candidate creates no tag, versioned registry image, or GitHub release.
+The [release workflow](../.github/workflows/release.yml) publishes a versioned image and GitHub release from a stable `vX.Y.Z` tag on a validated `main` commit. It also accepts a nonpublishing candidate dispatch from current `main`. A tag is the maintainer's publication action; dispatching a candidate creates no tag, versioned registry image, or GitHub release. The [recovery workflow](../.github/workflows/release-recovery.yml) can finish an interrupted tagged release using its existing image and CLI artifacts without moving the tag.
 
 ## Candidate review
 
@@ -16,3 +16,14 @@ Create and push a stable tag, for example `v0.1.0`, on the accepted `main` commi
 The GitHub release contains `ua_X.Y.Z_linux_amd64.zip`, `ua_X.Y.Z_linux_arm64.zip`, `ua_X.Y.Z_darwin_amd64.zip`, and `ua_X.Y.Z_darwin_arm64.zip`; `SHA256SUMS`; `source-revision.txt`; and `image-digest.txt`. Each CLI archive contains only executable `ua`. The release body lists the immutable image digest and links to the [installation guide](./operations.md) and [CLI guide](./cli.md). Verify the archive checksum before installing it. Pin the image digest in production.
 
 If a run stops after creating a draft release, rerun the same workflow for that tag. It reuses a versioned image only when both architecture manifests and their version/revision labels match. It accepts existing release assets only when their GitHub SHA-256 digest equals the locally checked asset, uploads missing assets, and publishes the draft only after every expected asset is present. A different image, notes body, or existing asset causes the run to fail for maintainer investigation. An already published release is verified and left intact.
+
+If the tag run built the image and CLI bundle but cannot finish publication,
+correct the verifier on `main` and dispatch **Recover an interrupted release**
+with the stable version and the failed tag run ID. The recovery job checks that
+the tag still points to a commit with passing `main` CI, the source run is the
+failed workflow for that exact tag and commit, the downloaded bundle has the
+expected revision and checksums, and the already published image has both
+architectures and the correct version and revision labels. It reads release
+notes from the tag, then uses the same checked release publisher. It never
+moves the tag or rebuilds or replaces the versioned image. A missing or
+different tagged artifact blocks recovery.
