@@ -29,3 +29,11 @@ presentation components provide text-bearing status badges, alerts, empty and
 loading states, compact page headers, and sections. Tables use `ui-table` for
 consistent density. Use native control semantics and Base UI interaction
 primitives for focus-sensitive dialogs and menus when a workflow needs them.
+
+The authenticated shell follows the reference's persistent sidebar and compact
+header. Its destinations are Dashboard, Projects, Monitors, and Settings; a
+project route adds overview, HTTP, push, and project email links. The current
+project comes from the URL. On narrow screens the same navigation opens as a
+focus-managed drawer. The project selector changes the URL to the selected
+project overview. Appearance and sign-out controls stay in the sidebar.
+Monitoring keeps its own route hierarchy and omits tracker-specific navigation.

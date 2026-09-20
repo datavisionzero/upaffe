@@ -5,6 +5,7 @@ import { api } from "@/api/client";
 import { problemMessage } from "@/api/problems";
 import { BootstrapView, SignInView } from "@/shell/AccessViews";
 import { WorkspaceRouter } from "@/shell/WorkspaceRouter";
+import { ThemeProvider } from "@/theme/ThemeProvider";
 
 type Session = components["schemas"]["CurrentSessionResponse"];
 type Screen =
@@ -15,6 +16,10 @@ type Screen =
   | { state: "failed"; reason: string };
 
 export function App() {
+  return <ThemeProvider><AppContent /></ThemeProvider>;
+}
+
+function AppContent() {
   const [screen, setScreen] = useState<Screen>({ state: "loading" });
 
   const enter = useCallback(async () => {
@@ -49,8 +54,8 @@ export function App() {
   }, [enter]);
   const signedOut = useCallback(() => setScreen({ state: "signin" }), []);
 
-  return (
-    <main className="app-shell">
+  const content = (
+    <>
       {screen.state === "loading" && <p className="loading" role="status">Opening the instance…</p>}
       {screen.state === "bootstrap" && (
         <BootstrapView onRefresh={reenter} />
@@ -65,6 +70,9 @@ export function App() {
           <button className="retry" onClick={reenter} type="button">Try again</button>
         </section>
       )}
-    </main>
+    </>
   );
+  return screen.state === "projects"
+    ? <div className="app-shell">{content}</div>
+    : <main className="app-shell">{content}</main>;
 }

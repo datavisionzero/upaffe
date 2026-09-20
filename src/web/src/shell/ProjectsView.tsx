@@ -109,19 +109,6 @@ export function ProjectsView({ session, onSignedOut, onNavigate }: Props) {
     }
   }
 
-  async function signOut() {
-    setBusy("signout");
-    try {
-      const { response, error: problem } = await api.DELETE("/api/session", { headers: csrfHeaders });
-      if (response.status === 204 || response.status === 401) onSignedOut();
-      else setError(problemMessage(problem, response.status));
-    } catch {
-      setError("Sign-out could not be completed.");
-    } finally {
-      setBusy(undefined);
-    }
-  }
-
   return (
     <div className="workspace">
       <header className="workspace-header">
@@ -130,7 +117,7 @@ export function ProjectsView({ session, onSignedOut, onNavigate }: Props) {
           <h1>Projects</h1>
           <p className="muted">Signed in as {session.email}</p>
         </div>
-        <div className="actions"><Button onClick={() => onNavigate(withReturn("/settings/email", "/projects"))} type="button">Instance email</Button><Button disabled={busy === "signout"} onClick={signOut} type="button">Sign out</Button></div>
+        <div className="actions"><Button onClick={() => onNavigate(withReturn("/settings/email", "/projects"))} type="button">Instance email</Button></div>
       </header>
 
       <section aria-labelledby="create-title" className="panel">
