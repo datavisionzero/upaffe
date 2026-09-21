@@ -258,10 +258,12 @@ test("focus-sensitive shell and form interactions work from the keyboard", async
 
   await page.setViewportSize({ width: 360, height: 800 });
   await page.reload();
+  await page.waitForLoadState("networkidle");
   const menu = page.getByRole("button", { name: "Open menu" });
   await expect(menu).toBeVisible();
   await menu.focus();
-  await page.keyboard.press("Enter");
+  await expect(menu).toBeFocused();
+  await menu.press("Enter");
   await expect(page.getByRole("dialog", { name: "Navigation" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(menu).toBeFocused();
