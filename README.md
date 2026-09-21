@@ -7,7 +7,7 @@ HTTP and push monitoring, incident email, and a noninteractive `ua` CLI.
 For an installation without a source build, follow the
 [production Compose guide](./docs/operations.md#production-compose-startup) and
 pin the image digest from the
-[v0.1.1 release](https://github.com/datavisionzero/upaffe/releases/tag/v0.1.1).
+[latest release](https://github.com/datavisionzero/upaffe/releases/latest).
 Download a [supported CLI archive](./docs/cli.md#install-a-release-binary),
 verify its checksum, and use the [agent workflow](./docs/agent-workflow.md) for
 unattended administration. The release notes describe the shipped scope.
