@@ -1,7 +1,11 @@
 .app-shell:has(.workspace-layout) { padding: 0; }
-.workspace-layout { display: grid; grid-template-columns: 16rem minmax(0, 1fr); min-height: 100dvh; }
+.workspace-layout {
+  display: grid; grid-template-columns: 16rem minmax(0, 1fr);
+  grid-template-areas: "sidebar body"; min-height: 100dvh;
+}
 .sidebar-portal { display: contents; }
 .app-sidebar {
+  grid-area: sidebar;
   position: sticky; top: 0; box-sizing: border-box; display: flex; flex-direction: column;
   height: 100dvh; min-width: 0; border-right: 1px solid var(--border);
   background: var(--background); color: var(--foreground);
@@ -27,7 +31,7 @@
 .sidebar-link svg { flex: none; }
 .sidebar-footer { display: grid; justify-items: start; gap: 0.45rem; padding: 0.75rem 1rem; }
 .sidebar-operator { margin: 0; max-width: 100%; overflow-wrap: anywhere; color: var(--muted-foreground); font-size: 0.72rem; }
-.workspace-body { min-width: 0; }
+.workspace-body { grid-area: body; min-width: 0; }
 .workspace-topbar {
   display: flex; align-items: center; gap: 1rem; box-sizing: border-box;
   min-height: 3rem; border-bottom: 1px solid var(--border); padding: 0.4rem 0.75rem;

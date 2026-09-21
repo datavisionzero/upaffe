@@ -1,5 +1,5 @@
 import { Dialog } from "@base-ui/react/dialog";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import type { components } from "@/api/schema";
 
 import { api } from "@/api/client";
@@ -22,16 +22,19 @@ export function NewProjectView({ onSignedOut, onNavigate }: {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [discardOpen, setDiscardOpen] = useState(false);
   const dirty = key.length > 0 || name.length > 0;
+  const current = useRef({ dirty, discardOpen, pending });
+  const keyInput = useRef<HTMLInputElement>(null);
+  useLayoutEffect(() => { current.current = { dirty, discardOpen, pending }; }, [dirty, discardOpen, pending]);
 
   useEffect(() => {
     const unload = (event: BeforeUnloadEvent) => {
-      if (!dirty || pending) return;
+      if (!current.current.dirty || current.current.pending) return;
       event.preventDefault();
     };
     const cancel = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || discardOpen || pending) return;
+      if (event.key !== "Escape" || current.current.discardOpen || current.current.pending) return;
       event.preventDefault();
-      if (dirty) setDiscardOpen(true);
+      if (current.current.dirty) window.setTimeout(() => setDiscardOpen(true), 0);
       else onNavigate("/projects");
     };
     window.addEventListener("beforeunload", unload);
@@ -40,7 +43,7 @@ export function NewProjectView({ onSignedOut, onNavigate }: {
       window.removeEventListener("beforeunload", unload);
       window.removeEventListener("keydown", cancel, true);
     };
-  }, [dirty, discardOpen, pending, onNavigate]);
+  }, [onNavigate]);
 
   function cancel() {
     if (dirty) setDiscardOpen(true);
@@ -76,7 +79,7 @@ export function NewProjectView({ onSignedOut, onNavigate }: {
       {error && <Alert tone="danger">{error}</Alert>}
       <TextField autoFocus description="Lowercase letters, numbers, and hyphens. This cannot be changed later."
         error={fieldErrors.key} label="Immutable key" name="key" pattern="[a-z][a-z0-9-]{1,39}"
-        placeholder="backup-jobs" required value={key} onChange={(event) => setKey(event.target.value)} />
+        placeholder="backup-jobs" ref={keyInput} required value={key} onChange={(event) => setKey(event.target.value)} />
       <TextField error={fieldErrors.name} label="Display name" maxLength={100} name="name"
         placeholder="Backup jobs" required value={name} onChange={(event) => setName(event.target.value)} />
       <div className="actions">
@@ -88,7 +91,7 @@ export function NewProjectView({ onSignedOut, onNavigate }: {
     <Dialog.Root open={discardOpen} onOpenChange={setDiscardOpen}>
       <Dialog.Portal>
         <Dialog.Backdrop className="ui-dialog-backdrop" />
-        <Dialog.Popup className="ui-dialog-popup">
+        <Dialog.Popup className="ui-dialog-popup" finalFocus={() => keyInput.current ?? true}>
           <Dialog.Title>Discard new project?</Dialog.Title>
           <Dialog.Description>The key and display name you entered will be lost.</Dialog.Description>
           <div className="ui-dialog-actions">
