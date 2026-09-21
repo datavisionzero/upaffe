@@ -90,6 +90,27 @@
 .ui-menu-indicator { position: absolute; right: 0.5rem; display: inline-flex; }
 .ui-menu-separator { height: 1px; margin: 0.25rem -0.25rem; background: var(--border); }
 
+.ui-dialog-backdrop { position: fixed; z-index: 60; inset: 0; background: var(--overlay); }
+.ui-dialog-popup {
+  position: fixed;
+  z-index: 70;
+  top: 50%;
+  left: 50%;
+  box-sizing: border-box;
+  width: min(28rem, calc(100vw - 2rem));
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  padding: 1rem;
+  box-shadow: 0 1rem 3rem color-mix(in oklab, var(--foreground), transparent 78%);
+  outline: none;
+}
+.ui-dialog-popup h2 { margin: 0; font-size: 1rem; }
+.ui-dialog-popup p { margin: 0.5rem 0 1rem; color: var(--muted-foreground); }
+.ui-dialog-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
+
 .ui-badge {
   display: inline-flex; align-items: center; gap: 0.25rem; min-height: 1.3rem;
   border: 1px solid var(--border); border-radius: 999px;

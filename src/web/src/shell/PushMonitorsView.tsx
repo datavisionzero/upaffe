@@ -4,6 +4,7 @@ import type { components } from "@/api/schema";
 import { api } from "@/api/client";
 import { csrfHeaders, problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SelectField, TextField } from "@/components/Fields";
 import { Alert, EmptyState, LoadingState, PageHeader, SectionHeading, StatusBadge } from "@/components/Presentation";
 import { monitorStateTone } from "@/components/status";
@@ -224,7 +225,6 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
-  const [confirmRemove, setConfirmRemove] = useState(false);
   const [emailIncidentId, setEmailIncidentId] = useState<string | undefined>(() => {
     const link = monitorLink();
     return link?.projectKey === project.key && link.monitorType === "push" && link.monitorKey === monitorKey ? link.incidentId : undefined;
@@ -504,13 +504,10 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
     <section aria-labelledby="push-remove-title" className="panel danger-zone">
       <h2 id="push-remove-title">Remove push monitor</h2>
       <p className="muted">Removal revokes its reporting credential and retains its history and key.</p>
-      {!confirmRemove
-        ? <Button variant="destructive" onClick={() => setConfirmRemove(true)} type="button">Remove push monitor…</Button>
-        : <div className="actions confirmation" role="group" aria-label="Confirm push monitor removal">
-          <span>Remove {monitor.name}?</span>
-          <Button variant="destructive" disabled={busy !== undefined} onClick={() => void lifecycle("remove")} type="button">Confirm removal</Button>
-          <Button disabled={busy !== undefined} onClick={() => setConfirmRemove(false)} type="button">Cancel</Button>
-        </div>}
+      <ConfirmDialog confirmLabel="Confirm removal"
+        description="The reporting credential is revoked immediately. History and the monitor key are retained."
+        onConfirm={() => lifecycle("remove")} pending={busy !== undefined}
+        title={`Remove ${monitor.name}?`} triggerLabel="Remove push monitor…" />
     </section>
   </div>;
 }

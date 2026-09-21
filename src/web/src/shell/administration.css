@@ -1,7 +1,7 @@
 .app-shell > .panel,
 .projects-workspace > .panel,
 .settings-workspace > .panel {
-  border-radius: var(--radius); background: var(--surface);
+  border-radius: var(--radius); background: var(--card);
   padding: 1rem 1.2rem;
 }
 .app-shell > .panel { max-width: 38rem; }
@@ -26,11 +26,18 @@
 .projects-workspace .rename-row .ui-field > label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
 
 .settings-workspace .monitor-form { gap: 0.7rem; }
+.settings-workspace > .panel {
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  padding: 0.85rem 0;
+}
 .settings-workspace .panel > h2, .projects-workspace .panel > h2 { margin-bottom: 0.55rem; font-size: 0.95rem; }
 .settings-workspace .panel > p { font-size: 0.83rem; }
 .settings-workspace .panel form > label > span { font-size: 0.8rem; font-weight: 600; }
-.settings-workspace textarea { width: 100%; min-height: 5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--foreground); padding: 0.45rem 0.6rem; }
-.settings-workspace textarea:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.settings-workspace textarea { width: 100%; min-height: 5rem; border: 1px solid var(--input); border-radius: var(--radius); background: var(--card); color: var(--foreground); outline: none; padding: 0.45rem 0.6rem; }
+.settings-workspace textarea:focus-visible { border-color: var(--ring); box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring), transparent 50%); }
 .settings-workspace .actions { justify-content: flex-start; flex-wrap: wrap; gap: 0.5rem; }
 .settings-workspace form.actions { align-items: end; }
 .settings-workspace form.actions .ui-field { min-width: min(15rem, 100%); }
@@ -42,7 +49,8 @@
 .monitor-workspace .ui-section-header .eyebrow { margin: 0 0 0.25rem; letter-spacing: 0; text-transform: none; font-size: 0.75rem; font-weight: 400; color: var(--muted-foreground); }
 
 @media (max-width: 700px) {
-  .app-shell > .panel, .projects-workspace > .panel, .settings-workspace > .panel { padding: 0.85rem; }
+  .app-shell > .panel, .projects-workspace > .panel { padding: 0.85rem; }
+  .settings-workspace > .panel { padding: 0.75rem 0; }
   .projects-workspace .rename-row { align-items: stretch; }
   .projects-workspace .rename-row .ui-field { width: 100%; }
   .settings-workspace form.actions .ui-field { width: 100%; }

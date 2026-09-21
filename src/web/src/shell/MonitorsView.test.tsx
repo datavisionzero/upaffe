@@ -384,8 +384,8 @@ describe("HTTP monitor administration", () => {
     expect(await screen.findByText("Header X-Api-Key was removed.")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Remove monitor…" }));
-    const confirmation = screen.getByRole("group", { name: "Confirm monitor removal" });
-    expect(within(confirmation).getByText(/Remove Homepage status/)).toBeInTheDocument();
+    const confirmation = screen.getByRole("dialog", { name: "Remove Homepage status?" });
+    expect(within(confirmation).getByText(/History and the monitor key are retained/)).toBeInTheDocument();
     await user.click(within(confirmation).getByRole("button", { name: "Confirm removal" }));
     expect(await screen.findByRole("heading", { name: "Monitors" })).toBeInTheDocument();
     expect(operations).toEqual(["older-checks", "pause", "resume", "test", "update", "set-header", "remove-header", "remove"]);
