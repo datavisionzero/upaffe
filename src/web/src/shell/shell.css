@@ -25,14 +25,7 @@
 .sidebar-link[aria-current="page"] { font-weight: 600; }
 .sidebar-link svg { flex: none; }
 .sidebar-footer { display: grid; justify-items: start; gap: 0.45rem; padding: 0.75rem 1rem; }
-.sidebar-footer .ui-button { justify-content: flex-start; width: 100%; }
-.sidebar-theme { width: 100%; color: var(--muted-foreground); font-size: 0.72rem; }
-.sidebar-theme select {
-  display: block; width: 100%; min-height: 2rem; margin-top: 0.3rem;
-  background: var(--surface); color: var(--foreground); padding: 0.25rem 0.5rem;
-}
 .sidebar-operator { margin: 0; max-width: 100%; overflow-wrap: anywhere; color: var(--muted-foreground); font-size: 0.72rem; }
-.sidebar-footer [role="alert"] { margin: 0; color: var(--danger); font-size: 0.78rem; }
 .workspace-body { min-width: 0; }
 .workspace-topbar {
   display: flex; align-items: center; gap: 1rem; box-sizing: border-box;
@@ -41,6 +34,13 @@
 .topbar-location { font-weight: 600; font-size: 0.83rem; overflow-wrap: anywhere; }
 .project-switcher { display: flex; align-items: center; gap: 0.45rem; margin-left: auto; color: var(--muted-foreground); font-size: 0.75rem; }
 .project-switcher select { width: auto; max-width: min(40vw, 16rem); min-height: 1.9rem; background: var(--surface); color: var(--foreground); padding: 0.2rem 0.5rem; }
+.account-menu { display: flex; min-width: 0; align-items: center; gap: 0.5rem; margin-left: auto; }
+.account-trigger { width: 1.75rem; min-height: 1.75rem; border-radius: 999px; background: var(--secondary); padding: 0; font-family: var(--font-mono); font-size: 0.68rem; }
+.account-popup { min-width: 13rem; }
+.account-identity { display: grid; gap: 0.1rem; color: var(--foreground); }
+.account-identity strong { font-size: 0.8rem; font-weight: 600; }
+.account-identity span { max-width: 16rem; overflow-wrap: anywhere; color: var(--muted-foreground); font-size: 0.72rem; font-weight: 400; }
+.account-error { max-width: min(22rem, 42vw); margin: 0; overflow-wrap: anywhere; color: var(--danger-ink); font-size: 0.75rem; }
 .workspace-main { box-sizing: border-box; width: 100%; max-width: 82rem; margin: 0 auto; padding: 1.5rem; }
 .workspace-layout .workspace { width: 100%; max-width: none; }
 .workspace-layout .breadcrumbs {

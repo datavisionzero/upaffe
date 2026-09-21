@@ -161,8 +161,33 @@ describe("the access and project application", () => {
     expect(screen.getByText("version 3")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Restore" }));
     expect(await screen.findByText("No deleted projects.")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Sign out" }));
+    await user.click(screen.getByRole("button", { name: `Account: ${session.email}` }));
+    await user.click(await screen.findByRole("menuitem", { name: "Sign out" }));
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+  });
+
+  it("keeps the authenticated session and exposes the error when sign-out fails", async () => {
+    answering((request) => {
+      const path = new URL(request.url).pathname;
+      if (path === "/api/bootstrap") return json({ required: false, available: false });
+      if (path === "/api/session" && request.method === "GET") return json(session);
+      if (path === "/api/session" && request.method === "DELETE") {
+        return json({ code: "unavailable", status: 503, title: "must-not-render" }, 503);
+      }
+      if (path === "/api/projects") return json([]);
+      throw new Error(`Unexpected ${request.method} ${path}`);
+    });
+    render(<App />);
+    const user = userEvent.setup();
+    await screen.findByRole("heading", { name: "Projects" });
+
+    const account = screen.getByRole("button", { name: `Account: ${session.email}` });
+    await user.click(account);
+    await user.click(await screen.findByRole("menuitem", { name: "Sign out" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("HTTP 503");
+    expect(screen.getByRole("heading", { name: "Projects" })).toBeInTheDocument();
+    expect(account).toBeInTheDocument();
   });
 
   it("shows stable validation facts without rendering an untrusted problem title", async () => {

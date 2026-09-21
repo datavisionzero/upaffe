@@ -46,6 +46,14 @@ it("keeps project context in the URL and restores focus after closing mobile nav
   await waitFor(() => expect(toggle).toHaveFocus());
   expect(screen.queryByRole("dialog", { name: "Navigation" })).not.toBeInTheDocument();
 
+  await user.click(screen.getByRole("button", { name: "Account: operator@example.test" }));
+  await user.click(await screen.findByRole("menuitem", { name: "Settings" }));
+  expect(window.location.pathname + window.location.search).toBe(
+    "/settings/email?return=%2Fprojects%2Fjobs",
+  );
+  act(() => window.history.back());
+  await waitFor(() => expect(window.location.pathname).toBe("/projects/jobs"));
+
   await user.click(toggle);
   const projectsLink = screen.getByRole("link", { name: "Projects" });
   const href = projectsLink.getAttribute("href")!;

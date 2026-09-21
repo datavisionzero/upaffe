@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import type { components } from "@/api/schema";
-import { Activity, ChevronRight, FolderOpen, Gauge, Globe, LogOut, Mail, Menu, Radio, Settings, X, type LucideIcon } from "lucide-react";
+import { Activity, ChevronRight, FolderOpen, Gauge, Globe, Mail, Menu, Radio, Settings, X, type LucideIcon } from "lucide-react";
 
 import { api } from "@/api/client";
 import { csrfHeaders, problemMessage } from "@/api/problems";
-import { Button } from "@/components/Button";
+import { AccountMenu } from "@/shell/AccountMenu";
 import { DashboardView } from "@/shell/DashboardView";
 import { InstanceEmailView, ProjectEmailView } from "@/shell/EmailSettingsView";
 import { MonitorsView } from "@/shell/MonitorsView";
@@ -13,7 +13,6 @@ import { ProjectOverviewView } from "@/shell/ProjectOverviewView";
 import { ProjectsView } from "@/shell/ProjectsView";
 import { PushMonitorsView } from "@/shell/PushMonitorsView";
 import { monitorPath, projectPath, returnPath, useAppRoute, withReturn } from "@/shell/routes";
-import { useTheme } from "@/theme/ThemeProvider";
 
 type Session = components["schemas"]["CurrentSessionResponse"];
 type Project = components["schemas"]["ProjectResponse"];
@@ -34,7 +33,6 @@ export function WorkspaceRouter({ session, onSignedOut }: {
   const [shellError, setShellError] = useState<string>();
   const navToggle = useRef<HTMLButtonElement>(null);
   const sidebar = useRef<HTMLElement>(null);
-  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     const preference = window.matchMedia?.("(max-width: 800px)");
@@ -232,16 +230,7 @@ export function WorkspaceRouter({ session, onSignedOut }: {
           "Settings", route.kind === "settings", Settings)}
       </nav>
       <div className="sidebar-footer">
-        <label className="sidebar-theme">Appearance
-          <select aria-label="Appearance" onChange={(event) => setTheme(event.target.value as typeof theme)} value={theme}>
-            <option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option>
-          </select>
-        </label>
         <p className="sidebar-operator">{session.email}</p>
-        {shellError && <p role="alert">{shellError}</p>}
-        <Button onClick={() => void signOut()} pending={signingOut} type="button" variant="subtle">
-          <LogOut aria-hidden="true" size={16} />Sign out
-        </Button>
       </div>
     </aside>
     <div aria-hidden={narrow && mobileOpen} className="workspace-body" inert={narrow && mobileOpen}>
@@ -259,6 +248,9 @@ export function WorkspaceRouter({ session, onSignedOut }: {
             {projectOptions.map((project) => <option key={project.key} value={project.key}>{project.name}</option>)}
           </select>
         </label>}
+        <AccountMenu email={session.email} error={shellError} signingOut={signingOut}
+          onOpenSettings={() => navigate(route.kind === "settings" ? "/settings/email" : withReturn("/settings/email", path))}
+          onSignOut={() => void signOut()} />
       </header>
       {route.kind === "project" && <nav aria-label="Breadcrumb" className="breadcrumbs">
         {link("/projects", "Projects", false)}<ChevronRight aria-hidden="true" size={13} />
