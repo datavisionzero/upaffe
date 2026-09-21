@@ -6,6 +6,7 @@ import { App } from "./App";
 
 const project = { id: "f0187842-6f73-4c54-8a8c-57ac7c117c39", key: "jobs", name: "Jobs",
   version: 1, created_at: "2026-09-19T12:00:00Z", updated_at: "2026-09-19T12:00:00Z", deleted_at: null };
+const sites = { ...project, id: "c01f76c9-ff9a-46b2-b270-e37ef360c35c", key: "sites", name: "Sites" };
 const report = { generated_at: "2026-09-19T12:00:00Z", project,
   counts: { total: 0, http: 0, push: 0, healthy: 0, failing: 0, untested: 0, paused: 0 },
   attention: [], healthy: [], project_maintenance: null,
@@ -29,15 +30,23 @@ it("keeps project context in the URL and restores focus after closing mobile nav
     if (path === "/api/session") return json({ operator_id: "3a5ccfce-eb16-4b19-8716-49f08cc44fbc",
       email: "operator@example.test", access_path: "browser_session",
       session_id: "57691661-6c2a-4a46-87aa-551b1178fc0d", expires_at: "2026-09-23T12:00:00Z" });
-    if (path === "/api/projects") return json([project]);
+    if (path === "/api/projects") return json([project, sites]);
     if (path === "/api/projects/jobs/report") return json(report);
+    if (path === "/api/projects/sites/report") return json({ ...report, project: sites });
     throw new Error(`Unexpected ${path}`);
   }));
 
   const user = userEvent.setup();
   render(<App />);
   expect(await screen.findByRole("heading", { name: "Jobs" })).toBeInTheDocument();
-  expect(screen.getByRole("combobox", { name: "Switch project" })).toHaveValue("jobs");
+  expect(screen.getByRole("button", { name: "Switch project" })).toHaveTextContent("Jobs");
+  await user.click(screen.getByRole("button", { name: "Switch project" }));
+  await user.click(await screen.findByRole("menuitemradio", { name: /Sites/ }));
+  expect(window.location.pathname).toBe("/projects/sites");
+  expect(await screen.findByRole("heading", { name: "Sites" })).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Switch project" }));
+  await user.click(await screen.findByRole("menuitemradio", { name: /Jobs/ }));
+  expect(await screen.findByRole("heading", { name: "Jobs" })).toBeInTheDocument();
   const toggle = screen.getByRole("button", { name: "Open menu" });
   await user.click(toggle);
   expect(screen.getByRole("dialog", { name: "Navigation" })).toBeInTheDocument();
@@ -45,6 +54,14 @@ it("keeps project context in the URL and restores focus after closing mobile nav
   await user.keyboard("{Escape}");
   await waitFor(() => expect(toggle).toHaveFocus());
   expect(screen.queryByRole("dialog", { name: "Navigation" })).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Account: operator@example.test" }));
+  await user.click(await screen.findByRole("menuitem", { name: "Settings" }));
+  expect(window.location.pathname + window.location.search).toBe(
+    "/settings/email?return=%2Fprojects%2Fjobs",
+  );
+  act(() => window.history.back());
+  await waitFor(() => expect(window.location.pathname).toBe("/projects/jobs"));
 
   await user.click(toggle);
   const projectsLink = screen.getByRole("link", { name: "Projects" });
@@ -57,5 +74,5 @@ it("keeps project context in the URL and restores focus after closing mobile nav
   expect(window.location.pathname).toBe("/projects");
   act(() => window.history.back());
   await waitFor(() => expect(window.location.pathname).toBe("/projects/jobs"));
-  expect(await screen.findByRole("combobox", { name: "Switch project" })).toHaveValue("jobs");
+  expect(await screen.findByRole("button", { name: "Switch project" })).toHaveTextContent("Jobs");
 });

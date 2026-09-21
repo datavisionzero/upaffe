@@ -1,19 +1,21 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { Dialog } from "@base-ui/react/dialog";
 import type { components } from "@/api/schema";
-import { Activity, ChevronRight, FolderOpen, Gauge, Globe, LogOut, Mail, Menu, Radio, Settings, X, type LucideIcon } from "lucide-react";
+import { Activity, ChevronRight, FolderOpen, Gauge, Globe, Mail, Menu, Radio, Settings, X, type LucideIcon } from "lucide-react";
 
 import { api } from "@/api/client";
 import { csrfHeaders, problemMessage } from "@/api/problems";
-import { Button } from "@/components/Button";
+import { AccountMenu } from "@/shell/AccountMenu";
 import { DashboardView } from "@/shell/DashboardView";
 import { InstanceEmailView, ProjectEmailView } from "@/shell/EmailSettingsView";
 import { MonitorsView } from "@/shell/MonitorsView";
 import { MonitorInventoryView } from "@/shell/MonitorInventoryView";
+import { NewProjectView } from "@/shell/NewProjectView";
 import { ProjectOverviewView } from "@/shell/ProjectOverviewView";
+import { ProjectSwitcher } from "@/shell/ProjectSwitcher";
 import { ProjectsView } from "@/shell/ProjectsView";
 import { PushMonitorsView } from "@/shell/PushMonitorsView";
 import { monitorPath, projectPath, returnPath, useAppRoute, withReturn } from "@/shell/routes";
-import { useTheme } from "@/theme/ThemeProvider";
 
 type Session = components["schemas"]["CurrentSessionResponse"];
 type Project = components["schemas"]["ProjectResponse"];
@@ -32,9 +34,8 @@ export function WorkspaceRouter({ session, onSignedOut }: {
   const [narrow, setNarrow] = useState(() => window.matchMedia?.("(max-width: 800px)")?.matches ?? false);
   const [signingOut, setSigningOut] = useState(false);
   const [shellError, setShellError] = useState<string>();
-  const navToggle = useRef<HTMLButtonElement>(null);
-  const sidebar = useRef<HTMLElement>(null);
-  const { theme, setTheme } = useTheme();
+  const layout = useRef<HTMLDivElement>(null);
+  const sidebar = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const preference = window.matchMedia?.("(max-width: 800px)");
@@ -70,30 +71,6 @@ export function WorkspaceRouter({ session, onSignedOut }: {
     return () => { active = false; window.clearTimeout(start); };
   }, [projectKey, onSignedOut]);
 
-  useEffect(() => {
-    if (!mobileOpen) return;
-    const focus = window.setTimeout(() => sidebar.current?.querySelector<HTMLAnchorElement>("nav a")?.focus(), 0);
-    const onEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setMobileOpen(false);
-        window.setTimeout(() => navToggle.current?.focus(), 0);
-      } else if (event.key === "Tab" && narrow) {
-        const controls = Array.from(sidebar.current?.querySelectorAll<HTMLElement>("a,button,select") ?? [])
-          .filter((element) => !element.hasAttribute("disabled"));
-        const first = controls[0];
-        const last = controls.at(-1);
-        if (!first || !last) return;
-        if (event.shiftKey && document.activeElement === first) {
-          event.preventDefault(); last.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
-          event.preventDefault(); first.focus();
-        }
-      }
-    };
-    window.addEventListener("keydown", onEscape);
-    return () => { window.clearTimeout(focus); window.removeEventListener("keydown", onEscape); };
-  }, [mobileOpen, narrow]);
-
   async function signOut() {
     setSigningOut(true);
     setShellError(undefined);
@@ -113,6 +90,7 @@ export function WorkspaceRouter({ session, onSignedOut }: {
       : route.kind === "dashboard" ? "Dashboard"
       : route.kind === "inventory" ? "Monitors"
       : route.kind === "settings" ? "Settings"
+      : route.kind === "new-project" ? "New project"
       : route.kind === "missing" ? "Page unavailable" : "Projects";
     document.title = `${title} · upaffe`;
     const focus = () => {
@@ -138,10 +116,8 @@ export function WorkspaceRouter({ session, onSignedOut }: {
       onClick={(event: MouseEvent<HTMLAnchorElement>) => {
         if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
         event.preventDefault();
-        const sameDestination = window.location.pathname + window.location.search === path;
         setMobileOpen(false);
         navigate(path);
-        if (sameDestination && mobileOpen) window.setTimeout(() => navToggle.current?.focus(), 0);
       }}>{Icon && <Icon aria-hidden="true" size={16} strokeWidth={1.8} />}{label}</a>;
   }
 
@@ -153,7 +129,9 @@ export function WorkspaceRouter({ session, onSignedOut }: {
   if (route.kind === "dashboard") {
     content = <DashboardView onNavigate={navigate} onSignedOut={onSignedOut} />;
   } else if (route.kind === "projects") {
-    content = <ProjectsView onNavigate={navigate} onSignedOut={onSignedOut} session={session} />;
+    content = <ProjectsView key={search} search={search} onNavigate={navigate} onSignedOut={onSignedOut} />;
+  } else if (route.kind === "new-project") {
+    content = <NewProjectView onNavigate={navigate} onSignedOut={onSignedOut} />;
   } else if (route.kind === "inventory") {
     content = <MonitorInventoryView key={search} search={search} onNavigate={navigate} onSignedOut={onSignedOut} />;
   } else if (route.kind === "settings") {
@@ -204,21 +182,25 @@ export function WorkspaceRouter({ session, onSignedOut }: {
 
   const locationLabel = route.kind === "project" ? projectLoad?.project?.name ?? route.projectKey
     : route.kind === "dashboard" ? "Dashboard" : route.kind === "inventory" ? "Monitors"
-    : route.kind === "settings" ? "Settings" : route.kind === "missing" ? "Page unavailable" : "Projects";
+    : route.kind === "settings" ? "Settings" : route.kind === "new-project" ? "New project"
+    : route.kind === "missing" ? "Page unavailable" : "Projects";
 
-  return <div className="workspace-layout">
-    {mobileOpen && <button aria-label="Close navigation" className="sidebar-scrim" onClick={() => {
-      setMobileOpen(false); window.setTimeout(() => navToggle.current?.focus(), 0);
-    }} type="button" />}
-    <aside aria-hidden={narrow && !mobileOpen} aria-label={narrow && mobileOpen ? "Navigation" : undefined}
-      aria-modal={narrow && mobileOpen ? true : undefined} className="app-sidebar" data-open={mobileOpen}
-      id="workspace-nav" inert={narrow && !mobileOpen} ref={sidebar}
-      role={narrow && mobileOpen ? "dialog" : undefined}>
-      <div className="sidebar-brand"><span aria-hidden="true" className="brand-mark" />upaffe</div>
-      <nav aria-label="Primary" className="sidebar-nav">
+  return <Dialog.Root modal={narrow} onOpenChange={(open) => { if (narrow) setMobileOpen(open); }}
+    open={narrow ? mobileOpen : true}>
+  <div className="workspace-layout" ref={layout}>
+    <Dialog.Portal className="sidebar-portal" container={layout}>
+      <Dialog.Backdrop className="sidebar-scrim" />
+      <Dialog.Popup className="app-sidebar" finalFocus={narrow ? true : false} id="workspace-nav"
+        initialFocus={narrow ? () => sidebar.current?.querySelector<HTMLAnchorElement>("nav a") ?? true : false}
+        ref={sidebar}>
+        <Dialog.Title className="visually-hidden">Navigation</Dialog.Title>
+        <div className="sidebar-brand"><span aria-hidden="true" className="brand-mark" />upaffe
+          <Dialog.Close aria-label="Close navigation" className="sidebar-close" type="button"><X aria-hidden="true" size={18} /></Dialog.Close>
+        </div>
+        <nav aria-label="Primary" className="sidebar-nav">
         <p className="sidebar-label">Overview</p>
         {navLink("/dashboard", "Dashboard", route.kind === "dashboard", Gauge)}
-        {navLink("/projects", "Projects", route.kind === "projects", FolderOpen)}
+        {navLink("/projects", "Projects", route.kind === "projects" || route.kind === "new-project", FolderOpen)}
         {navLink("/monitors", "Monitors", route.kind === "inventory", Activity)}
         {route.kind === "project" && <>
           <p className="sidebar-label sidebar-project-name">{projectLoad?.project?.name ?? route.projectKey}</p>
@@ -230,35 +212,25 @@ export function WorkspaceRouter({ session, onSignedOut }: {
         <p className="sidebar-label">Instance</p>
         {navLink(route.kind === "settings" ? "/settings/email" : withReturn("/settings/email", path),
           "Settings", route.kind === "settings", Settings)}
-      </nav>
-      <div className="sidebar-footer">
-        <label className="sidebar-theme">Appearance
-          <select aria-label="Appearance" onChange={(event) => setTheme(event.target.value as typeof theme)} value={theme}>
-            <option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option>
-          </select>
-        </label>
-        <p className="sidebar-operator">{session.email}</p>
-        {shellError && <p role="alert">{shellError}</p>}
-        <Button onClick={() => void signOut()} pending={signingOut} type="button" variant="subtle">
-          <LogOut aria-hidden="true" size={16} />Sign out
-        </Button>
-      </div>
-    </aside>
-    <div aria-hidden={narrow && mobileOpen} className="workspace-body" inert={narrow && mobileOpen}>
+        </nav>
+        <div className="sidebar-footer">
+          <p className="sidebar-operator">{session.email}</p>
+        </div>
+      </Dialog.Popup>
+    </Dialog.Portal>
+    <div className="workspace-body">
       <header className="workspace-topbar">
-        <button aria-controls="workspace-nav" aria-expanded={mobileOpen} aria-label={mobileOpen ? "Close menu" : "Open menu"}
-          className="nav-toggle" onClick={() => setMobileOpen((open) => !open)} ref={navToggle} type="button">
-          {mobileOpen ? <X aria-hidden="true" size={18} /> : <Menu aria-hidden="true" size={18} />}
-        </button>
-        <span className="topbar-location">{locationLabel}</span>
-        {route.kind === "project" && <label className="project-switcher">Project
-          <select aria-label="Switch project" disabled={projectLoad?.key !== route.projectKey || projectLoad.loading}
-            onChange={(event) => navigate(projectPath(event.target.value))}
-            value={projectOptions.some((project) => project.key === route.projectKey) ? route.projectKey : ""}>
-            <option value="">{projectLoad?.loading ? "Loading project…" : "Project unavailable"}</option>
-            {projectOptions.map((project) => <option key={project.key} value={project.key}>{project.name}</option>)}
-          </select>
-        </label>}
+        <Dialog.Trigger aria-controls="workspace-nav" aria-label="Open menu" className="nav-toggle" type="button">
+          <Menu aria-hidden="true" size={18} />
+        </Dialog.Trigger>
+        {route.kind === "project" ? <ProjectSwitcher currentKey={route.projectKey}
+          currentName={projectLoad?.project?.name} error={projectLoad?.error}
+          loading={projectLoad?.key !== route.projectKey || projectLoad.loading}
+          onSwitch={(key) => navigate(projectPath(key))} projects={projectOptions} />
+          : <span className="topbar-location">{locationLabel}</span>}
+        <AccountMenu email={session.email} error={shellError} signingOut={signingOut}
+          onOpenSettings={() => navigate(route.kind === "settings" ? "/settings/email" : withReturn("/settings/email", path))}
+          onSignOut={() => void signOut()} />
       </header>
       {route.kind === "project" && <nav aria-label="Breadcrumb" className="breadcrumbs">
         {link("/projects", "Projects", false)}<ChevronRight aria-hidden="true" size={13} />
@@ -273,5 +245,6 @@ export function WorkspaceRouter({ session, onSignedOut }: {
       </nav>}
       <main className="workspace-main" id="main-content">{content}</main>
     </div>
-  </div>;
+  </div>
+  </Dialog.Root>;
 }

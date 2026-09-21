@@ -107,6 +107,9 @@ it("triages both monitor types without changing health for maintenance or delive
   expect(cards[5]).toHaveTextContent("Notifications suppressed until");
   expect(screen.getByText(/1 terminal failures · 1 retrying · 2 pending/)).toBeInTheDocument();
   expect(screen.getByText(/3 accepted by SMTP; inbox receipt is not confirmed/)).toBeInTheDocument();
+  const operation = screen.getByRole("region", { name: "Project operation" });
+  expect(within(operation).getByRole("region", { name: "Maintenance" })).toBeInTheDocument();
+  expect(within(operation).getByRole("region", { name: "Email delivery" })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Healthy site" })).toHaveAttribute("href", "/projects/systems/http-monitors/good");
   expect(screen.getByRole("link", { name: "Healthy archive" })).toHaveAttribute("href", "/projects/systems/push-monitors/archive");
   const healthyCards = within(screen.getByRole("region", { name: "Healthy" })).getAllByRole("article");

@@ -1,30 +1,54 @@
 # Web UI review
 
-The reference is the planaffe source revision recorded in [ui.md](ui.md).
-Upaffe uses its typography, warm neutral surfaces, teal accent, compact
-headers, persistent sidebar, and semantic component patterns. Monitoring keeps
-health and incident evidence ahead of administration, and treats maintenance
-and email delivery as separate facts. No tracker navigation or backend behavior
-is shared.
+The reference is planaffe revision
+`50e387ca2396c4b697d0e3c1a2f6245c65a600a3`, recorded in [ui.md](ui.md).
+The completed shell was reviewed side by side with that revision in light and
+dark appearance at desktop, 720px (the CSS-width equivalent of 1440px at 200%
+zoom), and phone widths. The shared family traits are the 16rem persistent
+sidebar, compact 3rem header, IBM Plex typography, warm neutral surfaces, teal
+accent, restrained borders and radii, dense controls, focus-managed menus and
+drawers, and consistent page and section hierarchy.
+
+Intentional differences preserve the product: monitoring status and incident
+evidence come before administration; maintenance and delivery remain separate
+facts; project, HTTP, and push routes replace tracker queues and issue details;
+and upaffe has no command palette, knowledge-base navigation, tracker shortcuts,
+or issue-details rail. The implementation is repository-owned and shares no
+runtime UI package with planaffe.
 
 ## Reproducible visual coverage
 
-From `src/web`, run `npm ci`, `npx playwright install chromium`, and
-`npm run test:visual`. The suite intercepts the API with invented `.test`
-addresses and monitor data. It compares focused screenshots of the sidebar,
-health counts, push status and configuration, and SMTP settings against the
-checked-in `visual/alignment.spec.ts-snapshots` images. Browser/platform-specific
-baselines cover local macOS and CI Linux. Review any changed image before
-updating a baseline with `npm run test:visual -- --update-snapshots`.
+From `src/web`, run:
 
-The same suite loads these authenticated routes at 360, 720, 768, and 1440 CSS
+```sh
+npm ci
+npx playwright install chromium
+npm test
+npm run typecheck
+npm run lint
+npm run test:visual
+npm run build
+```
+
+The visual suite intercepts the API with invented `.test` addresses and monitor
+data. Checked-in macOS and Linux baselines cover the complete shell for the
+dashboard and project overview, the account menu, mobile drawer, project
+inventory and creation form, destructive confirmation, and empty, failure, and
+pending states. Review every changed image before updating baselines with:
+
+```sh
+npm run test:visual -- --update-snapshots
+```
+
+The suite loads these authenticated routes at 360, 720, 768, and 1440 CSS
 pixels in light and dark appearance, checking the primary heading and page
 overflow at each size:
 
 | Route | State or operation checked |
 | --- | --- |
 | Dashboard | Health counts, failure-first attention, delivery summary |
-| Projects | Create, live/deleted lists, rename and destructive controls |
+| Projects | URL-backed search/state/sort/order, live/deleted rows, rename, confirmed deletion, and restoration |
+| New project | Bounded form, discard protection, field errors, and pending submission |
 | Project overview | Counts, attention, healthy monitors, project context |
 | Monitor inventory | Search/filter form, table and narrow labeled cards |
 | HTTP monitors | Create form, monitor list, and deep-linked detail |
@@ -34,15 +58,33 @@ overflow at each size:
 
 The 720px case checks reflow at the CSS width of a 1440px window viewed at
 200% zoom. A separate access case exercises bootstrap, sign-in, and connection
-failure at 360px. Vitest covers pending/error/empty states, version conflicts,
-deep links, keyboard navigation and drawer focus return, credential handoff,
-secret clearing, and API request behavior. The visual suite checks rendered
-layout; the behavior suite remains the source for workflow assertions.
+failure at 360px. Vitest explicitly verifies System follows OS changes until an
+explicit choice is stored, plus cross-tab synchronization. It also covers
+pending/error/empty states, version conflicts, deep links, account and project
+menu keyboard behavior, drawer focus return, destructive dialogs, project
+discard protection, credential handoff, secret clearing, and API requests.
 
-The reviewed browser surfaces had no horizontal overflow at 360px and no
-WCAG 2A/AA violations in axe checks of the dashboard, project overview,
-inventory, push detail, projects, and instance/project email screens. Status
-badges pair icons with text; focusable controls have visible focus; failures
-and pending states retain readable text in both themes. Rendered evidence is
-limited to representative states, so new component variants need a reviewed
-fixture when introduced.
+Playwright loads every authenticated route at all four widths in both
+appearances and fails on horizontal overflow. The same suite runs axe-core WCAG
+2A/AA checks across every authenticated route, alternating phone and desktop
+widths and light/dark appearance, and also scans the typed-input discard dialog.
+Keyboard checks cover the account menu, project switcher, sidebar drawer,
+forms, and focus return. The reviewed matrix has no automated WCAG 2A/AA
+violation. Status badges pair icons with text; focusable controls have visible
+focus; failures and pending states retain readable text in both themes. New
+routes and component variants require both a matrix entry and a reviewed
+shell-level fixture.
+
+## Repository validation
+
+For the complete repository validation used by CI, run from the repository
+root:
+
+```sh
+dotnet restore Upaffe.slnx
+dotnet build Upaffe.slnx --configuration Release --no-restore
+dotnet test tests/Upaffe.UnitTests --configuration Release --no-build --no-restore
+dotnet test tests/Upaffe.IntegrationTests --configuration Release --no-build --no-restore
+(cd src/cli && go generate ./... && go vet ./... && go test ./... && go build ./...)
+scripts/check-contract.sh
+```

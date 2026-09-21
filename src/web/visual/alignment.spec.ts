@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 
 const project = { id: "f0187842-6f73-4c54-8a8c-57ac7c117c39", key: "jobs", name: "Jobs",
   version: 1, created_at: "2026-09-19T12:00:00Z", updated_at: "2026-09-19T12:00:00Z", deleted_at: null };
@@ -27,17 +28,32 @@ const http = { id: "f71f436f-fba2-40dc-af42-6b15ffb56a12", project_key: "jobs", 
   created_at: "2026-09-19T12:00:00Z", updated_at: "2026-09-19T12:00:00Z",
   paused_at: null, deleted_at: null };
 
+let projectFixture: "normal" | "empty" | "failure" | "pending" = "normal";
+let releaseProjectCreation: (() => void) | undefined;
+
 async function fixtures(page: Page) {
+  projectFixture = "normal";
+  releaseProjectCreation = undefined;
   await page.addInitScript(() => {
     if (!localStorage.getItem("upaffe-theme")) localStorage.setItem("upaffe-theme", "light");
   });
   await page.route("http://127.0.0.1:4173/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path === "/api/projects" && route.request().method() === "GET" && projectFixture === "failure") {
+      await route.fulfill({ status: 503, json: { code: "unavailable", status: 503,
+        title: "private diagnostic" } });
+      return;
+    }
+    if (path === "/api/projects" && route.request().method() === "POST" && projectFixture === "pending") {
+      await new Promise<void>((resolve) => { releaseProjectCreation = resolve; });
+      await route.fulfill({ status: 201, json: project });
+      return;
+    }
     const body: unknown = path === "/api/bootstrap" ? { required: false, available: false }
       : path === "/api/session" ? { operator_id: "3a5ccfce-eb16-4b19-8716-49f08cc44fbc",
         email: "operator@example.test", access_path: "browser_session",
         session_id: "57691661-6c2a-4a46-87aa-551b1178fc0d", expires_at: "2099-09-23T12:00:00Z" }
-      : path === "/api/projects" ? [project]
+      : path === "/api/projects" ? projectFixture === "empty" ? [] : [project]
       : path === "/api/projects/jobs" ? project
       : path === "/api/projects/jobs/report" ? { generated_at: "2026-09-19T12:00:00Z",
         project, counts: { total: 2, http: 1, push: 1, healthy: 0, failing: 2, untested: 0,
@@ -91,35 +107,91 @@ async function fixtures(page: Page) {
 
 test.beforeEach(async ({ page }) => { await fixtures(page); });
 
-test("sidebar and overview retain their compact desktop layout", async ({ page }) => {
+async function openWithTheme(page: Page, path: string, theme: "light" | "dark") {
+  await page.goto(path);
+  await page.evaluate((value) => localStorage.setItem("upaffe-theme", value), theme);
+  await page.reload();
+}
+
+async function expectNoAxeViolations(page: Page, context: string) {
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  expect(results.violations, context).toEqual([]);
+}
+
+test("complete desktop dashboard retains the product-family shell", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/dashboard");
+  await openWithTheme(page, "/dashboard", "light");
   await expect(page.getByRole("heading", { name: "Health dashboard" })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Primary" })).toHaveScreenshot("sidebar.png");
-  await expect(page.getByRole("region", { name: "Health counts" })).toHaveScreenshot("health-counts.png");
+  await expect(page).toHaveScreenshot("dashboard-shell-light-desktop.png", { fullPage: true });
 });
 
-test("monitor status and configuration remain legible on a narrow screen", async ({ page }) => {
+test("complete project overview retains monitoring semantics in dark appearance", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openWithTheme(page, "/projects/jobs", "dark");
+  await expect(page.getByRole("heading", { name: "Jobs", level: 1 })).toBeVisible();
+  await expect(page).toHaveScreenshot("project-overview-shell-dark-desktop.png", { fullPage: true });
+});
+
+test("narrow navigation is the same focus-managed shell", async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 });
-  await page.goto("/projects/jobs/push-monitors/backup");
-  await expect(page.getByRole("heading", { name: "Nightly backup", level: 1 })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Current status" })).toHaveScreenshot("push-status-mobile.png");
-  await expect(page.getByRole("region", { name: "Configuration" })).toHaveScreenshot("push-form-mobile.png");
+  await openWithTheme(page, "/projects/jobs/push-monitors/backup", "light");
+  await page.getByRole("button", { name: "Open menu" }).click();
+  await expect(page.getByRole("dialog", { name: "Navigation" })).toBeVisible();
+  await expect(page).toHaveScreenshot("push-detail-drawer-light-phone.png", { fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
 });
 
-test("email form keeps labeled fields and one-time password boundary", async ({ page }) => {
+test("inventory and project creation stay distinct at 200 percent zoom-equivalent width", async ({ page }) => {
+  await page.setViewportSize({ width: 720, height: 900 });
+  await openWithTheme(page, "/projects", "dark");
+  await expect(page.getByRole("heading", { name: "Projects", level: 1 })).toBeVisible();
+  await expect(page).toHaveScreenshot("project-inventory-dark-zoom.png", { fullPage: true });
+  await page.getByRole("button", { name: "New project" }).click();
+  await expect(page.getByRole("heading", { name: "New project", level: 1 })).toBeVisible();
+  await expect(page).toHaveScreenshot("new-project-dark-zoom.png", { fullPage: true });
+});
+
+test("menus and destructive dialogs are reviewed within the complete shell", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openWithTheme(page, "/projects", "light");
+  await page.getByRole("button", { name: "Account: operator@example.test" }).click();
+  await expect(page.getByRole("menu")).toBeVisible();
+  await expect(page).toHaveScreenshot("account-menu-light-desktop.png", { fullPage: true });
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Delete" }).click();
+  await expect(page.getByRole("dialog", { name: "Delete project" })).toBeVisible();
+  await expect(page).toHaveScreenshot("project-delete-dialog-light-desktop.png", { fullPage: true });
+});
+
+test("empty, failure, and pending states remain explicit", async ({ page }) => {
   await page.setViewportSize({ width: 768, height: 900 });
-  await page.goto("/settings/email");
-  await expect(page.getByRole("heading", { name: "Instance email", level: 1 })).toBeVisible();
-  await expect(page.getByRole("region", { name: "SMTP settings" })).toHaveScreenshot("smtp-settings.png");
-  await expect(page.getByRole("textbox", { name: "New SMTP password" })).toHaveValue("");
+  projectFixture = "empty";
+  await page.goto("/projects");
+  await expect(page.getByText("No live projects yet. Create the first project.")).toBeVisible();
+  await expect(page).toHaveScreenshot("project-empty-light-tablet.png", { fullPage: true });
+
+  projectFixture = "failure";
+  await page.reload();
+  await expect(page.getByRole("alert")).toContainText("HTTP 503");
+  await expect(page).toHaveScreenshot("project-failure-light-tablet.png", { fullPage: true });
+
+  projectFixture = "pending";
+  await page.goto("/projects/new");
+  await page.getByLabel("Immutable key").fill("jobs");
+  await page.getByLabel("Display name").fill("Jobs");
+  await page.getByRole("button", { name: "Create project" }).click();
+  await expect(page.getByRole("button", { name: "Creating…" })).toHaveAttribute("aria-busy", "true");
+  await expect(page).toHaveScreenshot("new-project-pending-light-tablet.png", { fullPage: true });
+  releaseProjectCreation?.();
 });
 
 test("all authenticated routes reflow across themes and viewport sizes", async ({ page }) => {
   test.setTimeout(120_000);
   const routes = [
     ["/dashboard", "Health dashboard"], ["/projects", "Projects"],
+    ["/projects/new", "New project"],
     ["/projects/jobs", "Jobs"], ["/monitors", "Monitors"],
     ["/projects/jobs/http-monitors", "Jobs"], ["/projects/jobs/push-monitors", "Jobs"],
     ["/projects/jobs/http-monitors/site", "Public website"],
@@ -141,6 +213,67 @@ test("all authenticated routes reflow across themes and viewport sizes", async (
       }
     }
   }
+});
+
+test("authenticated routes pass automated WCAG 2A and 2AA checks", async ({ page }) => {
+  test.setTimeout(180_000);
+  const routes = [
+    ["/dashboard", "Health dashboard"], ["/projects", "Projects"],
+    ["/projects/new", "New project"], ["/projects/jobs", "Jobs"],
+    ["/monitors", "Monitors"], ["/projects/jobs/http-monitors", "Jobs"],
+    ["/projects/jobs/push-monitors", "Jobs"],
+    ["/projects/jobs/http-monitors/site", "Public website"],
+    ["/projects/jobs/push-monitors/backup", "Nightly backup"],
+    ["/settings/email", "Instance email"],
+    ["/projects/jobs/settings/email", "Email and maintenance"],
+  ] as const;
+  for (const [index, [path, heading]] of routes.entries()) {
+    const width = index % 2 === 0 ? 360 : 1440;
+    const theme = index % 2 === 0 ? "light" : "dark";
+    await page.setViewportSize({ width, height: 900 });
+    await openWithTheme(page, path, theme);
+    await expect(page.getByRole("heading", { name: heading, level: 1 })).toBeVisible();
+    await expectNoAxeViolations(page, `${theme} ${width}px ${path}`);
+  }
+});
+
+test("focus-sensitive shell and form interactions work from the keyboard", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/dashboard");
+  const account = page.getByRole("button", { name: "Account: operator@example.test" });
+  await account.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("menu")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(account).toBeFocused();
+
+  await page.goto("/projects/jobs");
+  const switcher = page.getByRole("button", { name: "Switch project" });
+  await expect(switcher).toContainText("Jobs");
+  await switcher.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("menu")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(switcher).toBeFocused();
+
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.reload();
+  const menu = page.getByRole("button", { name: "Open menu" });
+  await expect(menu).toBeVisible();
+  await menu.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("dialog", { name: "Navigation" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeFocused();
+
+  await page.goto("/projects/new");
+  await page.getByLabel("Immutable key").fill("unfinished");
+  await page.keyboard.press("Escape");
+  const discard = page.getByRole("dialog", { name: "Discard new project?" });
+  await expect(discard).toBeVisible();
+  await expectNoAxeViolations(page, "unsaved project dialog");
+  await page.keyboard.press("Escape");
+  await expect(page.getByLabel("Immutable key")).toBeFocused();
 });
 
 test("bootstrap, sign-in, and connection failures remain accessible", async ({ page }) => {

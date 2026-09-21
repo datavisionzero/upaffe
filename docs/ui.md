@@ -9,34 +9,47 @@ Upaffe owns its implementation and does not load a shared runtime package.
 | --- | --- |
 | Warm neutral surfaces, IBM Plex type, teal brand accent | Semantic tokens in `src/web/src/index.css` |
 | Light, dark, and system appearance | `ThemeProvider` with the local `upaffe-theme` preference |
-| Compact header and persistent sidebar | Workspace shell |
-| Bordered controls, panels, status badges | Repository-owned UI components and monitoring views |
-| Project context in navigation | Existing project routes and their project name |
+| 16rem sidebar and compact 3rem header | Authenticated workspace shell |
+| Bordered controls, menus, dialogs, tables, and status badges | Repository-owned components built on Base UI where focus management matters |
+| Project context in the header and navigation | Project switcher, breadcrumbs, and project routes |
+| Account and appearance menu | Top-right operator menu with Light, Dark, System, Settings, and Sign out |
 
 Monitoring state is separate from the brand accent. Healthy, failing, untested,
 paused, overdue, maintenance, and delivery problems remain distinct in text and
 color. A failed observation below its alert threshold remains visible. The
 dashboard keeps failures first, and the CLI and API retain their existing rules.
 
-The theme foundation initially preserves legacy class names as token aliases.
-View migrations replace those styles incrementally; no route needs a backend
-change to adopt the visual language. Fonts are bundled by the web build.
+The theme foundation preserves a few legacy class names as token aliases while
+all authenticated routes use the shared visual grammar. Fonts are bundled by
+the web build. The System preference follows operating-system changes until the
+operator selects Light or Dark; the preference is local to the browser and is
+synchronized across tabs.
 
 Shared controls live in `src/web/src/components/`: `Button` has primary,
 secondary, subtle, and destructive variants; `TextField`, `SelectField`, and
 `CheckboxField` associate labels, guidance, and errors with controls. The
 presentation components provide text-bearing status badges, alerts, empty and
 loading states, compact page headers, and sections. Tables use `ui-table` for
-consistent density. Use native control semantics and Base UI interaction
-primitives for focus-sensitive dialogs and menus when a workflow needs them.
+consistent density. Base UI supplies the repository-owned dropdown menu,
+account menu, project switcher, mobile drawer, and confirmation dialogs so
+keyboard focus, Escape handling, dismissal, and focus return remain consistent.
 
 The authenticated shell follows the reference's persistent sidebar and compact
 header. Its destinations are Dashboard, Projects, Monitors, and Settings; a
 project route adds overview, HTTP, push, and project email links. The current
 project comes from the URL. On narrow screens the same navigation opens as a
 focus-managed drawer. The project selector changes the URL to the selected
-project overview. Appearance and sign-out controls stay in the sidebar.
-Monitoring keeps its own route hierarchy and omits tracker-specific navigation.
+project overview. Personal and session actions are not permanent sidebar
+controls: the top-right account menu identifies the operator and contains
+appearance, Settings, and Sign out. Monitoring keeps its own route hierarchy
+and omits tracker-specific navigation.
+
+The Projects route is an inventory rather than a combined creation screen. Its
+search, Live/Deleted state, sort, and order are URL parameters so reload, Back,
+and shared links preserve the view. Project names are the primary navigation
+target; rename and confirmed deletion are secondary actions, while restoration
+is immediate. `/projects/new` is a bounded single-column workflow with
+field-level errors, a pending state, and typed-input discard protection.
 
 Dashboard and project overviews use compact page and section headers, dense
 count tiles, text-bearing status badges, and bordered lists. Failure and overdue
@@ -59,3 +72,14 @@ Delivery history keeps relay acceptance separate from inbox delivery. SMTP
 passwords remain write-only in ordinary settings, and test-send feedback says
 when the relay accepted a message without implying inbox receipt. The local
 bootstrap screen still directs the operator to the installation host.
+
+## Intentional differences from planaffe
+
+Alignment is a product-family relationship, not a copy. Upaffe does not add
+planaffe's command palette, tracker queues, knowledge-base entry, issue detail
+rail, or tracker keyboard shortcuts. It uses monitoring-specific routes and
+keeps status, incident, overdue, maintenance, and delivery evidence explicit in
+text as well as color. Wide overview screens may use two balanced evidence
+columns instead of planaffe's issue-details rail; forms remain single-column
+when a second column would weaken operational scanning. Upaffe owns every
+component and consumes no shared runtime UI package.

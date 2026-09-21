@@ -59,3 +59,17 @@ it("restores a stored choice and tolerates blocked storage", () => {
   expect(document.documentElement).toHaveClass("light");
   vi.restoreAllMocks();
 });
+
+it("synchronizes a valid theme preference from another tab", () => {
+  render(<ThemeProvider><Choice /></ThemeProvider>);
+  act(() => window.dispatchEvent(new StorageEvent("storage", {
+    key: "upaffe-theme", newValue: "dark",
+  })));
+  expect(screen.getByText("dark")).toBeInTheDocument();
+  expect(document.documentElement).toHaveClass("dark");
+
+  act(() => window.dispatchEvent(new StorageEvent("storage", {
+    key: "upaffe-theme", newValue: "unknown",
+  })));
+  expect(screen.getByText("system")).toBeInTheDocument();
+});

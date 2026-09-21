@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 export type AppRoute =
   | { kind: "projects" }
+  | { kind: "new-project" }
   | { kind: "dashboard" }
   | { kind: "inventory" }
   | { kind: "settings" }
@@ -20,6 +21,7 @@ function key(value: string): string | undefined {
 export function parseRoute(pathname: string): AppRoute {
   if (pathname === "/" || pathname === "/dashboard") return { kind: "dashboard" };
   if (pathname === "/projects") return { kind: "projects" };
+  if (pathname === "/projects/new") return { kind: "new-project" };
   if (pathname === "/monitors") return { kind: "inventory" };
   if (pathname === "/settings" || pathname === "/settings/email") return { kind: "settings" };
   const parts = pathname.split("/");
