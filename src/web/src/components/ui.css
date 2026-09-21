@@ -10,45 +10,85 @@
   font-size: 0.875rem;
   font-weight: 600;
   line-height: 1.25;
-  transition: background-color 120ms, border-color 120ms;
+  outline: none;
+  transition: background-color 120ms, border-color 120ms, color 120ms;
 }
 
-.ui-button[data-variant="primary"] { background: var(--foreground); color: var(--background); }
-.ui-button[data-variant="secondary"] { border-color: var(--border); background: var(--surface); }
+.ui-button[data-variant="primary"] { background: var(--primary); color: var(--primary-foreground); }
+.ui-button[data-variant="secondary"] { border-color: var(--border); background: var(--card); }
 .ui-button[data-variant="subtle"] { background: transparent; }
 .ui-button[data-variant="destructive"] {
-  border-color: color-mix(in oklab, var(--danger), transparent 65%);
-  background: color-mix(in oklab, var(--danger), transparent 90%);
+  border-color: color-mix(in oklab, var(--destructive), transparent 65%);
+  background: color-mix(in oklab, var(--destructive), transparent 90%);
   color: var(--danger-ink);
 }
-.ui-button:not(:disabled):hover { border-color: var(--muted-foreground); background: var(--subtle); color: var(--foreground); }
+.ui-button:not(:disabled):hover { border-color: var(--muted-foreground); background: var(--muted); color: var(--foreground); }
 .ui-button[data-variant="primary"]:not(:disabled):hover {
-  background: color-mix(in oklab, var(--foreground), var(--background) 18%);
-  color: var(--background);
+  background: color-mix(in oklab, var(--primary), var(--background) 18%);
+  color: var(--primary-foreground);
 }
 .ui-button[data-variant="destructive"]:not(:disabled):hover {
-  border-color: var(--danger); background: color-mix(in oklab, var(--danger), transparent 80%); color: var(--danger-ink);
+  border-color: var(--destructive); background: color-mix(in oklab, var(--destructive), transparent 80%); color: var(--danger-ink);
 }
 .ui-button:focus-visible, .ui-input:focus-visible, .ui-checkbox input:focus-visible {
-  outline: 2px solid var(--brand); outline-offset: 2px;
+  border-color: var(--ring); box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring), transparent 50%);
 }
 
 .ui-field { display: grid; gap: 0.3rem; min-width: 0; }
 .ui-field > label { font-size: 0.8rem; font-weight: 600; }
 .ui-input {
   min-height: 2rem;
-  border: 1px solid var(--border);
+  border: 1px solid var(--input);
   border-radius: var(--radius);
-  background: var(--surface);
+  background: var(--card);
   color: var(--foreground);
+  outline: none;
   padding: 0.35rem 0.6rem;
 }
-.ui-input[aria-invalid="true"] { border-color: var(--danger); }
+.ui-input[aria-invalid="true"] { border-color: var(--destructive); }
 .ui-field-description { color: var(--muted-foreground); font-size: 0.78rem; }
 .ui-field-error { color: var(--danger-ink); font-size: 0.78rem; }
 .ui-checkbox { display: flex; align-items: flex-start; gap: 0.5rem; }
 .ui-checkbox > span { display: inline; margin: 0; color: var(--foreground); font-size: 0.85rem; }
 .ui-checkbox input { width: auto; margin-top: 0.2rem; accent-color: var(--brand); }
+
+.ui-menu-positioner { z-index: 50; outline: none; }
+.ui-menu {
+  box-sizing: border-box;
+  min-width: max(8rem, var(--anchor-width));
+  max-height: var(--available-height);
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 1px solid color-mix(in oklab, var(--foreground), transparent 90%);
+  border-radius: var(--radius);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  padding: 0.25rem;
+  box-shadow: 0 0.5rem 1.5rem color-mix(in oklab, var(--foreground), transparent 88%);
+  outline: none;
+  transform-origin: var(--transform-origin);
+}
+.ui-menu-label { padding: 0.3rem 0.4rem; color: var(--muted-foreground); font-size: 0.75rem; font-weight: 500; }
+.ui-menu-item {
+  position: relative;
+  display: flex;
+  min-height: 1.75rem;
+  cursor: default;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: calc(var(--radius) * 0.8);
+  padding: 0.3rem 0.45rem;
+  font-size: 0.875rem;
+  outline: none;
+  user-select: none;
+}
+.ui-menu-item[data-highlighted] { background: var(--accent); color: var(--accent-foreground); }
+.ui-menu-item[data-disabled] { pointer-events: none; opacity: 0.5; }
+.ui-menu-item[data-destructive] { color: var(--danger-ink); }
+.ui-menu-item[data-destructive][data-highlighted] { background: color-mix(in oklab, var(--destructive), transparent 88%); }
+.ui-menu-radio { padding-right: 2rem; }
+.ui-menu-indicator { position: absolute; right: 0.5rem; display: inline-flex; }
+.ui-menu-separator { height: 1px; margin: 0.25rem -0.25rem; background: var(--border); }
 
 .ui-badge {
   display: inline-flex; align-items: center; gap: 0.25rem; min-height: 1.3rem;
