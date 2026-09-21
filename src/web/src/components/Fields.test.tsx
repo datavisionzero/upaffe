@@ -19,6 +19,7 @@ it("associates labels, guidance and validation with their controls", async () =>
 
   const email = screen.getByRole("textbox", { name: "Email" });
   expect(email).toHaveAttribute("aria-invalid", "true");
+  expect(email).toHaveAccessibleErrorMessage("Enter a valid address");
   expect(email).toHaveAccessibleDescription("Use the operator address Enter a valid address");
   expect(screen.getByRole("combobox", { name: "Mode" })).toHaveAccessibleDescription("How reports arrive");
   expect(screen.getByRole("checkbox", { name: "Include history" })).toHaveAccessibleDescription("Show prior observations");

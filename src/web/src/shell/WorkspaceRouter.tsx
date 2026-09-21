@@ -10,6 +10,7 @@ import { DashboardView } from "@/shell/DashboardView";
 import { InstanceEmailView, ProjectEmailView } from "@/shell/EmailSettingsView";
 import { MonitorsView } from "@/shell/MonitorsView";
 import { MonitorInventoryView } from "@/shell/MonitorInventoryView";
+import { NewProjectView } from "@/shell/NewProjectView";
 import { ProjectOverviewView } from "@/shell/ProjectOverviewView";
 import { ProjectSwitcher } from "@/shell/ProjectSwitcher";
 import { ProjectsView } from "@/shell/ProjectsView";
@@ -89,6 +90,7 @@ export function WorkspaceRouter({ session, onSignedOut }: {
       : route.kind === "dashboard" ? "Dashboard"
       : route.kind === "inventory" ? "Monitors"
       : route.kind === "settings" ? "Settings"
+      : route.kind === "new-project" ? "New project"
       : route.kind === "missing" ? "Page unavailable" : "Projects";
     document.title = `${title} · upaffe`;
     const focus = () => {
@@ -127,7 +129,9 @@ export function WorkspaceRouter({ session, onSignedOut }: {
   if (route.kind === "dashboard") {
     content = <DashboardView onNavigate={navigate} onSignedOut={onSignedOut} />;
   } else if (route.kind === "projects") {
-    content = <ProjectsView onNavigate={navigate} onSignedOut={onSignedOut} session={session} />;
+    content = <ProjectsView key={search} search={search} onNavigate={navigate} onSignedOut={onSignedOut} />;
+  } else if (route.kind === "new-project") {
+    content = <NewProjectView onNavigate={navigate} onSignedOut={onSignedOut} />;
   } else if (route.kind === "inventory") {
     content = <MonitorInventoryView key={search} search={search} onNavigate={navigate} onSignedOut={onSignedOut} />;
   } else if (route.kind === "settings") {
@@ -178,7 +182,8 @@ export function WorkspaceRouter({ session, onSignedOut }: {
 
   const locationLabel = route.kind === "project" ? projectLoad?.project?.name ?? route.projectKey
     : route.kind === "dashboard" ? "Dashboard" : route.kind === "inventory" ? "Monitors"
-    : route.kind === "settings" ? "Settings" : route.kind === "missing" ? "Page unavailable" : "Projects";
+    : route.kind === "settings" ? "Settings" : route.kind === "new-project" ? "New project"
+    : route.kind === "missing" ? "Page unavailable" : "Projects";
 
   return <Dialog.Root modal={narrow} onOpenChange={(open) => { if (narrow) setMobileOpen(open); }}
     open={narrow ? mobileOpen : true}>
@@ -195,7 +200,7 @@ export function WorkspaceRouter({ session, onSignedOut }: {
         <nav aria-label="Primary" className="sidebar-nav">
         <p className="sidebar-label">Overview</p>
         {navLink("/dashboard", "Dashboard", route.kind === "dashboard", Gauge)}
-        {navLink("/projects", "Projects", route.kind === "projects", FolderOpen)}
+        {navLink("/projects", "Projects", route.kind === "projects" || route.kind === "new-project", FolderOpen)}
         {navLink("/monitors", "Monitors", route.kind === "inventory", Activity)}
         {route.kind === "project" && <>
           <p className="sidebar-label sidebar-project-name">{projectLoad?.project?.name ?? route.projectKey}</p>

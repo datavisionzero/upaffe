@@ -26,6 +26,7 @@ export function TextField({ label, description, error, id, className = "", ...pr
   return <div className={`ui-field ${className}`}>
     <label htmlFor={ids.fieldId}>{label}</label>
     <Input {...props} aria-describedby={describedBy} aria-invalid={!!error || undefined}
+      aria-errormessage={error ? ids.errorId : undefined}
       className="ui-input" id={ids.fieldId} />
     <FieldMessages {...ids} description={description} error={error} />
   </div>;
@@ -38,7 +39,8 @@ export function SelectField({ label, description, error, id, className = "", chi
     .filter(Boolean).join(" ") || undefined;
   return <div className={`ui-field ${className}`}>
     <label htmlFor={ids.fieldId}>{label}</label>
-    <select {...props} aria-describedby={describedBy} aria-invalid={!!error || undefined}
+    <select {...props} aria-describedby={describedBy} aria-errormessage={error ? ids.errorId : undefined}
+      aria-invalid={!!error || undefined}
       className="ui-input" id={ids.fieldId}>{children}</select>
     <FieldMessages {...ids} description={description} error={error} />
   </div>;
@@ -51,7 +53,8 @@ export function CheckboxField({ label, description, error, id, className = "", .
     .filter(Boolean).join(" ") || undefined;
   return <div className={`ui-field ${className}`}>
     <label className="ui-checkbox" htmlFor={ids.fieldId}>
-      <input {...props} aria-describedby={describedBy} aria-invalid={!!error || undefined}
+      <input {...props} aria-describedby={describedBy} aria-errormessage={error ? ids.errorId : undefined}
+        aria-invalid={!!error || undefined}
         id={ids.fieldId} type="checkbox" />
       <span>{label}</span>
     </label>

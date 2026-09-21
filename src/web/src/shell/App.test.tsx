@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -98,7 +98,7 @@ describe("the access and project application", () => {
     expect(screen.getByLabelText("Password")).toHaveValue("");
     admitted.resolve(new Response(null, { status: 204 }));
     expect(await screen.findByRole("heading", { name: "Projects" })).toBeInTheDocument();
-    expect(await screen.findByText(/No projects yet/)).toBeInTheDocument();
+    expect(await screen.findByText(/No live projects yet/)).toBeInTheDocument();
   });
 
   it("manages the complete project lifecycle by contract with keyboard-accessible controls", async () => {
@@ -120,6 +120,15 @@ describe("the access and project application", () => {
         stored = { ...project };
         return json(stored, 201);
       }
+      if (url.pathname === "/api/projects/backup-jobs/report") {
+        return json({ generated_at: "2026-09-16T12:00:00Z", project: stored,
+          counts: { total: 0, http: 0, push: 0, healthy: 0, failing: 0, untested: 0, paused: 0 },
+          attention: [], healthy: [], project_maintenance: null,
+          email: { configured: false, host: null, port: null, security: null, sender_address: null,
+            public_base_url: null, has_password: false, recipients: [],
+            delivery: { project_key: "backup-jobs", pending_count: 0, retrying_count: 0,
+              terminal_failure_count: 0, smtp_accepted_count: 0, oldest_pending_at: null } } });
+      }
       if (url.pathname === "/api/projects/backup-jobs" && request.method === "PUT") {
         expect(await request.json()).toEqual({ name: "Backups", version: 1 });
         stored = { ...stored!, name: "Backups", version: 2 };
@@ -140,14 +149,19 @@ describe("the access and project application", () => {
     render(<App />);
     const user = userEvent.setup();
     await screen.findByRole("heading", { name: "Projects" });
-    await screen.findByText(/No projects yet/);
+    await screen.findByText(/No live projects yet/);
 
+    await user.click(screen.getByRole("button", { name: "New project" }));
+    expect(await screen.findByRole("heading", { name: "New project" })).toBeInTheDocument();
     await user.type(screen.getByLabelText("Immutable key"), "backup-jobs");
     await user.type(screen.getByLabelText("Display name"), "Backup jobs");
-    await user.tab();
-    await user.keyboard("{Enter}");
+    await user.click(screen.getByRole("button", { name: "Create project" }));
+    expect(await screen.findByRole("heading", { name: "Backup jobs" })).toBeInTheDocument();
+    await user.click(within(screen.getByRole("navigation", { name: "Primary" }))
+      .getByRole("link", { name: "Projects" }));
     expect(await screen.findByText("backup-jobs")).toBeInTheDocument();
 
+    await user.click(screen.getByRole("button", { name: "Rename" }));
     const rename = screen.getByLabelText("New display name for backup-jobs");
     await user.clear(rename);
     await user.type(rename, "Backups{Enter}");
@@ -155,8 +169,9 @@ describe("the access and project application", () => {
     expect(screen.getByText("version 2")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Delete" }));
-    expect(await screen.findByText(/No projects yet/)).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Show deleted" }));
+    await user.click(await screen.findByRole("button", { name: "Delete project" }));
+    expect(await screen.findByText(/No live projects yet/)).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText("Project state"), "deleted");
     expect(await screen.findByRole("button", { name: "Restore" })).toBeInTheDocument();
     expect(screen.getByText("version 3")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Restore" }));
@@ -164,6 +179,42 @@ describe("the access and project application", () => {
     await user.click(screen.getByRole("button", { name: `Account: ${session.email}` }));
     await user.click(await screen.findByRole("menuitem", { name: "Sign out" }));
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+  });
+
+  it("keeps project inventory state in the URL and protects an unfinished project", async () => {
+    window.history.replaceState({}, "", "/projects?q=back&state=deleted&sort=updated&order=desc");
+    const older = { ...project, id: "5a757bab-4cce-41de-8b87-11400e8bf021", key: "archive",
+      name: "Archive", updated_at: "2026-09-14T12:00:00Z", deleted_at: "2026-09-17T12:00:00Z" };
+    const newer = { ...project, name: "Backup jobs", updated_at: "2026-09-18T12:00:00Z",
+      deleted_at: "2026-09-19T12:00:00Z" };
+    answering((request) => {
+      const url = new URL(request.url);
+      if (url.pathname === "/api/bootstrap") return json({ required: false, available: false });
+      if (url.pathname === "/api/session") return json(session);
+      if (url.pathname === "/api/projects") {
+        return json(url.searchParams.get("deleted") === "true" ? [older, newer] : []);
+      }
+      throw new Error(`Unexpected ${request.method} ${url.pathname}`);
+    });
+    render(<App />);
+    const user = userEvent.setup();
+    expect(await screen.findByText("backup-jobs")).toBeInTheDocument();
+    expect(screen.queryByText("archive")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Search projects")).toHaveValue("back");
+    expect(screen.getByLabelText("Project state")).toHaveValue("deleted");
+    expect(screen.getByLabelText("Sort projects")).toHaveValue("updated");
+    expect(screen.getByLabelText("Sort order")).toHaveValue("desc");
+
+    await user.click(screen.getByRole("button", { name: "New project" }));
+    await user.type(await screen.findByLabelText("Immutable key"), "unfinished");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(await screen.findByRole("dialog", { name: "Discard new project?" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(screen.getByLabelText("Immutable key")).toHaveValue("unfinished");
+    await user.click(screen.getByLabelText("Immutable key"));
+    await user.keyboard("{Escape}");
+    await user.click(await screen.findByRole("button", { name: "Discard" }));
+    expect(await screen.findByRole("heading", { name: "Projects" })).toBeInTheDocument();
   });
 
   it("keeps the authenticated session and exposes the error when sign-out fails", async () => {
@@ -208,14 +259,16 @@ describe("the access and project application", () => {
     });
     render(<App />);
     const user = userEvent.setup();
-    await screen.findByText(/No projects yet/);
+    await screen.findByText(/No live projects yet/);
+    await user.click(screen.getByRole("button", { name: "New project" }));
     await user.type(screen.getByLabelText("Immutable key"), "backup-jobs");
     await user.type(screen.getByLabelText("Display name"), "Backup jobs");
-    await user.click(screen.getByRole("button", { name: "Create" }));
+    await user.click(screen.getByRole("button", { name: "Create project" }));
 
-    const alert = await screen.findByRole("alert");
+    const alert = await screen.findByText(/Check the submitted facts/);
     expect(alert).toHaveTextContent("key: A project key is already reserved.");
     expect(alert).not.toHaveTextContent("must-not-render");
+    expect(screen.getByLabelText("Immutable key")).toHaveAccessibleErrorMessage("A project key is already reserved.");
   });
 
   it("shows a bounded retryable failure without rendering an untrusted body", async () => {

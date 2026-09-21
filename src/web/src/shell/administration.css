@@ -10,20 +10,37 @@
 .app-shell > .panel .lede { font-size: 0.9rem; line-height: 1.55; }
 .app-shell > .panel .form-stack { gap: 0.8rem; margin-top: 1rem; }
 
-.projects-workspace .create-grid { gap: 0.7rem; }
-.projects-workspace .project-list { gap: 0.55rem; }
-.projects-workspace .project-card {
-  border: 1px solid var(--border); border-radius: var(--radius);
-  background: var(--background); padding: 0.85rem;
+.projects-workspace .project-inventory { border-top: 1px solid var(--border); padding-top: 0.8rem; }
+.projects-workspace .project-toolbar {
+  display: grid; grid-template-columns: minmax(12rem, 1fr) auto repeat(3, minmax(8rem, auto));
+  align-items: end; gap: 0.55rem;
 }
+.projects-workspace .project-toolbar .ui-field > label { font-size: 0.72rem; }
+.projects-workspace .project-result-count {
+  margin: 0.7rem 0 0.45rem; color: var(--muted-foreground); font-size: 0.75rem;
+}
+.projects-workspace .project-list { display: grid; gap: 0; }
+.projects-workspace .project-card {
+  border-top: 1px solid var(--border); background: transparent; padding: 0.85rem 0;
+}
+.projects-workspace .project-card:last-child { border-bottom: 1px solid var(--border); }
 .projects-workspace .project-card h3 { font-size: 0.95rem; }
+.projects-workspace .project-card h3 a { color: var(--foreground); text-decoration: none; }
+.projects-workspace .project-card h3 a:hover { text-decoration: underline; text-underline-offset: 0.2em; }
 .projects-workspace .project-facts { gap: 0.5rem; }
 .projects-workspace .project-card .version { font-size: 0.72rem; }
 .projects-workspace .project-card .actions { justify-content: flex-start; flex-wrap: wrap; gap: 0.45rem; }
-.projects-workspace .manage-button { margin-top: 0.55rem; }
+.projects-workspace .project-summary { margin: 0.4rem 0 0; color: var(--muted-foreground); font-size: 0.8rem; }
+.projects-workspace .project-row-actions { display: flex; justify-content: flex-end; gap: 0.35rem; margin-top: 0.35rem; }
 .projects-workspace .rename-row { gap: 0.45rem; margin-top: 0.65rem; }
 .projects-workspace .rename-row .ui-field { flex: 1; }
 .projects-workspace .rename-row .ui-field > label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+
+.new-project-workspace { max-width: 42rem; }
+.new-project-workspace .new-project-form {
+  display: grid; gap: 1rem; border-top: 1px solid var(--border); padding-top: 1rem;
+}
+.new-project-workspace .new-project-form .actions { justify-content: flex-end; }
 
 .settings-workspace .monitor-form { gap: 0.7rem; }
 .settings-workspace > .panel {
@@ -51,7 +68,15 @@
 @media (max-width: 700px) {
   .app-shell > .panel, .projects-workspace > .panel { padding: 0.85rem; }
   .settings-workspace > .panel { padding: 0.75rem 0; }
+  .projects-workspace .project-toolbar { grid-template-columns: 1fr 1fr; }
+  .projects-workspace .project-toolbar .ui-field:first-child { grid-column: 1 / -1; }
   .projects-workspace .rename-row { align-items: stretch; }
   .projects-workspace .rename-row .ui-field { width: 100%; }
   .settings-workspace form.actions .ui-field { width: 100%; }
+}
+
+@media (max-width: 430px) {
+  .projects-workspace .project-toolbar { grid-template-columns: 1fr; }
+  .projects-workspace .project-toolbar .ui-field:first-child { grid-column: auto; }
+  .projects-workspace .project-row-actions { justify-content: flex-start; }
 }
