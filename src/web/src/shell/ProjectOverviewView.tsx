@@ -87,20 +87,20 @@ export function ProjectOverviewView({ project, onNavigate, onSignedOut }: {
       </section>
 
       <section aria-label="Project operation" className="project-operation">
-        <div>
-          <h2>Maintenance</h2>
+        <section aria-labelledby="maintenance-summary-title">
+          <h2 id="maintenance-summary-title">Maintenance</h2>
           <p>{report.project_maintenance
             ? `Active until ${dateLabel(report.project_maintenance.ends_at)}. Monitoring continues; notifications are suppressed.`
             : "No project maintenance is active."}</p>
           {link(withReturn(`${base}/settings/email`, base), "Manage maintenance", "text-link")}
-        </div>
-        <div>
-          <h2>Email delivery</h2>
+        </section>
+        <section aria-labelledby="email-summary-title">
+          <h2 id="email-summary-title">Email delivery</h2>
           <p>{report.email.delivery.terminal_failure_count} terminal failures · {report.email.delivery.retrying_count} retrying · {report.email.delivery.pending_count} pending</p>
           <p className="muted">{report.email.delivery.smtp_accepted_count} accepted by SMTP; inbox receipt is not confirmed.</p>
           <p className="muted">{report.email.configured ? "Relay configured" : "Relay not configured"} · {report.email.recipients.length} project recipients</p>
           {link(withReturn(`${base}/settings/email`, base), "Manage recipients and delivery", "text-link")}
-        </div>
+        </section>
       </section>
 
       <section aria-labelledby="project-healthy-title" className="project-monitor-section">
