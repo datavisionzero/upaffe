@@ -10,7 +10,7 @@ export type AppRoute =
   | { kind: "inventory" }
   | { kind: "settings"; task: EmailTask }
   | { kind: "project"; projectKey: string; section: "overview" | "http" | "push" | "email";
-      monitorKey?: string; create?: true }
+      monitorKey?: string; create?: true; edit?: true }
   | { kind: "missing" };
 
 const validKey = /^[a-z][a-z0-9-]{1,39}$/;
@@ -46,10 +46,13 @@ export function parseRoute(pathname: string): AppRoute {
     return { kind: "project", projectKey, section: "push", create: true };
   if (parts.length === 5 && parts[3] === "settings" && parts[4] === "email")
     return { kind: "project", projectKey, section: "email" };
-  if (parts.length === 5 && (parts[3] === "http-monitors" || parts[3] === "push-monitors")) {
+  if ((parts.length === 5 || (parts.length === 6 && parts[5] === "edit"))
+    && (parts[3] === "http-monitors" || parts[3] === "push-monitors")) {
     const monitorKey = key(parts[4]);
-    if (monitorKey) return { kind: "project", projectKey,
-      section: parts[3] === "http-monitors" ? "http" : "push", monitorKey };
+    const section = parts[3] === "http-monitors" ? "http" : "push";
+    if (monitorKey) return parts.length === 6
+      ? { kind: "project", projectKey, section, monitorKey, edit: true }
+      : { kind: "project", projectKey, section, monitorKey };
   }
   return { kind: "missing" };
 }
@@ -65,6 +68,9 @@ export const newMonitorPath = (projectKey: string, type: "http" | "push") =>
   `${projectPath(projectKey)}/new-${type}-monitor`;
 export const monitorPath = (projectKey: string, type: "http" | "push", monitorKey: string) =>
   `${projectPath(projectKey)}/${type}-monitors/${encodeURIComponent(monitorKey)}`;
+
+export const editMonitorPath = (projectKey: string, type: "http" | "push", monitorKey: string) =>
+  `${monitorPath(projectKey, type, monitorKey)}/edit`;
 
 export const withReturn = (destination: string, source: string) =>
   `${destination}?return=${encodeURIComponent(source)}`;

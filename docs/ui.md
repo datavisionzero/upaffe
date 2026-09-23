@@ -77,6 +77,17 @@ the new monitor's detail. Creation routes sit beside the inventory rather than
 below it because `new` is a valid monitor key and must remain reachable as a
 detail deep link.
 
+HTTP and push monitor details are ordered for investigation: current state and
+latest evidence with test, refresh, and pause or resume, then check or report
+history, incident history, the selected incident's email status, and delivery.
+Operational controls follow the evidence: maintenance, secret request headers
+or the reporting credential with its one-time handoff, and removal. A compact
+administration row under the current facts links to each of them. Configuration
+is edited on the focused route `/projects/:key/{http,push}-monitors/:monitor/edit`,
+reached from `Edit configuration` or the `Add purpose` prompt, with field
+errors, version-conflict reload, Cancel, and discard protection; saving returns
+to the detail with a confirmation.
+
 The monitor inventory uses compact filters and a dense table on wide screens;
 on narrow screens each result becomes a labeled card without losing evidence or
 links. HTTP and push monitor lists and details share headers, status badges,

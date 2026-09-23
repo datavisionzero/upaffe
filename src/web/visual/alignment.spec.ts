@@ -244,6 +244,29 @@ test("instance email tasks are separate routes with local navigation", async ({ 
   await expect(page).toHaveURL(/\/dashboard$/);
 });
 
+test("monitor details show evidence before administration and edit in a focused route", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openWithTheme(page, "/projects/jobs/http-monitors/site", "light");
+  await expect(page.getByRole("heading", { name: "Public website", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Check history" })).toBeInViewport();
+  await expect(page.getByLabel("Target URL")).toHaveCount(0);
+  await expect(page).toHaveScreenshot("http-detail-light-desktop.png", { fullPage: true });
+  await page.getByRole("button", { name: "Edit configuration" }).click();
+  await expect(page).toHaveURL(/\/http-monitors\/site\/edit$/);
+  await page.getByLabel("Display name").fill("Changed");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Discard configuration changes?" })).toBeVisible();
+  await page.getByRole("button", { name: "Discard" }).click();
+  await expect(page).toHaveURL(/\/http-monitors\/site$/);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openWithTheme(page, "/projects/jobs/push-monitors/backup", "dark");
+  await expect(page.getByRole("heading", { name: "Report history" })).toBeVisible();
+  await page.getByRole("navigation", { name: "Monitor administration" }).getByRole("link", { name: "Configuration" }).click();
+  await expect(page.getByRole("heading", { name: "Edit Nightly backup", level: 1 })).toBeVisible();
+  await expect(page).toHaveScreenshot("push-edit-dark-phone.png", { fullPage: true });
+});
+
 test("menus and destructive dialogs are reviewed within the complete shell", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openWithTheme(page, "/projects", "light");
@@ -288,6 +311,8 @@ test("all authenticated routes reflow across themes and viewport sizes", async (
     ["/projects/jobs/new-http-monitor", "New HTTP monitor"], ["/projects/jobs/new-push-monitor", "New push monitor"],
     ["/projects/jobs/http-monitors/site", "Public website"],
     ["/projects/jobs/push-monitors/backup", "Nightly backup"],
+    ["/projects/jobs/http-monitors/site/edit", "Edit Public website"],
+    ["/projects/jobs/push-monitors/backup/edit", "Edit Nightly backup"],
     ["/settings/email", "Instance email"], ["/settings/email/relay", "Instance email"],
     ["/settings/email/password", "Instance email"], ["/settings/email/recipients", "Instance email"],
     ["/settings/email/test", "Instance email"],
@@ -320,6 +345,8 @@ test("authenticated routes pass automated WCAG 2A and 2AA checks", async ({ page
     ["/projects/jobs/new-push-monitor", "New push monitor"],
     ["/projects/jobs/http-monitors/site", "Public website"],
     ["/projects/jobs/push-monitors/backup", "Nightly backup"],
+    ["/projects/jobs/http-monitors/site/edit", "Edit Public website"],
+    ["/projects/jobs/push-monitors/backup/edit", "Edit Nightly backup"],
     ["/settings/email", "Instance email"], ["/settings/email/relay", "Instance email"],
     ["/settings/email/password", "Instance email"], ["/settings/email/recipients", "Instance email"],
     ["/settings/email/test", "Instance email"],

@@ -34,9 +34,9 @@ The visual suite intercepts the API with invented `.test` addresses and monitor
 data. Checked-in macOS and Linux baselines cover the complete shell for the
 dashboard and project overview, the account menu, mobile drawer, project
 inventory and creation form, HTTP and push monitor inventories and creation
-forms, instance email delivery and relay tasks, destructive confirmation, and
-empty, failure, and pending states. Review every changed image before updating
-baselines with:
+forms, HTTP detail and push configuration editing, instance email delivery
+and relay tasks, destructive confirmation, and empty, failure, and pending
+states. Review every changed image before updating baselines with:
 
 ```sh
 npm run test:visual -- --update-snapshots
@@ -53,9 +53,10 @@ overflow at each size:
 | New project | Bounded form, discard protection, field errors, and pending submission |
 | Project overview | Counts, attention, healthy monitors, project context |
 | Monitor inventory | Search/filter form, table and narrow labeled cards |
-| HTTP monitors | Inventory before creation, empty and error states, and deep-linked detail |
+| HTTP monitors | Inventory before creation, empty and error states, and deep-linked detail with evidence before administration |
 | New HTTP monitor | Bounded form, write-only secret headers, field errors, Cancel, and discard protection |
-| Push monitors | Inventory before creation, empty and error states, and deep-linked detail |
+| Push monitors | Inventory before creation, empty and error states, and deep-linked detail with evidence before administration |
+| Monitor configuration | Focused HTTP and push edit routes with discard protection |
 | New push monitor | Both reporting modes, field errors, Cancel, and discard protection |
 | Instance email | Delivery landing and task navigation; relay, write-only password, defaults, and test-send task routes |
 | Project email | Recipients, maintenance, delivery history |

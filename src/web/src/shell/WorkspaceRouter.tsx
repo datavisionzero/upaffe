@@ -15,7 +15,7 @@ import { ProjectOverviewView } from "@/shell/ProjectOverviewView";
 import { ProjectSwitcher } from "@/shell/ProjectSwitcher";
 import { ProjectsView } from "@/shell/ProjectsView";
 import { NewPushMonitorView, PushMonitorsView } from "@/shell/PushMonitorsView";
-import { emailTaskPath, monitorListPath, monitorPath, newMonitorPath, projectPath, returnPath, useAppRoute, withReturn } from "@/shell/routes";
+import { editMonitorPath, emailTaskPath, monitorListPath, monitorPath, newMonitorPath, projectPath, returnPath, useAppRoute, withReturn } from "@/shell/routes";
 
 type Session = components["schemas"]["CurrentSessionResponse"];
 type Project = components["schemas"]["ProjectResponse"];
@@ -28,6 +28,7 @@ export function WorkspaceRouter({ session, onSignedOut }: {
   const search = path.includes("?") ? path.slice(path.indexOf("?")) : "";
   const projectKey = route.kind === "project" ? route.projectKey : undefined;
   const monitorKey = route.kind === "project" ? route.monitorKey : undefined;
+  const editing = route.kind === "project" && !!route.edit;
   const sectionTitle = route.kind !== "project" ? undefined
     : route.create ? `New ${route.section === "http" ? "HTTP" : "push"} monitor`
     : route.section === "http" ? "HTTP monitors" : route.section === "push" ? "Push monitors" : undefined;
@@ -89,7 +90,7 @@ export function WorkspaceRouter({ session, onSignedOut }: {
   }
 
   useEffect(() => {
-    const title = route.kind === "project" ? monitorKey ?? sectionTitle ?? projectLoad?.project?.name ?? "Project"
+    const title = route.kind === "project" ? (monitorKey && editing ? `Edit ${monitorKey}` : monitorKey) ?? sectionTitle ?? projectLoad?.project?.name ?? "Project"
       : route.kind === "dashboard" ? "Dashboard"
       : route.kind === "inventory" ? "Monitors"
       : route.kind === "settings" ? "Settings"
@@ -112,7 +113,7 @@ export function WorkspaceRouter({ session, onSignedOut }: {
       expiry = window.setTimeout(() => observer?.disconnect(), 5000);
     }, 0);
     return () => { window.clearTimeout(timer); observer?.disconnect(); if (expiry) window.clearTimeout(expiry); };
-  }, [path, route.kind, monitorKey, sectionTitle, projectLoad?.project?.name]);
+  }, [path, route.kind, monitorKey, editing, sectionTitle, projectLoad?.project?.name]);
 
   function link(path: string, label: ReactNode, current: boolean, Icon?: LucideIcon, className?: string) {
     return <a aria-current={current ? "page" : undefined} className={className ?? (Icon ? "sidebar-link" : undefined)} href={path}
@@ -177,6 +178,8 @@ export function WorkspaceRouter({ session, onSignedOut }: {
         onBackToList={() => navigate(monitorListPath(project.key, "push"))}
         onCreate={() => navigate(newMonitorPath(project.key, "push"))}
         onOpenHttp={() => navigate(monitorListPath(project.key, "http"))}
+        routeEdit={route.edit}
+        onEditMonitor={(key) => navigate(editMonitorPath(project.key, "push", key))}
         onOpenMonitor={(key) => navigate(monitorPath(project.key, "push", key))}
         onSignedOut={onSignedOut} />;
     } else if (route.create) {
@@ -190,6 +193,8 @@ export function WorkspaceRouter({ session, onSignedOut }: {
         onBackToList={() => navigate(monitorListPath(project.key, "http"))}
         onCreate={() => navigate(newMonitorPath(project.key, "http"))}
         onOpenPush={() => navigate(monitorListPath(project.key, "push"))}
+        routeEdit={route.edit}
+        onEditMonitor={(key) => navigate(editMonitorPath(project.key, "http", key))}
         onOpenMonitor={(key) => navigate(monitorPath(project.key, "http", key))}
         onSignedOut={onSignedOut} />;
     }
@@ -257,7 +262,10 @@ export function WorkspaceRouter({ session, onSignedOut }: {
         {route.section === "push" && <><ChevronRight aria-hidden="true" size={13} />
           {link(monitorListPath(route.projectKey, "push"), "Push monitors", !route.monitorKey && !route.create)}</>}
         {route.create && <><ChevronRight aria-hidden="true" size={13} /><span aria-current="page">New {route.section === "http" ? "HTTP" : "push"} monitor</span></>}
-        {route.monitorKey && <><ChevronRight aria-hidden="true" size={13} /><span aria-current="page">{route.monitorKey}</span></>}
+        {route.monitorKey && <><ChevronRight aria-hidden="true" size={13} />
+          {route.edit ? link(monitorPath(route.projectKey, route.section === "push" ? "push" : "http", route.monitorKey), route.monitorKey, false)
+            : <span aria-current="page">{route.monitorKey}</span>}</>}
+        {route.edit && <><ChevronRight aria-hidden="true" size={13} /><span aria-current="page">Edit</span></>}
       </nav>}
       <main className="workspace-main" id="main-content">{content}</main>
     </div>

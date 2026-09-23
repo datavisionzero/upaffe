@@ -12,7 +12,8 @@ import { monitorStateTone } from "@/components/status";
 import { useDiscardGuard } from "@/components/useDiscardGuard";
 import { DeliveryHistoryPanel, IncidentEmailPanel, MaintenancePanel } from "@/shell/EmailPanels";
 import { monitorLink } from "@/shell/deepLink";
-import { monitorPath } from "@/shell/routes";
+import { setFlash, takeFlash } from "@/shell/flash";
+import { editMonitorPath, monitorPath } from "@/shell/routes";
 
 type Project = components["schemas"]["ProjectResponse"];
 type Monitor = components["schemas"]["HttpMonitorResponse"];
@@ -30,10 +31,12 @@ type Props = {
   onOpenMonitor?: (key: string) => void;
   onBackToList?: () => void;
   onCreate?: () => void;
+  routeEdit?: boolean;
+  onEditMonitor?: (key: string) => void;
 };
 
 export function MonitorsView({ project, onOpenPush, onSignedOut,
-  routeMonitorKey, onOpenMonitor, onBackToList, onCreate }: Props) {
+  routeMonitorKey, onOpenMonitor, onBackToList, onCreate, routeEdit, onEditMonitor }: Props) {
   const [monitors, setMonitors] = useState<Monitor[]>([]);
   const [selectedKey, setSelectedKey] = useState<string | undefined>(() => {
     if (onOpenMonitor) return undefined;
@@ -41,6 +44,7 @@ export function MonitorsView({ project, onOpenPush, onSignedOut,
     return link?.projectKey === project.key && link.monitorType === "http" ? link.monitorKey : undefined;
   });
   const [creatingInline, setCreatingInline] = useState(false);
+  const [editingInline, setEditingInline] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
 
@@ -83,9 +87,15 @@ export function MonitorsView({ project, onOpenPush, onSignedOut,
   }
 
   const activeKey = routeMonitorKey ?? selectedKey;
+  if (activeKey && (routeEdit || editingInline)) {
+    return <EditHttpMonitorView monitorKey={activeKey} project={project} onSignedOut={onSignedOut}
+      onDone={() => { if (routeEdit && onOpenMonitor) onOpenMonitor(activeKey); else setEditingInline(false); }} />;
+  }
   if (activeKey) {
     return (
       <MonitorDetail
+        editHref={editMonitorPath(project.key, "http", activeKey)}
+        onEdit={() => { if (onEditMonitor) onEditMonitor(activeKey); else setEditingInline(true); }}
         monitorKey={activeKey}
         onBack={() => {
           if (onBackToList) onBackToList();
@@ -195,6 +205,84 @@ export function NewHttpMonitorView({ project, onCancel, onCreated, onSignedOut }
   </div>;
 }
 
+/** Focused configuration editing; the detail keeps evidence first. */
+export function EditHttpMonitorView({ project, monitorKey, onDone, onSignedOut }: {
+  project: Project;
+  monitorKey: string;
+  onDone: () => void;
+  onSignedOut: () => void;
+}) {
+  const [monitor, setMonitor] = useState<Monitor>();
+  const [loading, setLoading] = useState(true);
+  const [pending, setPending] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [error, setError] = useState<string>();
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const firstField = useRef<HTMLInputElement>(null);
+  const guard = useDiscardGuard({ dirty, pending, onLeave: onDone });
+  const paths = useMemo(() => ({ projectKey: project.key, monitorKey }), [monitorKey, project.key]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await api.GET("/api/projects/{projectKey}/http-monitors/{monitorKey}", { params: { path: paths } });
+      if (result.data) setMonitor(result.data);
+      else if (result.response.status === 401) onSignedOut();
+      else setError(problemMessage(result.error, result.response.status));
+    } catch {
+      setError("The monitor configuration could not be reached.");
+    } finally {
+      setLoading(false);
+    }
+  }, [onSignedOut, paths]);
+
+  useEffect(() => {
+    const start = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(start);
+  }, [load]);
+
+  async function save(body: CreateMonitor | UpdateMonitor) {
+    setPending(true);
+    setError(undefined);
+    setFieldErrors({});
+    try {
+      const result = await api.PUT("/api/projects/{projectKey}/http-monitors/{monitorKey}", {
+        params: { path: paths }, body: body as UpdateMonitor, headers: csrfHeaders,
+      });
+      if (result.data) {
+        setFlash(`http:${project.key}:${monitorKey}`, "Configuration saved.");
+        onDone();
+      } else if (result.response.status === 401) onSignedOut();
+      else {
+        const message = problemMessage(result.error, result.response.status);
+        if (result.response.status === 409) await load();
+        else setFieldErrors(problemFieldErrors(result.error));
+        setError(message);
+      }
+    } catch {
+      setError("The monitor configuration could not be saved.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  if (loading && !monitor) return <div className="workspace"><LoadingState>Loading monitor configuration…</LoadingState></div>;
+  if (!monitor) return <div className="workspace panel">
+    <h1>Monitor unavailable</h1>
+    <Alert tone="danger">{error ?? "The monitor is unavailable."}</Alert>
+    <div className="actions"><Button onClick={() => void load()} type="button">Try again</Button><Button onClick={onDone} type="button">Back to monitor</Button></div>
+  </div>;
+
+  return <div className="workspace monitor-workspace monitor-create-workspace">
+    <PageHeader title={`Edit ${monitor.name}`} detail={`${project.name} · ${monitor.key} · version ${monitor.version}`} />
+    {error && <Alert tone="danger">{error}</Alert>}
+    <MonitorForm busy={pending} fieldErrors={fieldErrors} firstField={firstField} key={monitor.version} mode="edit" monitor={monitor}
+      onCancel={guard.cancel} onDirtyChange={setDirty} onSubmit={save} />
+    <DiscardDialog description="Your configuration changes will be lost." onDiscard={onDone}
+      onOpenChange={guard.setOpen} open={guard.open} returnFocus={firstField} title="Discard configuration changes?" />
+  </div>;
+}
+
 type FormProps = {
   busy: boolean;
   mode: "create" | "edit";
@@ -270,7 +358,8 @@ function MonitorForm({ busy, mode, monitor, fieldErrors = {}, firstField, onCanc
           error={fieldErrors.key} label="Immutable key" name="monitor-key" pattern="[a-z][a-z0-9-]{1,39}" placeholder="homepage"
           ref={firstField} required value={key} onChange={(event) => setKey(event.target.value)} />
       )}
-      <TextField error={fieldErrors.name} label="Display name" maxLength={100} name="monitor-name" required value={name} onChange={(event) => setName(event.target.value)} />
+      <TextField autoFocus={mode === "edit"} error={fieldErrors.name} label="Display name" maxLength={100} name="monitor-name"
+        ref={mode === "edit" ? firstField : undefined} required value={name} onChange={(event) => setName(event.target.value)} />
       <TextAreaField className="wide-field" description="What this checks, for example “Confirms the public homepage is available.” Operator instruction below is for investigation steps."
         error={fieldErrors.purpose} label="Purpose (optional)" maxLength={240} rows={2} value={purpose} onChange={(event) => setPurpose(event.target.value)} />
       {mode === "edit" && (
@@ -319,12 +408,12 @@ function MonitorForm({ busy, mode, monitor, fieldErrors = {}, firstField, onCanc
           <Button onClick={() => setHeaders((current) => [...current, { id: ++nextHeaderID.current, name: "", value: "" }])} type="button">Add secret header</Button>
         </fieldset>
       )}
-      {mode === "create"
-        ? <div className="actions wide-field form-actions">
-            <Button disabled={busy} onClick={onCancel} type="button">Cancel</Button>
-            <Button pending={busy} type="submit" variant="primary">{busy ? "Creating…" : "Create HTTP monitor"}</Button>
-          </div>
-        : <Button disabled={busy} type="submit" variant="primary">{busy ? "Saving…" : "Save configuration"}</Button>}
+      <div className="actions wide-field form-actions">
+        <Button disabled={busy} onClick={onCancel} type="button">Cancel</Button>
+        <Button pending={busy} type="submit" variant="primary">{mode === "create"
+          ? busy ? "Creating…" : "Create HTTP monitor"
+          : busy ? "Saving…" : "Save configuration"}</Button>
+      </div>
     </form>
   );
 }
@@ -332,12 +421,14 @@ function MonitorForm({ busy, mode, monitor, fieldErrors = {}, firstField, onCanc
 type DetailProps = {
   project: Project;
   monitorKey: string;
+  editHref: string;
+  onEdit: () => void;
   onBack: () => void;
   onRemoved: () => void;
   onSignedOut: () => void;
 };
 
-function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: DetailProps) {
+function MonitorDetail({ project, monitorKey, editHref, onEdit, onBack, onRemoved, onSignedOut }: DetailProps) {
   const [monitor, setMonitor] = useState<Monitor>();
   const [checks, setChecks] = useState<Check[]>([]);
   const [pointerChecks, setPointerChecks] = useState<Check[]>([]);
@@ -349,7 +440,7 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
-  const [notice, setNotice] = useState<string>();
+  const [notice, setNotice] = useState<string | undefined>(() => takeFlash(`http:${project.key}:${monitorKey}`));
   const [testResult, setTestResult] = useState<TestResult>();
   const [emailIncidentId, setEmailIncidentId] = useState<string | undefined>(() => {
     const link = monitorLink();
@@ -473,24 +564,6 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
     }
   }
 
-  async function update(body: CreateMonitor | UpdateMonitor) {
-    setBusy("update");
-    setError(undefined);
-    try {
-      const result = await api.PUT("/api/projects/{projectKey}/http-monitors/{monitorKey}", {
-        params: { path: paths }, body: body as UpdateMonitor, headers: csrfHeaders,
-      });
-      if (result.data) {
-        setMonitor(result.data);
-        setNotice("Configuration saved.");
-      } else await mutationFailure(result.error, result.response.status);
-    } catch {
-      setError("The monitor configuration could not be saved.");
-    } finally {
-      setBusy(undefined);
-    }
-  }
-
   async function setHeader(name: string, value: string) {
     if (!monitor) return;
     setBusy("header");
@@ -594,10 +667,18 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
   const overdue = monitor.state !== "paused" && !!monitor.next_check_at
     && snapshotAt !== undefined && Date.parse(monitor.next_check_at) < snapshotAt;
 
+  const edit = (label: string, className?: string) => <a className={className} href={editHref} onClick={(event) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    onEdit();
+  }}>{label}</a>;
+
   return (
     <div className="workspace monitor-workspace">
-      <PageHeader title={monitor.name} detail={<>{project.key} · {monitor.key} · <span className="monitor-purpose">{monitor.purpose || <>Purpose not documented. <a href="#configuration-title">Add purpose</a></>}</span></>}
-        actions={<><StatusBadge tone={monitorStateTone(monitor.state)}>{monitorStateLabel(monitor)}</StatusBadge><Button onClick={onBack} type="button">Back to monitors</Button></>} />
+      <PageHeader title={monitor.name} detail={<>{project.key} · {monitor.key} · <span className="monitor-purpose">{monitor.purpose || <>Purpose not documented. {edit("Add purpose")}</>}</span></>}
+        actions={<><StatusBadge tone={monitorStateTone(monitor.state)}>{monitorStateLabel(monitor)}</StatusBadge>
+          <Button onClick={onEdit} type="button">Edit configuration</Button>
+          <Button onClick={onBack} type="button">Back to monitors</Button></>} />
 
       {error && <Alert tone="danger">{error}</Alert>}
       {notice && <Alert>{notice}</Alert>}
@@ -616,40 +697,26 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
               : <Button disabled={busy !== undefined} onClick={() => void lifecycle("pause")} type="button">Pause</Button>}
           </div>} />
         <dl className="fact-grid">
-          <Fact label="Target" value={`${monitor.target_url}${monitor.has_target_query ? " (secret query configured)" : ""}`} />
           <Fact label="Latest result" value={latest ? `${latest.outcome} · ${formatDate(latest.completed_at)}` : monitor.latest_result_id ? "Evidence unavailable" : "No result yet"} />
           <Fact label="Last success" value={lastSuccess ? formatDate(lastSuccess.completed_at) : monitor.latest_success_id ? "Evidence unavailable" : "No success yet"} />
+          <Fact label="Open incident" value={openIncident ? `Began ${formatDate(openIncident.began_at)}; opened ${formatDate(openIncident.opened_at)}; latest observation ${formatDate(openIncident.last_observed_at)}; reason ${openIncident.latest_reason}` : monitor.open_incident_id ? "Incident evidence unavailable" : "None"} />
+          <Fact label="Failure reason" value={latest?.failure_reason ?? "None"} />
+          <Fact label="HTTP status" value={latest?.status_code == null ? "Not available" : `${latest.status_code} (expected ${monitor.expected_status_code})`} />
+          <Fact label="Response time" value={latest?.response_time_milliseconds == null ? "Not available" : `${latest.response_time_milliseconds} ms`} />
           <Fact label="Next run" value={monitor.next_check_at ? formatDate(monitor.next_check_at) : "Not scheduled"} />
           <Fact label="Schedule at refresh" value={overdue ? "Check execution overdue; no new result recorded" : monitor.state === "paused" ? "Paused; no check scheduled" : "Deadline had not passed"} />
-          <Fact label="Response time" value={latest?.response_time_milliseconds === null || latest?.response_time_milliseconds === undefined ? "Not available" : `${latest.response_time_milliseconds} ms`} />
-          <Fact label="HTTP status" value={latest?.status_code === null || latest?.status_code === undefined ? "Not available" : String(latest.status_code)} />
-          <Fact label="Failure reason" value={latest?.failure_reason ?? "None"} />
-          <Fact label="Open incident" value={openIncident ? `Began ${formatDate(openIncident.began_at)}; opened ${formatDate(openIncident.opened_at)}; latest observation ${formatDate(openIncident.last_observed_at)}; reason ${openIncident.latest_reason}` : monitor.open_incident_id ? "Incident evidence unavailable" : "None"} />
+          <Fact label="Target" value={`${monitor.target_url}${monitor.has_target_query ? " (secret query configured)" : ""}`} />
           <Fact label="Expected status" value={String(monitor.expected_status_code)} />
-          <Fact label="Version" value={String(monitor.version)} />
         </dl>
         {monitor.instruction && <div className="operator-note"><strong>Operator instruction</strong><p>{monitor.instruction}</p></div>}
         {monitor.runbook_url && <p><a href={monitor.runbook_url} rel="noreferrer" target="_blank">Open runbook</a></p>}
-      </section>
-
-      <MaintenancePanel projectKey={project.key} monitorType="http" monitorKey={monitorKey} onSignedOut={onSignedOut} />
-
-      <section aria-labelledby="configuration-title" className="panel">
-        <h2 id="configuration-title">Configuration</h2>
-        <MonitorForm busy={busy === "update"} key={monitor.version} mode="edit" monitor={monitor} onSubmit={update} />
-      </section>
-
-      <section aria-labelledby="headers-title" className="panel">
-        <h2 id="headers-title">Secret request headers</h2>
-        <p className="muted">Only names and timestamps are visible. Setting a name replaces its hidden value.</p>
-        {monitor.headers.length === 0 ? <EmptyState>No request headers configured.</EmptyState> : (
-          <ul className="metadata-list">
-            {monitor.headers.map((header) => (
-              <li key={header.id}><span><code>{header.name}</code> · updated {formatDate(header.updated_at)}</span><Button disabled={busy !== undefined} onClick={() => void removeHeader(header.name)} type="button">Remove</Button></li>
-            ))}
-          </ul>
-        )}
-        <HeaderForm busy={busy === "header"} onSubmit={setHeader} />
+        <nav aria-label="Monitor administration" className="admin-links">
+          <span className="muted">Administration:</span>
+          {edit("Configuration", "text-link")}
+          <a className="text-link" href="#maintenance-title">Maintenance</a>
+          <a className="text-link" href="#headers-title">Secret headers</a>
+          <a className="text-link" href="#remove-title">Removal</a>
+        </nav>
       </section>
 
       <section aria-labelledby="checks-title" className="panel">
@@ -695,9 +762,24 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
       {emailIncidentId && <IncidentEmailPanel key={emailIncidentId} incidentId={emailIncidentId} monitorType="http" onSignedOut={onSignedOut} />}
       <DeliveryHistoryPanel projectKey={project.key} monitorType="http" monitorKey={monitorKey} onSignedOut={onSignedOut} />
 
+      <MaintenancePanel projectKey={project.key} monitorType="http" monitorKey={monitorKey} onSignedOut={onSignedOut} />
+
+      <section aria-labelledby="headers-title" className="panel">
+        <h2 id="headers-title">Secret request headers</h2>
+        <p className="muted">Only names and timestamps are visible. Setting a name replaces its hidden value.</p>
+        {monitor.headers.length === 0 ? <EmptyState>No request headers configured.</EmptyState> : (
+          <ul className="metadata-list">
+            {monitor.headers.map((header) => (
+              <li key={header.id}><span><code>{header.name}</code> · updated {formatDate(header.updated_at)}</span><Button disabled={busy !== undefined} onClick={() => void removeHeader(header.name)} type="button">Remove</Button></li>
+            ))}
+          </ul>
+        )}
+        <HeaderForm busy={busy === "header"} onSubmit={setHeader} />
+      </section>
+
       <section aria-labelledby="remove-title" className="panel danger-zone">
         <h2 id="remove-title">Remove monitor</h2>
-        <p className="muted">Removal stops scheduling and hides the monitor while retaining its history and key.</p>
+        <p className="muted">Removal stops scheduling and hides the monitor while retaining its history and key. Version {monitor.version}.</p>
         <ConfirmDialog confirmLabel="Confirm removal"
           description="Scheduling stops immediately. History and the monitor key are retained."
           onConfirm={() => lifecycle("remove")} pending={busy !== undefined}

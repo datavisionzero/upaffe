@@ -120,10 +120,13 @@ describe("push monitor administration", () => {
     expect(await screen.findByText("<b>Confirms the backup</b>", { selector: ".monitor-purpose" })).toBeInTheDocument();
     expect(document.querySelector(".monitor-purpose b")).toBeNull();
     const user = userEvent.setup();
-    await user.clear(screen.getByLabelText("Purpose (optional)"));
+    expect(screen.queryByLabelText("Purpose (optional)")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Edit configuration" }));
+    await user.clear(await screen.findByLabelText("Purpose (optional)"));
     await user.click(screen.getByRole("button", { name: "Save configuration" }));
     expect(await screen.findByText(/Purpose not documented/, { selector: ".monitor-purpose" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Add purpose" })).toHaveAttribute("href", "#push-configuration-title");
+    expect(screen.getByText("Configuration saved.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Add purpose" })).toHaveAttribute("href", "/projects/backup-jobs/push-monitors/nightly-backup/edit");
   });
 
   it("loads old success and deep-linked incident evidence without exposing sender diagnostics", async () => {
@@ -319,16 +322,19 @@ describe("push monitor administration", () => {
     render(<PushMonitorsView onOpenHttp={vi.fn()} onSignedOut={vi.fn()} project={project} />);
     const user = userEvent.setup();
     await user.click((await screen.findAllByRole("button", { name: "Open details" }))[0]);
-    const configuration = await screen.findByRole("heading", { name: "Configuration" });
-    const panel = configuration.closest("section")!;
-    const name = within(panel).getByLabelText("Display name");
+    await user.click(await screen.findByRole("button", { name: "Edit configuration" }));
+    const name = await screen.findByLabelText("Display name");
     await user.clear(name);
     await user.type(name, "My stale edit");
-    await user.click(within(panel).getByRole("button", { name: "Save configuration" }));
+    await user.click(screen.getByRole("button", { name: "Save configuration" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Refresh and try again");
-    expect(within(panel).getByLabelText("Display name")).toHaveValue("Name from another operator");
-    expect(detailReads).toBe(2);
+    expect(screen.getByLabelText("Display name")).toHaveValue("Name from another operator");
+    expect(screen.getByRole("heading", { name: "Edit Name from another operator", level: 1 })).toBeInTheDocument();
+    expect(detailReads).toBe(3);
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(await screen.findByRole("heading", { name: "Name from another operator", level: 1 })).toBeInTheDocument();
   });
   it("lands on the inventory and offers creation from an empty state", async () => {
     const onCreate = vi.fn();
@@ -360,6 +366,32 @@ describe("push monitor administration", () => {
     expect(screen.queryByText(/No push monitors/)).not.toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
     expect(await screen.findByRole("link", { name: "Nightly backup" })).toHaveAttribute("href", "/projects/backup-jobs/push-monitors/nightly-backup");
+  });
+});
+
+describe("push monitor detail hierarchy", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it("puts current evidence and history before administration", async () => {
+    answering((request) => {
+      const path = new URL(request.url).pathname;
+      if (path.endsWith(`/push-monitors/${monitor.key}`)) return json(monitor);
+      if (path.endsWith("/reports")) return json({ items: [report, success], next_before_sequence: null });
+      if (path.endsWith("/incidents")) return json({ items: [incident], next_before_opening_sequence: null });
+      return json({ code: "not_found", status: 404, title: "ignored" }, 404);
+    });
+    render(<PushMonitorsView onOpenHttp={vi.fn()} onSignedOut={vi.fn()} project={project} routeMonitorKey={monitor.key} />);
+    await screen.findByRole("heading", { name: "Nightly backup", level: 1 });
+    const order = screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent);
+    const at = (name: string) => order.findIndex((text) => text?.startsWith(name));
+    expect(at("Current status")).toBeLessThan(at("Report history"));
+    expect(at("Report history")).toBeLessThan(at("Incident history"));
+    expect(at("Incident history")).toBeLessThan(at("Email delivery"));
+    expect(at("Email delivery")).toBeLessThan(at("Reporting credential"));
+    expect(screen.queryByLabelText("Display name")).not.toBeInTheDocument();
+    const administration = screen.getByRole("navigation", { name: "Monitor administration" });
+    expect(within(administration).getByRole("link", { name: "Configuration" }))
+      .toHaveAttribute("href", "/projects/backup-jobs/push-monitors/nightly-backup/edit");
   });
 });
 
