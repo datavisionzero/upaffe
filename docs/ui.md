@@ -90,7 +90,11 @@ to the detail with a confirmation.
 
 The monitor inventory uses compact filters and a dense table on wide screens;
 on narrow screens each result becomes a labeled card without losing evidence or
-links. HTTP and push monitor lists and details share headers, status badges,
+links. Its empty states name the actual situation: an instance without projects
+leads to project creation, an instance without monitors offers HTTP or push
+creation in a chosen project, a project filter over an empty project offers
+creation there, and other filters with no match offer a reset. Pagination
+appears only when there is more than one page. HTTP and push monitor lists and details share headers, status badges,
 alerts, and form styling. Their domain-specific controls and histories remain
 separate: HTTP targets and secret headers, push reporting modes and one-time
 credential handoff, and each monitor's pause, maintenance, and removal actions.

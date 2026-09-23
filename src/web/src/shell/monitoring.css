@@ -19,6 +19,9 @@
 .monitor-inventory .inventory-table td { padding: 0.55rem 0.45rem; }
 .monitor-inventory .inventory-table td:first-child { font-weight: 500; }
 .monitor-inventory .inventory-pages { margin-top: 0.85rem; }
+.monitor-inventory .inventory-empty { display: grid; justify-items: start; gap: 0.6rem; }
+.monitor-inventory .inventory-empty .ui-empty { margin: 0; }
+.monitor-inventory .inventory-create { flex-wrap: wrap; align-items: end; justify-content: flex-start; gap: 0.6rem; }
 
 .monitor-workspace .monitor-list { gap: 0.45rem; }
 .monitor-workspace .monitor-card {
