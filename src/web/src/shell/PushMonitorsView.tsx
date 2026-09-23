@@ -6,10 +6,10 @@ import { csrfHeaders, problemFieldErrors, problemMessage } from "@/api/problems"
 import { Button } from "@/components/Button";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DiscardDialog } from "@/components/DiscardGuard";
-import { useDiscardGuard } from "@/components/useDiscardGuard";
 import { SelectField, TextAreaField, TextField } from "@/components/Fields";
 import { Alert, EmptyState, LoadingState, PageHeader, SectionHeading, StatusBadge } from "@/components/Presentation";
 import { monitorStateTone } from "@/components/status";
+import { useDiscardGuard } from "@/components/useDiscardGuard";
 import { DeliveryHistoryPanel, IncidentEmailPanel, MaintenancePanel } from "@/shell/EmailPanels";
 import { monitorLink } from "@/shell/deepLink";
 import { monitorPath } from "@/shell/routes";

@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { MonitorsView } from "@/shell/MonitorsView";
+import { MonitorsView, NewHttpMonitorView } from "@/shell/MonitorsView";
 
 const project = {
   id: "f0187842-6f73-4c54-8a8c-57ac7c117c39",
@@ -123,7 +123,7 @@ describe("HTTP monitor administration", () => {
       }
       return history(request) ?? json({ code: "not_found", status: 404, title: "ignored" }, 404);
     });
-    render(<MonitorsView onBack={vi.fn()} onOpenPush={vi.fn()} onSignedOut={vi.fn()}
+    render(<MonitorsView onOpenPush={vi.fn()} onSignedOut={vi.fn()}
       project={project} routeMonitorKey="homepage" />);
     expect(await screen.findByText("<b>Checks the homepage</b>", { selector: ".monitor-purpose" })).toBeInTheDocument();
     expect(document.querySelector(".monitor-purpose b")).toBeNull();
@@ -157,7 +157,7 @@ describe("HTTP monitor administration", () => {
       if (path.endsWith(`/incidents/${incidentId}`)) return json(oldIncident);
       throw new Error(`Unexpected ${path}`);
     });
-    render(<MonitorsView onBack={vi.fn()} onOpenPush={vi.fn()} onSignedOut={vi.fn()}
+    render(<MonitorsView onOpenPush={vi.fn()} onSignedOut={vi.fn()}
       project={project} routeMonitorKey="homepage" />);
     expect(await screen.findByRole("heading", { name: "Homepage", level: 1 })).toBeInTheDocument();
     expect(await screen.findByText(/Began .*latest observation.*reason unexpected_status/, { selector: "dd" })).toBeInTheDocument();
@@ -185,7 +185,7 @@ describe("HTTP monitor administration", () => {
       if (path.endsWith("/http-monitors/untested")) return json(monitors[0]);
       return history(request) ?? json({ code: "not_found", title: "ignored", status: 404 }, 404);
     });
-    render(<MonitorsView onBack={vi.fn()} onOpenPush={vi.fn()} onSignedOut={vi.fn()} project={project} />);
+    render(<MonitorsView onOpenPush={vi.fn()} onSignedOut={vi.fn()} project={project} />);
 
     expect(screen.getByRole("status")).toHaveTextContent("Loading monitors");
     list.resolve(json(monitors));
@@ -230,9 +230,12 @@ describe("HTTP monitor administration", () => {
       if (path.endsWith("/http-monitors/homepage")) return json(stored);
       return history(request) ?? json({ code: "not_found", title: "ignored", status: 404 }, 404);
     });
-    render(<MonitorsView onBack={vi.fn()} onOpenPush={vi.fn()} onSignedOut={vi.fn()} project={project} />);
+    render(<MonitorsView onOpenPush={vi.fn()} onSignedOut={vi.fn()} project={project} />);
     const user = userEvent.setup();
-    await screen.findByText("No HTTP monitors yet.");
+    await screen.findByText(/No HTTP monitors in .* yet/);
+    expect(screen.queryByLabelText("Immutable key")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Create the first HTTP monitor" }));
+    expect(await screen.findByRole("heading", { name: "New HTTP monitor", level: 1 })).toBeInTheDocument();
 
     await user.type(screen.getByLabelText("Immutable key"), "homepage");
     await user.type(screen.getByLabelText("Display name"), "Homepage");
@@ -253,7 +256,7 @@ describe("HTTP monitor administration", () => {
     await user.click(screen.getByRole("button", { name: "Add secret header" }));
     await user.type(screen.getByLabelText("Header 1 name"), "Authorization");
     await user.type(screen.getByLabelText("Header 1 value"), "Bearer submitted-secret");
-    await user.click(screen.getByRole("button", { name: "Create monitor" }));
+    await user.click(screen.getByRole("button", { name: "Create HTTP monitor" }));
 
     expect(screen.getByLabelText("Header 1 value")).toHaveValue("");
     expect(screen.getByLabelText("Target URL")).toHaveValue("");
@@ -345,7 +348,7 @@ describe("HTTP monitor administration", () => {
       }
       throw new Error(`Unexpected ${request.method} ${path}`);
     });
-    render(<MonitorsView onBack={vi.fn()} onOpenPush={vi.fn()} onSignedOut={vi.fn()} project={project} />);
+    render(<MonitorsView onOpenPush={vi.fn()} onSignedOut={vi.fn()} project={project} />);
     const user = userEvent.setup();
     await screen.findByText("Failing below threshold · 1/3 failures");
     const open = screen.getByRole("button", { name: "Open details" });
@@ -387,7 +390,7 @@ describe("HTTP monitor administration", () => {
     const confirmation = screen.getByRole("dialog", { name: "Remove Homepage status?" });
     expect(within(confirmation).getByText(/History and the monitor key are retained/)).toBeInTheDocument();
     await user.click(within(confirmation).getByRole("button", { name: "Confirm removal" }));
-    expect(await screen.findByRole("heading", { name: "Monitors" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "HTTP monitors", level: 1 })).toBeInTheDocument();
     expect(operations).toEqual(["older-checks", "pause", "resume", "test", "update", "set-header", "remove-header", "remove"]);
   });
 
@@ -403,7 +406,7 @@ describe("HTTP monitor administration", () => {
       if (path.endsWith("/pause")) return json({ code: "conflict", title: "must-not-render", status: 409 }, 409);
       return history(request) ?? json({ code: "not_found", title: "ignored", status: 404 }, 404);
     });
-    render(<MonitorsView onBack={vi.fn()} onOpenPush={vi.fn()} onSignedOut={vi.fn()} project={project} />);
+    render(<MonitorsView onOpenPush={vi.fn()} onSignedOut={vi.fn()} project={project} />);
     const user = userEvent.setup();
     await screen.findByRole("button", { name: "Open details" });
     await user.click(screen.getByRole("button", { name: "Open details" }));
@@ -415,5 +418,65 @@ describe("HTTP monitor administration", () => {
     expect(alert).not.toHaveTextContent("must-not-render");
     expect(await screen.findByRole("heading", { name: "Changed elsewhere", level: 1 })).toBeInTheDocument();
     expect(screen.getByText("2", { selector: "dd" })).toBeInTheDocument();
+  });
+  it("names the inventory, links monitors, and retries a failed read", async () => {
+    let fail = true;
+    answering((request) => {
+      const path = new URL(request.url).pathname;
+      if (path.endsWith("/http-monitors") && fail) { fail = false; return json({ code: "unavailable", status: 503, title: "private" }, 503); }
+      if (path.endsWith("/http-monitors")) return json([baseMonitor]);
+      return json({ code: "not_found", title: "ignored", status: 404 }, 404);
+    });
+    const onCreate = vi.fn();
+    render(<MonitorsView onCreate={onCreate} onOpenPush={vi.fn()} onSignedOut={vi.fn()} project={project} />);
+    expect(screen.getByRole("heading", { name: "HTTP monitors", level: 1 })).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("HTTP 503");
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("link", { name: baseMonitor.name }))
+      .toHaveAttribute("href", `/projects/${project.key}/http-monitors/${baseMonitor.key}`);
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "New HTTP monitor" }));
+    expect(onCreate).toHaveBeenCalledOnce();
+  });
+});
+
+describe("HTTP monitor creation", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it("reports field errors without restoring submitted secrets", async () => {
+    const onCreated = vi.fn();
+    answering(() => json({ code: "validation", status: 400, title: "private",
+      errors: { target_url: ["Target URL must use http or https."] } }, 400));
+    render(<NewHttpMonitorView onCancel={vi.fn()} onCreated={onCreated} onSignedOut={vi.fn()} project={project} />);
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Immutable key"), "homepage");
+    await user.type(screen.getByLabelText("Display name"), "Homepage");
+    await user.type(screen.getByLabelText("Target URL"), "https://status.example.test/?token=secret-query");
+    await user.click(screen.getByRole("button", { name: "Add secret header" }));
+    await user.type(screen.getByLabelText("Header 1 name"), "Authorization");
+    await user.type(screen.getByLabelText("Header 1 value"), "Bearer submitted-secret");
+    await user.click(screen.getByRole("button", { name: "Create HTTP monitor" }));
+
+    expect(await screen.findByText("Target URL must use http or https.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Target URL")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Target URL")).toHaveValue("");
+    expect(screen.getByLabelText("Header 1 value")).toHaveValue("");
+    expect(screen.getByLabelText("Immutable key")).toHaveValue("homepage");
+    expect(screen.getAllByRole("alert")[0]).toHaveTextContent("enter them again");
+    expect(screen.queryByText(/secret-query/)).not.toBeInTheDocument();
+    expect(onCreated).not.toHaveBeenCalled();
+  });
+
+  it("asks before discarding typed input", async () => {
+    const onCancel = vi.fn();
+    answering(() => json({ code: "not_found", title: "ignored", status: 404 }, 404));
+    render(<NewHttpMonitorView onCancel={onCancel} onCreated={vi.fn()} onSignedOut={vi.fn()} project={project} />);
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Display name"), "Homepage");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    const dialog = await screen.findByRole("dialog", { name: "Discard new HTTP monitor?" });
+    await user.click(within(dialog).getByRole("button", { name: "Discard" }));
+    expect(onCancel).toHaveBeenCalledOnce();
   });
 });

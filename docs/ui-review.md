@@ -33,9 +33,9 @@ npm run build
 The visual suite intercepts the API with invented `.test` addresses and monitor
 data. Checked-in macOS and Linux baselines cover the complete shell for the
 dashboard and project overview, the account menu, mobile drawer, project
-inventory and creation form, push monitor inventory and creation form,
-destructive confirmation, and empty, failure, and pending states. Review every
-changed image before updating baselines with:
+inventory and creation form, HTTP and push monitor inventories and creation
+forms, destructive confirmation, and empty, failure, and pending states. Review
+every changed image before updating baselines with:
 
 ```sh
 npm run test:visual -- --update-snapshots
@@ -52,7 +52,8 @@ overflow at each size:
 | New project | Bounded form, discard protection, field errors, and pending submission |
 | Project overview | Counts, attention, healthy monitors, project context |
 | Monitor inventory | Search/filter form, table and narrow labeled cards |
-| HTTP monitors | Create form, monitor list, and deep-linked detail |
+| HTTP monitors | Inventory before creation, empty and error states, and deep-linked detail |
+| New HTTP monitor | Bounded form, write-only secret headers, field errors, Cancel, and discard protection |
 | Push monitors | Inventory before creation, empty and error states, and deep-linked detail |
 | New push monitor | Both reporting modes, field errors, Cancel, and discard protection |
 | Instance email | SMTP, write-only password, defaults, test recipient |

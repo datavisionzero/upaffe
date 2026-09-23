@@ -8,7 +8,7 @@ import { csrfHeaders, problemMessage } from "@/api/problems";
 import { AccountMenu } from "@/shell/AccountMenu";
 import { DashboardView } from "@/shell/DashboardView";
 import { InstanceEmailView, ProjectEmailView } from "@/shell/EmailSettingsView";
-import { MonitorsView } from "@/shell/MonitorsView";
+import { MonitorsView, NewHttpMonitorView } from "@/shell/MonitorsView";
 import { MonitorInventoryView } from "@/shell/MonitorInventoryView";
 import { NewProjectView } from "@/shell/NewProjectView";
 import { ProjectOverviewView } from "@/shell/ProjectOverviewView";
@@ -177,12 +177,17 @@ export function WorkspaceRouter({ session, onSignedOut }: {
         onOpenHttp={() => navigate(monitorListPath(project.key, "http"))}
         onOpenMonitor={(key) => navigate(monitorPath(project.key, "push", key))}
         onSignedOut={onSignedOut} />;
+    } else if (route.create) {
+      content = <NewHttpMonitorView key={`${project.key}:new-http`} project={project}
+        onCancel={() => navigate(monitorListPath(project.key, "http"))}
+        onCreated={(key) => navigate(monitorPath(project.key, "http", key))}
+        onSignedOut={onSignedOut} />;
     } else {
       content = <MonitorsView key={`${project.key}:http:${route.monitorKey ? path : ""}`} project={project}
         routeMonitorKey={route.monitorKey}
-        onBack={() => navigate("/projects")}
-        onBackToList={() => navigate(`${projectPath(project.key)}/http-monitors`)}
-        onOpenPush={() => navigate(`${projectPath(project.key)}/push-monitors`)}
+        onBackToList={() => navigate(monitorListPath(project.key, "http"))}
+        onCreate={() => navigate(newMonitorPath(project.key, "http"))}
+        onOpenPush={() => navigate(monitorListPath(project.key, "push"))}
         onOpenMonitor={(key) => navigate(monitorPath(project.key, "http", key))}
         onSignedOut={onSignedOut} />;
     }

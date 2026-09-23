@@ -173,6 +173,27 @@ test("push inventory leads and creation is a focused route", async ({ page }) =>
   await expect(page).toHaveURL(/\/projects\/jobs\/push-monitors$/);
 });
 
+test("HTTP inventory leads and creation is a focused route", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openWithTheme(page, "/projects/jobs/http-monitors", "dark");
+  await expect(page.getByRole("heading", { name: "HTTP monitors", level: 1 })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Public website" })).toBeInViewport();
+  await expect(page.getByRole("textbox")).toHaveCount(0);
+  await expect(page).toHaveScreenshot("http-inventory-dark-desktop.png", { fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => localStorage.setItem("upaffe-theme", "light"));
+  await page.reload();
+  await expect(page.getByRole("link", { name: "Public website" })).toBeInViewport();
+  const create = page.getByRole("button", { name: "New HTTP monitor" });
+  await create.focus();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/projects\/jobs\/new-http-monitor$/);
+  await expect(page.getByRole("heading", { name: "New HTTP monitor", level: 1 })).toBeVisible();
+  await expect(page).toHaveScreenshot("new-http-monitor-light-phone.png", { fullPage: true });
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(page).toHaveURL(/\/projects\/jobs\/http-monitors$/);
+});
+
 test("menus and destructive dialogs are reviewed within the complete shell", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openWithTheme(page, "/projects", "light");
@@ -213,8 +234,8 @@ test("all authenticated routes reflow across themes and viewport sizes", async (
     ["/dashboard", "Health dashboard"], ["/projects", "Projects"],
     ["/projects/new", "New project"],
     ["/projects/jobs", "Jobs"], ["/monitors", "Monitors"],
-    ["/projects/jobs/http-monitors", "Jobs"], ["/projects/jobs/push-monitors", "Push monitors"],
-    ["/projects/jobs/new-push-monitor", "New push monitor"],
+    ["/projects/jobs/http-monitors", "HTTP monitors"], ["/projects/jobs/push-monitors", "Push monitors"],
+    ["/projects/jobs/new-http-monitor", "New HTTP monitor"], ["/projects/jobs/new-push-monitor", "New push monitor"],
     ["/projects/jobs/http-monitors/site", "Public website"],
     ["/projects/jobs/push-monitors/backup", "Nightly backup"],
     ["/settings/email", "Instance email"],
@@ -241,7 +262,8 @@ test("authenticated routes pass automated WCAG 2A and 2AA checks", async ({ page
   const routes = [
     ["/dashboard", "Health dashboard"], ["/projects", "Projects"],
     ["/projects/new", "New project"], ["/projects/jobs", "Jobs"],
-    ["/monitors", "Monitors"], ["/projects/jobs/http-monitors", "Jobs"],
+    ["/monitors", "Monitors"], ["/projects/jobs/http-monitors", "HTTP monitors"],
+    ["/projects/jobs/new-http-monitor", "New HTTP monitor"],
     ["/projects/jobs/push-monitors", "Push monitors"],
     ["/projects/jobs/new-push-monitor", "New push monitor"],
     ["/projects/jobs/http-monitors/site", "Public website"],

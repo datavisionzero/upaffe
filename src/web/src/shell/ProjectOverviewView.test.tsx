@@ -132,7 +132,7 @@ it("triages both monitor types without changing health for maintenance or delive
   expect(await screen.findByRole("heading", { name: "Needs attention" })).toBeInTheDocument();
   await user.click(screen.getByRole("link", { name: "Manage HTTP monitors" }));
   expect(window.location.pathname).toBe("/projects/systems/http-monitors");
-  expect(await screen.findByRole("heading", { name: "Create an HTTP monitor" })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "HTTP monitors", level: 1 })).toBeInTheDocument();
 });
 
 it("shows an empty project and retries an unavailable report without rendering untrusted diagnostics", async () => {
