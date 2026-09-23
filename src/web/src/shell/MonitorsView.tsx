@@ -401,8 +401,8 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
         setPointerChecks(checkEvidence.flatMap((result) => result.data ? [result.data] : []));
         setIncidents(incidentPage.data.items);
         setPointerIncidents(incidentEvidence.flatMap((result) => result.data ? [result.data] : []));
-        setNextCheckCursor(checkPage.data.next_before_sequence);
-        setNextIncidentCursor(incidentPage.data.next_before_opening_sequence);
+        setNextCheckCursor(checkPage.data.next_before_sequence ?? null);
+        setNextIncidentCursor(incidentPage.data.next_before_opening_sequence ?? null);
         const unavailable = [...checkEvidence, ...incidentEvidence].find((result) =>
           !result.data && result.response.status !== 404);
         if (unavailable) setError(problemMessage(unavailable.error, unavailable.response.status));
@@ -542,7 +542,7 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
       });
       if (result.data) {
         setChecks((current) => [...current, ...result.data!.items]);
-        setNextCheckCursor(result.data.next_before_sequence);
+        setNextCheckCursor(result.data.next_before_sequence ?? null);
       } else await mutationFailure(result.error, result.response.status);
     } catch {
       setError("Older checks could not be reached.");
@@ -561,7 +561,7 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
       });
       if (result.data) {
         setIncidents((current) => [...current, ...result.data!.items]);
-        setNextIncidentCursor(result.data.next_before_opening_sequence);
+        setNextIncidentCursor(result.data.next_before_opening_sequence ?? null);
       } else await mutationFailure(result.error, result.response.status);
     } catch {
       setError("Older incidents could not be reached.");
@@ -591,7 +591,7 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
     incident.id === monitor.open_incident_id);
   const linkedIncident = [...incidents, ...pointerIncidents].find((incident) =>
     incident.id === emailIncidentId);
-  const overdue = monitor.state !== "paused" && monitor.next_check_at !== null
+  const overdue = monitor.state !== "paused" && !!monitor.next_check_at
     && snapshotAt !== undefined && Date.parse(monitor.next_check_at) < snapshotAt;
 
   return (

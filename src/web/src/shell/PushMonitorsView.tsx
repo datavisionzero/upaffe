@@ -330,8 +330,8 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
         setPointerReports(reportEvidence.flatMap((result) => result.data ? [result.data] : []));
         setIncidents(incidentPage.data.items);
         setPointerIncidents(incidentEvidence.flatMap((result) => result.data ? [result.data] : []));
-        setNextReportCursor(reportPage.data.next_before_sequence);
-        setNextIncidentCursor(incidentPage.data.next_before_opening_sequence);
+        setNextReportCursor(reportPage.data.next_before_sequence ?? null);
+        setNextIncidentCursor(incidentPage.data.next_before_opening_sequence ?? null);
         const unavailable = [...reportEvidence, ...incidentEvidence].find((result) =>
           !result.data && result.response.status !== 404);
         if (unavailable) setError(problemMessage(unavailable.error, unavailable.response.status));
@@ -426,7 +426,7 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
     setBusy("reports"); setError(undefined);
     try {
       const result = await api.GET("/api/projects/{projectKey}/push-monitors/{monitorKey}/reports", { params: { path: paths, query: { before_sequence: nextReportCursor, limit: 20 } } });
-      if (result.data) { setReports((current) => [...current, ...result.data!.items]); setNextReportCursor(result.data.next_before_sequence); }
+      if (result.data) { setReports((current) => [...current, ...result.data!.items]); setNextReportCursor(result.data.next_before_sequence ?? null); }
       else await failure(result.error, result.response.status);
     } catch { setError("Older reports could not be reached."); }
     finally { setBusy(undefined); }
@@ -437,7 +437,7 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
     setBusy("incidents"); setError(undefined);
     try {
       const result = await api.GET("/api/projects/{projectKey}/push-monitors/{monitorKey}/incidents", { params: { path: paths, query: { before_opening_sequence: nextIncidentCursor, limit: 20 } } });
-      if (result.data) { setIncidents((current) => [...current, ...result.data!.items]); setNextIncidentCursor(result.data.next_before_opening_sequence); }
+      if (result.data) { setIncidents((current) => [...current, ...result.data!.items]); setNextIncidentCursor(result.data.next_before_opening_sequence ?? null); }
       else await failure(result.error, result.response.status);
     } catch { setError("Older incidents could not be reached."); }
     finally { setBusy(undefined); }
@@ -457,7 +457,7 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
     incident.id === monitor.open_incident_id);
   const linkedIncident = [...incidents, ...pointerIncidents].find((incident) =>
     incident.id === emailIncidentId);
-  const overdue = monitor.state !== "paused" && monitor.next_deadline_at !== null
+  const overdue = monitor.state !== "paused" && !!monitor.next_deadline_at
     && snapshotAt !== undefined && Date.parse(monitor.next_deadline_at) < snapshotAt;
 
   return <div className="workspace monitor-workspace">

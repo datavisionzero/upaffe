@@ -1,8 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 
+// The API omits absent values, so live projects arrive without deleted_at.
 const project = { id: "f0187842-6f73-4c54-8a8c-57ac7c117c39", key: "jobs", name: "Jobs",
-  version: 1, created_at: "2026-09-19T12:00:00Z", updated_at: "2026-09-19T12:00:00Z", deleted_at: null };
+  version: 1, created_at: "2026-09-19T12:00:00Z", updated_at: "2026-09-19T12:00:00Z" };
+const deletedProject = { id: "0d6b3c4e-8d0c-4f0a-9d7e-5b2f1f9f6a11", key: "archive", name: "Archive",
+  version: 2, created_at: "2026-09-18T12:00:00Z", updated_at: "2026-09-19T10:00:00Z",
+  deleted_at: "2026-09-19T10:00:00Z" };
 const push = { id: "4a572f67-2edb-46d3-86de-419608f16d83", project_key: "jobs",
   key: "backup", name: "Nightly backup", purpose: "Confirms nightly backup completion",
   mode: "job_completion", interval_seconds: 3600, tolerance_seconds: 300,
@@ -38,7 +42,8 @@ async function fixtures(page: Page) {
     if (!localStorage.getItem("upaffe-theme")) localStorage.setItem("upaffe-theme", "light");
   });
   await page.route("http://127.0.0.1:4173/api/**", async (route) => {
-    const path = new URL(route.request().url()).pathname;
+    const url = new URL(route.request().url());
+    const path = url.pathname;
     if (path === "/api/projects" && route.request().method() === "GET" && projectFixture === "failure") {
       await route.fulfill({ status: 503, json: { code: "unavailable", status: 503,
         title: "private diagnostic" } });
@@ -53,7 +58,8 @@ async function fixtures(page: Page) {
       : path === "/api/session" ? { operator_id: "3a5ccfce-eb16-4b19-8716-49f08cc44fbc",
         email: "operator@example.test", access_path: "browser_session",
         session_id: "57691661-6c2a-4a46-87aa-551b1178fc0d", expires_at: "2099-09-23T12:00:00Z" }
-      : path === "/api/projects" ? projectFixture === "empty" ? [] : [project]
+      : path === "/api/projects" ? projectFixture === "empty" ? []
+        : url.searchParams.get("deleted") === "true" ? [deletedProject] : [project]
       : path === "/api/projects/jobs" ? project
       : path === "/api/projects/jobs/report" ? { generated_at: "2026-09-19T12:00:00Z",
         project, counts: { total: 2, http: 1, push: 1, healthy: 0, failing: 2, untested: 0,
@@ -192,6 +198,25 @@ test("HTTP inventory leads and creation is a focused route", async ({ page }) =>
   await expect(page).toHaveScreenshot("new-http-monitor-light-phone.png", { fullPage: true });
   await page.getByRole("button", { name: "Cancel" }).click();
   await expect(page).toHaveURL(/\/projects\/jobs\/http-monitors$/);
+});
+
+test("live projects open from the inventory while deleted projects stay distinct", async ({ page }) => {
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await openWithTheme(page, "/projects", width === 1440 ? "dark" : "light");
+    const row = page.locator(".project-card", { hasText: "Jobs" });
+    await expect(row.getByRole("link", { name: "Jobs" })).toBeVisible();
+    await expect(row).not.toContainText(/Deleted|Invalid Date/);
+    await expect(row.getByRole("button", { name: "Restore" })).toHaveCount(0);
+
+    await page.goto("/projects?state=deleted");
+    const deleted = page.locator(".project-card", { hasText: "Archive" });
+    await expect(deleted).toContainText("Deleted");
+    await expect(deleted).not.toContainText("Invalid Date");
+    await expect(deleted.getByRole("button", { name: "Restore" })).toBeVisible();
+    await expect(deleted.getByRole("link")).toHaveCount(0);
+  }
+  await expect(page).toHaveScreenshot("project-deleted-light-phone.png", { fullPage: true });
 });
 
 test("menus and destructive dialogs are reviewed within the complete shell", async ({ page }) => {

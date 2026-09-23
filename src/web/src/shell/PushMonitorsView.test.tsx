@@ -363,6 +363,24 @@ describe("push monitor administration", () => {
   });
 });
 
+describe("push monitor history", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it("offers no older pages when the API omits the last-page cursor", async () => {
+    answering((request) => {
+      const path = new URL(request.url).pathname;
+      if (path.endsWith(`/push-monitors/${monitor.key}`)) return json({ ...monitor, open_incident_id: undefined });
+      if (path.endsWith("/reports")) return json({ items: [report, success] });
+      if (path.endsWith("/incidents")) return json({ items: [] });
+      return json({ code: "not_found", status: 404, title: "ignored" }, 404);
+    });
+    render(<PushMonitorsView onOpenHttp={vi.fn()} onSignedOut={vi.fn()} project={project} routeMonitorKey={monitor.key} />);
+    expect(await screen.findByText("Failed report")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Load older reports" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Load older incidents" })).not.toBeInTheDocument();
+  });
+});
+
 describe("push monitor creation", () => {
   afterEach(() => { vi.unstubAllGlobals(); });
 

@@ -136,6 +136,32 @@ public sealed class ProjectTests(PostgresFixture postgres)
     }
 
     [Fact]
+    public async Task Live_projects_omit_the_deletion_time_that_deleted_projects_carry()
+    {
+        await using var instance = await EstablishedAsync();
+        using var client = Client(instance);
+        var token = await CredentialAsync(client, await SignInAsync(client));
+
+        var created = await ProjectAsync(await JsonAsync(
+            client,
+            HttpMethod.Post,
+            "/api/projects",
+            new CreateProjectRequest("review-demo", "Review Demo"),
+            token));
+        var live = Assert.Single((await ProjectListAsync(client, "/api/projects", token)).EnumerateArray());
+        Assert.False(live.TryGetProperty("deleted_at", out _));
+        Assert.Equal("review-demo", live.GetProperty("key").GetString());
+
+        (await SendAsync(
+            client,
+            HttpMethod.Delete,
+            $"/api/projects/review-demo?version={created.Project.Version}",
+            token)).Dispose();
+        var deleted = Assert.Single((await ProjectListAsync(client, "/api/projects?deleted=true", token)).EnumerateArray());
+        Assert.True(DateTimeOffset.TryParse(deleted.GetProperty("deleted_at").GetString(), out _));
+    }
+
+    [Fact]
     public async Task Invalid_and_duplicate_project_facts_have_stable_problem_contracts()
     {
         await using var instance = await EstablishedAsync();
@@ -342,6 +368,15 @@ public sealed class ProjectTests(PostgresFixture postgres)
                 Json,
                 TestContext.Current.CancellationToken))!;
         }
+    }
+
+    private static async Task<JsonElement> ProjectListAsync(HttpClient client, string path, string token)
+    {
+        using var response = await SendAsync(client, HttpMethod.Get, path, token);
+        response.EnsureSuccessStatusCode();
+        using var document = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        return document.RootElement.Clone();
     }
 
     private static async Task<string?> ProblemCode(HttpResponseMessage response) =>

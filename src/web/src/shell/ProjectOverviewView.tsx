@@ -137,7 +137,7 @@ function AttentionCard({ monitor, generatedAt, projectKey, link }: {
       {monitor.latest_result && <p className="muted">Latest {monitor.latest_result.outcome}: {dateLabel(monitor.latest_result.observed_at)}{monitor.latest_result.reason ? ` · ${reasonLabel(monitor.latest_result.reason)}` : ""}</p>}
       {monitor.last_success && <p className="muted">Last success: {dateLabel(monitor.last_success.observed_at)}</p>}
       {monitor.next_due_at && <p className="muted">Next expected {monitor.type === "http" ? "check" : "report"}: {dateLabel(monitor.next_due_at)}</p>}
-      {monitor.failure_count !== null && monitor.failure_threshold !== null && monitor.state === "failing" && !monitor.incident &&
+      {monitor.failure_count != null && monitor.failure_threshold != null && monitor.state === "failing" && !monitor.incident &&
         <p className="muted">{monitor.failure_count} of {monitor.failure_threshold} failures before an incident opens.</p>}
       {monitor.instruction && <p className="operator-guidance"><strong>Instruction:</strong> {monitor.instruction}</p>}
       {safeRunbook(monitor.runbook_url) && <p><a href={safeRunbook(monitor.runbook_url)} rel="noopener noreferrer" target="_blank">Open runbook</a></p>}

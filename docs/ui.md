@@ -48,7 +48,10 @@ The Projects route is an inventory rather than a combined creation screen. Its
 search, Live/Deleted state, sort, and order are URL parameters so reload, Back,
 and shared links preserve the view. Project names are the primary navigation
 target; rename and confirmed deletion are secondary actions, while restoration
-is immediate. `/projects/new` is a bounded single-column workflow with
+is immediate. A project is deleted only when its response carries a deletion
+time: the API omits absent values rather than sending `null`, so the web client
+treats a missing and a null value alike, here and for history cursors and
+other optional facts, and never renders an unparseable time. `/projects/new` is a bounded single-column workflow with
 field-level errors, a pending state, and typed-input discard protection.
 
 Dashboard and project overviews use compact page and section headers, dense
