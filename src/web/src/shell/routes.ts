@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 
+export type EmailTask = "delivery" | "relay" | "password" | "recipients" | "test";
+const emailTaskNames: readonly string[] = ["relay", "password", "recipients", "test"];
+
 export type AppRoute =
   | { kind: "projects" }
   | { kind: "new-project" }
   | { kind: "dashboard" }
   | { kind: "inventory" }
-  | { kind: "settings" }
+  | { kind: "settings"; task: EmailTask }
   | { kind: "project"; projectKey: string; section: "overview" | "http" | "push" | "email";
       monitorKey?: string; create?: true }
   | { kind: "missing" };
@@ -24,7 +27,9 @@ export function parseRoute(pathname: string): AppRoute {
   if (pathname === "/projects") return { kind: "projects" };
   if (pathname === "/projects/new") return { kind: "new-project" };
   if (pathname === "/monitors") return { kind: "inventory" };
-  if (pathname === "/settings" || pathname === "/settings/email") return { kind: "settings" };
+  if (pathname === "/settings" || pathname === "/settings/email") return { kind: "settings", task: "delivery" };
+  const emailTask = /^\/settings\/email\/([a-z]+)$/.exec(pathname)?.[1];
+  if (emailTask && emailTaskNames.includes(emailTask)) return { kind: "settings", task: emailTask as EmailTask };
   const parts = pathname.split("/");
   if (parts[1] !== "projects" || !parts[2]) return { kind: "missing" };
   const projectKey = key(parts[2]);
@@ -52,6 +57,8 @@ export function parseRoute(pathname: string): AppRoute {
 export const projectPath = (projectKey: string) => `/projects/${encodeURIComponent(projectKey)}`;
 export const inventoryPath = (projectKey?: string) =>
   projectKey ? `/monitors?project=${encodeURIComponent(projectKey)}` : "/monitors";
+export const emailTaskPath = (task: EmailTask) =>
+  task === "delivery" ? "/settings/email" : `/settings/email/${task}`;
 export const monitorListPath = (projectKey: string, type: "http" | "push") =>
   `${projectPath(projectKey)}/${type}-monitors`;
 export const newMonitorPath = (projectKey: string, type: "http" | "push") =>

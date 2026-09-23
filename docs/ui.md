@@ -86,6 +86,12 @@ credential handoff, and each monitor's pause, maintenance, and removal actions.
 
 Project administration and email settings use the same compact panels, labeled
 controls, loading and error states, and clear primary or destructive actions.
+Instance email is divided into task routes with local navigation:
+`/settings/email` shows delivery evidence and is where the dashboard's delivery
+link lands, while `/settings/email/relay`, `/password`, `/recipients`, and
+`/test` each hold one form with its own save, field errors, and feedback. The
+`return` destination is kept while moving between tasks, and saving the relay
+or replacing its password links directly to the test task.
 Delivery history keeps relay acceptance separate from inbox delivery. SMTP
 passwords remain write-only in ordinary settings, and test-send feedback says
 when the relay accepted a message without implying inbox receipt. The local

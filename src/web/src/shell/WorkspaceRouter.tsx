@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import type { components } from "@/api/schema";
 import { Activity, ChevronRight, FolderOpen, Gauge, Globe, Mail, Menu, Radio, Settings, X, type LucideIcon } from "lucide-react";
@@ -15,7 +15,7 @@ import { ProjectOverviewView } from "@/shell/ProjectOverviewView";
 import { ProjectSwitcher } from "@/shell/ProjectSwitcher";
 import { ProjectsView } from "@/shell/ProjectsView";
 import { NewPushMonitorView, PushMonitorsView } from "@/shell/PushMonitorsView";
-import { monitorListPath, monitorPath, newMonitorPath, projectPath, returnPath, useAppRoute, withReturn } from "@/shell/routes";
+import { emailTaskPath, monitorListPath, monitorPath, newMonitorPath, projectPath, returnPath, useAppRoute, withReturn } from "@/shell/routes";
 
 type Session = components["schemas"]["CurrentSessionResponse"];
 type Project = components["schemas"]["ProjectResponse"];
@@ -114,8 +114,8 @@ export function WorkspaceRouter({ session, onSignedOut }: {
     return () => { window.clearTimeout(timer); observer?.disconnect(); if (expiry) window.clearTimeout(expiry); };
   }, [path, route.kind, monitorKey, sectionTitle, projectLoad?.project?.name]);
 
-  function link(path: string, label: string, current: boolean, Icon?: LucideIcon) {
-    return <a aria-current={current ? "page" : undefined} className={Icon ? "sidebar-link" : undefined} href={path}
+  function link(path: string, label: ReactNode, current: boolean, Icon?: LucideIcon, className?: string) {
+    return <a aria-current={current ? "page" : undefined} className={className ?? (Icon ? "sidebar-link" : undefined)} href={path}
       onClick={(event: MouseEvent<HTMLAnchorElement>) => {
         if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
         event.preventDefault();
@@ -138,7 +138,9 @@ export function WorkspaceRouter({ session, onSignedOut }: {
   } else if (route.kind === "inventory") {
     content = <MonitorInventoryView key={search} search={search} onNavigate={navigate} onSignedOut={onSignedOut} />;
   } else if (route.kind === "settings") {
-    content = <InstanceEmailView onBack={() => navigate(returnPath(search, "/projects"))}
+    content = <InstanceEmailView key={route.task} task={route.task}
+      taskLink={(task, label, className) => link(emailTaskPath(task) + search, label, task === route.task, undefined, className)}
+      onBack={() => navigate(returnPath(search, "/projects"))}
       onSignedOut={onSignedOut} />;
   } else if (route.kind === "missing") {
     content = <div className="workspace"><section className="panel">
@@ -223,7 +225,7 @@ export function WorkspaceRouter({ session, onSignedOut }: {
           {navLink(`${projectPath(route.projectKey)}/settings/email`, "Project email", route.section === "email", Mail)}
         </>}
         <p className="sidebar-label">Instance</p>
-        {navLink(route.kind === "settings" ? "/settings/email" : withReturn("/settings/email", path),
+        {navLink(route.kind === "settings" ? `/settings/email${search}` : withReturn("/settings/email", path),
           "Settings", route.kind === "settings", Settings)}
         </nav>
         <div className="sidebar-footer">
@@ -242,7 +244,7 @@ export function WorkspaceRouter({ session, onSignedOut }: {
           onSwitch={(key) => navigate(projectPath(key))} projects={projectOptions} />
           : <span className="topbar-location">{locationLabel}</span>}
         <AccountMenu email={session.email} error={shellError} signingOut={signingOut}
-          onOpenSettings={() => navigate(route.kind === "settings" ? "/settings/email" : withReturn("/settings/email", path))}
+          onOpenSettings={() => navigate(route.kind === "settings" ? `/settings/email${search}` : withReturn("/settings/email", path))}
           onSignOut={() => void signOut()} />
       </header>
       {route.kind === "project" && <nav aria-label="Breadcrumb" className="breadcrumbs">

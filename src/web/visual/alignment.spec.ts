@@ -219,6 +219,31 @@ test("live projects open from the inventory while deleted projects stay distinct
   await expect(page).toHaveScreenshot("project-deleted-light-phone.png", { fullPage: true });
 });
 
+test("instance email tasks are separate routes with local navigation", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openWithTheme(page, "/dashboard", "light");
+  await page.getByRole("link", { name: "Open email status and settings" }).click();
+  await expect(page).toHaveURL(/\/settings\/email\?return=/);
+  const tasks = page.getByRole("navigation", { name: "Email tasks" });
+  await expect(tasks.getByRole("link", { name: "Delivery" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("region", { name: "Instance email delivery" })).toBeVisible();
+  await expect(page).toHaveScreenshot("email-delivery-light-desktop.png", { fullPage: true });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => localStorage.setItem("upaffe-theme", "dark"));
+  await tasks.getByRole("link", { name: "Relay settings" }).click();
+  await expect(page).toHaveURL(/\/settings\/email\/relay\?return=/);
+  await expect(page.getByRole("heading", { name: "Relay settings", level: 2 })).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel("Relay host")).toHaveValue("mail.example.test");
+  await expect(page).toHaveScreenshot("email-relay-dark-phone.png", { fullPage: true });
+  await page.goBack();
+  await expect(page).toHaveURL(/\/settings\/email\?return=/);
+  await expect(page.getByRole("region", { name: "Instance email delivery" })).toBeVisible();
+  await page.getByRole("button", { name: "Back to investigation" }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+});
+
 test("menus and destructive dialogs are reviewed within the complete shell", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openWithTheme(page, "/projects", "light");
@@ -263,7 +288,9 @@ test("all authenticated routes reflow across themes and viewport sizes", async (
     ["/projects/jobs/new-http-monitor", "New HTTP monitor"], ["/projects/jobs/new-push-monitor", "New push monitor"],
     ["/projects/jobs/http-monitors/site", "Public website"],
     ["/projects/jobs/push-monitors/backup", "Nightly backup"],
-    ["/settings/email", "Instance email"],
+    ["/settings/email", "Instance email"], ["/settings/email/relay", "Instance email"],
+    ["/settings/email/password", "Instance email"], ["/settings/email/recipients", "Instance email"],
+    ["/settings/email/test", "Instance email"],
     ["/projects/jobs/settings/email", "Email and maintenance"],
   ] as const;
   await page.goto("/dashboard");
@@ -293,7 +320,9 @@ test("authenticated routes pass automated WCAG 2A and 2AA checks", async ({ page
     ["/projects/jobs/new-push-monitor", "New push monitor"],
     ["/projects/jobs/http-monitors/site", "Public website"],
     ["/projects/jobs/push-monitors/backup", "Nightly backup"],
-    ["/settings/email", "Instance email"],
+    ["/settings/email", "Instance email"], ["/settings/email/relay", "Instance email"],
+    ["/settings/email/password", "Instance email"], ["/settings/email/recipients", "Instance email"],
+    ["/settings/email/test", "Instance email"],
     ["/projects/jobs/settings/email", "Email and maintenance"],
   ] as const;
   for (const [index, [path, heading]] of routes.entries()) {
