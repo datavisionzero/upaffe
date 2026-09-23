@@ -113,3 +113,19 @@ fix and passed after it. The final candidate passed the gate below.
 | `ua_0.4.0_darwin_arm64.zip` | `fc8c38104e0778801181f71d7eee7ffbc4eaa0b45d685bab03cab5b58eca6c22` |
 | `ua_0.4.0_linux_amd64.zip` | `9760a2892f0aa988745fddbd0f8c519bdae0a769bb43a8bb26c8f9a2e92d3946` |
 | `ua_0.4.0_linux_arm64.zip` | `848243ab8f8fc0193f53f3f53d27a211264560059739cd29ccd86a5468650e3e` |
+
+## v0.5.0 release sign-off (2026-09-23)
+
+- The immutable `v0.5.0` tag points to `23b5fa95c76a4591d22a8318f53d9820668d4b0f`. [Main CI](https://github.com/datavisionzero/upaffe/actions/runs/35844258900) passed every job on that exact commit, including the composed monitoring system test, contract checks, sixteen visual and accessibility tests, and both native image checks. Local `scripts/check.sh` passed from its clean tree: 102 unit, 141 PostgreSQL integration, and 70 web tests, plus Go tests and vet, builds, lint, and Compose validation.
+- The [nonpublishing candidate workflow](https://github.com/datavisionzero/upaffe/actions/runs/35845006174) passed four native CLI archive executions, the two-architecture OCI layout check, and asset packaging. Downloaded candidate archives passed `shasum -a 256 -c SHA256SUMS`; `source-revision.txt` matched the tagged commit and the notes preview matched `docs/releases/v0.5.0.md`.
+- The published-image production rehearsal passed with previous `v0.4.0` (index digest `sha256:3c4c0c4a36af2f91dd254cdc04b277e49a23f71e47b76a5eb5406d0473f2b39e`) and candidate revision image (index digest `sha256:9e9607d907f0a92d16fcb29b0b6c4da59b4ff089c933fe8c8b18337a8fa6aef8`). It covered heartbeat progress and recovery, bootstrap from an empty volume, persistence, failed-pull rollback, upgrade, future-schema rejection by the older image, and isolated backup restore.
+- After publication the production rehearsal passed again with `v0.4.0` and stable `v0.5.0`, expecting version `0.5.0`. It observed the same heartbeat, bootstrap, persistence, failed-pull, update, schema-rejection, and isolated-restore boundaries without building application source on the test host. All six acceptance criteria in the matrix above have passing evidence; no unexplained deviation remains open.
+- The [tagged workflow](https://github.com/datavisionzero/upaffe/actions/runs/35845536808) completed successfully. The [public release](https://github.com/datavisionzero/upaffe/releases/tag/v0.5.0) has the reviewed notes, four CLI ZIPs, `SHA256SUMS`, `source-revision.txt`, and `image-digest.txt`. The release API briefly listed the published release without assets before all seven appeared. All downloaded archives passed their checksums; the macOS arm64 binary reported `0.5.0` and the tagged revision in its Go build metadata.
+- `ghcr.io/datavisionzero/upaffe:v0.5.0` resolves to index digest `sha256:9aced7c4766ddf84f83a7ebd9fbcf7c85a026e517bc463102af40b4e1bce3b72`. Independent verification checked Linux amd64 and arm64 manifests, version and source revision labels, and the native application's version response. The release body and `image-digest.txt` name the same digest.
+
+| CLI archive | SHA-256 |
+| --- | --- |
+| `ua_0.5.0_darwin_amd64.zip` | `a55d5b80c5d8061a65d1e3c9d30d9d2ebe256d45b91ea93e01f481294b8d21ae` |
+| `ua_0.5.0_darwin_arm64.zip` | `7b85176573e9cd7430f22f67050f86b4b7ad19342aed25bf250bfeb6d126956f` |
+| `ua_0.5.0_linux_amd64.zip` | `800b2025478ffec548f1672c5e924c4b3748188d9507144da382ac21923bafa0` |
+| `ua_0.5.0_linux_arm64.zip` | `503b93c16757fd95341e36555bfe5d9693fecc891a93b14e35d4a1fe9ad866ca` |
