@@ -1,15 +1,18 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type RefObject } from "react";
 import type { components } from "@/api/schema";
 
 import { api } from "@/api/client";
-import { csrfHeaders, problemMessage } from "@/api/problems";
+import { csrfHeaders, problemFieldErrors, problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { SelectField, TextField } from "@/components/Fields";
+import { DiscardDialog } from "@/components/DiscardGuard";
+import { useDiscardGuard } from "@/components/useDiscardGuard";
+import { SelectField, TextAreaField, TextField } from "@/components/Fields";
 import { Alert, EmptyState, LoadingState, PageHeader, SectionHeading, StatusBadge } from "@/components/Presentation";
 import { monitorStateTone } from "@/components/status";
 import { DeliveryHistoryPanel, IncidentEmailPanel, MaintenancePanel } from "@/shell/EmailPanels";
 import { monitorLink } from "@/shell/deepLink";
+import { monitorPath } from "@/shell/routes";
 
 type Project = components["schemas"]["ProjectResponse"];
 type Monitor = components["schemas"]["PushMonitorResponse"];
@@ -22,24 +25,24 @@ type IssuedCredential = components["schemas"]["IssuedReportingCredentialResponse
 
 type Props = {
   project: Project;
-  onBack: () => void;
   onOpenHttp: () => void;
   onSignedOut: () => void;
   routeMonitorKey?: string;
   onOpenMonitor?: (key: string) => void;
   onBackToList?: () => void;
+  onCreate?: () => void;
 };
 
-export function PushMonitorsView({ project, onBack, onOpenHttp, onSignedOut,
-  routeMonitorKey, onOpenMonitor, onBackToList }: Props) {
+export function PushMonitorsView({ project, onOpenHttp, onSignedOut,
+  routeMonitorKey, onOpenMonitor, onBackToList, onCreate }: Props) {
   const [monitors, setMonitors] = useState<Monitor[]>([]);
   const [selectedKey, setSelectedKey] = useState<string | undefined>(() => {
     if (onOpenMonitor) return undefined;
     const link = monitorLink();
     return link?.projectKey === project.key && link.monitorType === "push" ? link.monitorKey : undefined;
   });
+  const [creatingInline, setCreatingInline] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string>();
 
   const load = useCallback(async () => {
@@ -64,24 +67,20 @@ export function PushMonitorsView({ project, onBack, onOpenHttp, onSignedOut,
     return () => window.clearTimeout(start);
   }, [load]);
 
-  async function create(body: CreateMonitor) {
-    setCreating(true);
-    setError(undefined);
-    try {
-      const result = await api.POST("/api/projects/{projectKey}/push-monitors", {
-        params: { path: { projectKey: project.key } }, body, headers: csrfHeaders,
-      });
-      if (result.data) {
-        await load();
-        if (onOpenMonitor) onOpenMonitor(result.data.key);
-        else setSelectedKey(result.data.key);
-      } else if (result.response.status === 401) onSignedOut();
-      else setError(problemMessage(result.error, result.response.status));
-    } catch {
-      setError("The push monitor could not be created.");
-    } finally {
-      setCreating(false);
-    }
+  function open(key: string) {
+    if (onOpenMonitor) onOpenMonitor(key);
+    else setSelectedKey(key);
+  }
+
+  function create() {
+    if (onCreate) onCreate();
+    else setCreatingInline(true);
+  }
+
+  if (creatingInline) {
+    return <NewPushMonitorView project={project} onSignedOut={onSignedOut}
+      onCancel={() => setCreatingInline(false)}
+      onCreated={(key) => { setCreatingInline(false); setSelectedKey(key); void load(); }} />;
   }
 
   const activeKey = routeMonitorKey ?? selectedKey;
@@ -97,32 +96,35 @@ export function PushMonitorsView({ project, onBack, onOpenHttp, onSignedOut,
 
   return (
     <div className="workspace monitor-workspace">
-      <PageHeader title={project.name} detail={`Push monitors · ${project.key}`} actions={<>
+      <PageHeader title="Push monitors" detail={`${project.name} · ${project.key} · Jobs and services that report to upaffe.`} actions={<>
           <Button onClick={onOpenHttp} type="button">HTTP monitors</Button>
-          <Button onClick={onBack} type="button">Back to projects</Button>
+          <Button onClick={create} type="button" variant="primary">New push monitor</Button>
         </>} />
 
-      <section aria-labelledby="push-create-title" className="panel">
-        <h2 id="push-create-title">Create a push monitor</h2>
-        <PushMonitorForm busy={creating} mode="create" onSubmit={(body) => create(body as CreateMonitor)} />
-      </section>
-
       <section aria-labelledby="push-list-title" className="panel">
-        <SectionHeading title="Push monitors" titleId="push-list-title" action={<Button disabled={loading} onClick={() => void load()} type="button">Refresh</Button>} />
-        {error && <Alert tone="danger">{error}</Alert>}
+        <SectionHeading title="Inventory" titleId="push-list-title" eyebrow={loading || error ? undefined : countLabel(monitors.length)}
+          action={<Button disabled={loading} onClick={() => void load()} type="button">Refresh</Button>} />
+        {error && <Alert tone="danger">{error} <Button onClick={() => void load()} type="button">Try again</Button></Alert>}
         {loading && <LoadingState>Loading push monitors…</LoadingState>}
-        {!loading && monitors.length === 0 && <EmptyState>No push monitors yet.</EmptyState>}
+        {!loading && !error && monitors.length === 0 && <div className="inventory-empty">
+          <EmptyState>No push monitors in {project.name} yet. A push monitor waits for a job or service to report and alerts when a report fails or does not arrive.</EmptyState>
+          <Button onClick={create} type="button" variant="primary">Create the first push monitor</Button>
+        </div>}
         {!loading && monitors.length > 0 && <div className="monitor-list">
           {monitors.map((monitor) => <article className="monitor-card" key={monitor.id}>
             <div>
               <StatusBadge tone={monitorStateTone(monitor.state)}>{pushStateLabel(monitor)}</StatusBadge>
-              <h3>{monitor.name}</h3>
+              <h3><a href={monitorPath(project.key, "push", monitor.key)} onClick={(event) => {
+                if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                event.preventDefault();
+                open(monitor.key);
+              }}>{monitor.name}</a></h3>
               <code>{monitor.key}</code>
               <p className="muted monitor-target">{modeLabel(monitor.mode)} · every {monitor.interval_seconds}s + {monitor.tolerance_seconds}s tolerance</p>
             </div>
             <div className="monitor-card-actions">
               <span className="version">version {monitor.version}</span>
-              <Button onClick={() => onOpenMonitor ? onOpenMonitor(monitor.key) : setSelectedKey(monitor.key)} type="button">Open details</Button>
+              <Button onClick={() => open(monitor.key)} type="button">Open details</Button>
             </div>
           </article>)}
         </div>}
@@ -131,14 +133,67 @@ export function PushMonitorsView({ project, onBack, onOpenHttp, onSignedOut,
   );
 }
 
+function countLabel(count: number) {
+  return count === 1 ? "1 push monitor" : `${count} push monitors`;
+}
+
+/** The focused creation workflow; the created monitor opens next. */
+export function NewPushMonitorView({ project, onCancel, onCreated, onSignedOut }: {
+  project: Project;
+  onCancel: () => void;
+  onCreated: (key: string) => void;
+  onSignedOut: () => void;
+}) {
+  const [pending, setPending] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [error, setError] = useState<string>();
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const firstField = useRef<HTMLInputElement>(null);
+  const guard = useDiscardGuard({ dirty, pending, onLeave: onCancel });
+
+  async function create(body: CreateMonitor) {
+    setPending(true);
+    setError(undefined);
+    setFieldErrors({});
+    try {
+      const result = await api.POST("/api/projects/{projectKey}/push-monitors", {
+        params: { path: { projectKey: project.key } }, body, headers: csrfHeaders,
+      });
+      if (result.data) onCreated(result.data.key);
+      else if (result.response.status === 401) onSignedOut();
+      else {
+        setFieldErrors(problemFieldErrors(result.error));
+        setError(problemMessage(result.error, result.response.status));
+      }
+    } catch {
+      setError("The push monitor could not be created.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return <div className="workspace monitor-workspace monitor-create-workspace">
+    <PageHeader title="New push monitor" detail={`${project.name} · ${project.key} · Choose how the sender reports; issue its reporting credential after creation.`} />
+    {error && <Alert tone="danger">{error}</Alert>}
+    <PushMonitorForm busy={pending} fieldErrors={fieldErrors} firstField={firstField} mode="create"
+      onCancel={guard.cancel} onDirtyChange={setDirty} onSubmit={(body) => create(body as CreateMonitor)} />
+    <DiscardDialog description="The push monitor details you entered will be lost." onDiscard={onCancel}
+      onOpenChange={guard.setOpen} open={guard.open} returnFocus={firstField} title="Discard new push monitor?" />
+  </div>;
+}
+
 type FormProps = {
   busy: boolean;
   mode: "create" | "edit";
   monitor?: Monitor;
+  fieldErrors?: Record<string, string>;
+  firstField?: RefObject<HTMLInputElement | null>;
+  onCancel?: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
   onSubmit: (body: CreateMonitor | UpdateMonitor) => Promise<void>;
 };
 
-function PushMonitorForm({ busy, mode, monitor, onSubmit }: FormProps) {
+function PushMonitorForm({ busy, mode, monitor, fieldErrors = {}, firstField, onCancel, onDirtyChange, onSubmit }: FormProps) {
   const [key, setKey] = useState("");
   const [name, setName] = useState(monitor?.name ?? "");
   const [purpose, setPurpose] = useState(monitor?.purpose ?? "");
@@ -147,6 +202,11 @@ function PushMonitorForm({ busy, mode, monitor, onSubmit }: FormProps) {
   const [tolerance, setTolerance] = useState(monitor?.tolerance_seconds ?? 300);
   const [instruction, setInstruction] = useState(monitor?.instruction ?? "");
   const [runbook, setRunbook] = useState(monitor?.runbook_url ?? "");
+  const dirty = key !== "" || name !== (monitor?.name ?? "") || purpose !== (monitor?.purpose ?? "")
+    || reportingMode !== (monitor?.mode ?? "job_completion") || interval !== (monitor?.interval_seconds ?? 3600)
+    || tolerance !== (monitor?.tolerance_seconds ?? 300) || instruction !== (monitor?.instruction ?? "")
+    || runbook !== (monitor?.runbook_url ?? "");
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -164,14 +224,13 @@ function PushMonitorForm({ busy, mode, monitor, onSubmit }: FormProps) {
   }
 
   return <form className="monitor-form" onSubmit={submit}>
-    {mode === "create" && <TextField label="Immutable key" pattern="[a-z][a-z0-9-]{1,39}" placeholder="nightly-backup" required value={key} onChange={(event) => setKey(event.target.value)} />}
-    <TextField label="Display name" maxLength={100} required value={name} onChange={(event) => setName(event.target.value)} />
-    <label className="wide-field">
-      <span>Purpose (optional)</span>
-      <textarea aria-describedby="push-purpose-help" aria-label="Purpose (optional)" maxLength={240} rows={2} value={purpose} onChange={(event) => setPurpose(event.target.value)} />
-      <small className="muted" id="push-purpose-help">What this reports, for example “Confirms the nightly backup completes.” Operator instruction below is for investigation steps.</small>
-    </label>
-    {mode === "create" && <SelectField label="Reporting mode" value={reportingMode} onChange={(event) => setReportingMode(event.target.value)}>
+    {mode === "create" && <TextField autoFocus description="Lowercase letters, numbers, and hyphens. This cannot be changed later."
+      error={fieldErrors.key} label="Immutable key" pattern="[a-z][a-z0-9-]{1,39}" placeholder="nightly-backup" ref={firstField}
+      required value={key} onChange={(event) => setKey(event.target.value)} />}
+    <TextField error={fieldErrors.name} label="Display name" maxLength={100} required value={name} onChange={(event) => setName(event.target.value)} />
+    <TextAreaField className="wide-field" description="What this reports, for example “Confirms the nightly backup completes.” Operator instruction below is for investigation steps."
+      error={fieldErrors.purpose} label="Purpose (optional)" maxLength={240} rows={2} value={purpose} onChange={(event) => setPurpose(event.target.value)} />
+    {mode === "create" && <SelectField error={fieldErrors.mode} label="Reporting mode" value={reportingMode} onChange={(event) => setReportingMode(event.target.value)}>
         <option value="job_completion">Job completion</option>
         <option value="state_report">State report</option>
       </SelectField>}
@@ -182,23 +241,20 @@ function PushMonitorForm({ busy, mode, monitor, onSubmit }: FormProps) {
       {" "}Silence after the interval and tolerance is a separate missing-report failure.
     </p>}
     {mode === "edit" && <div className="wide-field"><span className="muted">Immutable mode</span><p>{modeLabel(monitor!.mode)}</p></div>}
-    <label>
-      <span>Expected interval (seconds)</span>
-      <input min={30} max={2592000} required type="number" value={interval} onChange={(event) => setInterval(event.target.valueAsNumber)} />
-    </label>
-    <label>
-      <span>Deadline tolerance (seconds)</span>
-      <input min={0} max={2592000} required type="number" value={tolerance} onChange={(event) => setTolerance(event.target.valueAsNumber)} />
-    </label>
-    <label className="wide-field">
-      <span>Operator instruction</span>
-      <textarea maxLength={1000} value={instruction} onChange={(event) => setInstruction(event.target.value)} />
-    </label>
-    <label className="wide-field">
-      <span>Runbook URL</span>
-      <input maxLength={2048} type="url" value={runbook} onChange={(event) => setRunbook(event.target.value)} />
-    </label>
-    <Button disabled={busy} type="submit" variant="primary">{busy ? "Saving…" : mode === "create" ? "Create push monitor" : "Save configuration"}</Button>
+    <TextField error={fieldErrors.interval_seconds} label="Expected interval (seconds)" max={2592000} min={30} required type="number"
+      value={Number.isNaN(interval) ? "" : interval} onChange={(event) => setInterval(event.target.valueAsNumber)} />
+    <TextField error={fieldErrors.tolerance_seconds} label="Deadline tolerance (seconds)" max={2592000} min={0} required type="number"
+      value={Number.isNaN(tolerance) ? "" : tolerance} onChange={(event) => setTolerance(event.target.valueAsNumber)} />
+    <TextAreaField className="wide-field" error={fieldErrors.instruction} label="Operator instruction" maxLength={1000}
+      value={instruction} onChange={(event) => setInstruction(event.target.value)} />
+    <TextField className="wide-field" error={fieldErrors.runbook_url} label="Runbook URL" maxLength={2048} type="url"
+      value={runbook} onChange={(event) => setRunbook(event.target.value)} />
+    {mode === "create"
+      ? <div className="actions wide-field form-actions">
+          <Button disabled={busy} onClick={onCancel} type="button">Cancel</Button>
+          <Button pending={busy} type="submit" variant="primary">{busy ? "Creating…" : "Create push monitor"}</Button>
+        </div>
+      : <Button disabled={busy} type="submit" variant="primary">{busy ? "Saving…" : "Save configuration"}</Button>}
   </form>;
 }
 

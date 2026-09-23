@@ -59,6 +59,16 @@ The brand accent has a darker light-theme text companion so small links and
 labels remain readable on warm surfaces; health and warning colors have their
 own tokens. Long purpose and operator guidance text wraps within cards.
 
+A project's push monitor route is an inventory first: its page header names
+the inventory and carries the primary `New push monitor` action, followed by
+the monitor list or its loading, error-with-retry, or empty state. Creation is
+the focused route `/projects/:key/new-push-monitor`, a bounded single-column
+form with both reporting modes and their guidance, field-level errors, a
+pending state, Cancel, and typed-input discard protection; success opens the
+new monitor, where its one-time reporting credential is issued. Creation routes
+sit beside the inventory rather than below it because `new` is a valid monitor
+key and must remain reachable as a detail deep link.
+
 The monitor inventory uses compact filters and a dense table on wide screens;
 on narrow screens each result becomes a labeled card without losing evidence or
 links. HTTP and push monitor lists and details share headers, status badges,

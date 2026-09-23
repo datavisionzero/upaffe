@@ -32,6 +32,20 @@ export function TextField({ label, description, error, id, className = "", ...pr
   </div>;
 }
 
+export function TextAreaField({ label, description, error, id, className = "", ...props }:
+  ComponentProps<"textarea"> & FieldDetails) {
+  const ids = useFieldIds(id);
+  const describedBy = [props["aria-describedby"], description && ids.descriptionId, error && ids.errorId]
+    .filter(Boolean).join(" ") || undefined;
+  return <div className={`ui-field ${className}`}>
+    <label htmlFor={ids.fieldId}>{label}</label>
+    <textarea {...props} aria-describedby={describedBy} aria-errormessage={error ? ids.errorId : undefined}
+      aria-invalid={!!error || undefined}
+      className="ui-input ui-textarea" id={ids.fieldId} />
+    <FieldMessages {...ids} description={description} error={error} />
+  </div>;
+}
+
 export function SelectField({ label, description, error, id, className = "", children, ...props }:
   ComponentProps<"select"> & FieldDetails & { children: ReactNode }) {
   const ids = useFieldIds(id);

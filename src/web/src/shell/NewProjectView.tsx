@@ -1,15 +1,13 @@
-import { Dialog } from "@base-ui/react/dialog";
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
-import type { components } from "@/api/schema";
+import { useCallback, useRef, useState, type FormEvent } from "react";
 
 import { api } from "@/api/client";
-import { csrfHeaders, problemMessage } from "@/api/problems";
+import { csrfHeaders, problemFieldErrors, problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
+import { DiscardDialog } from "@/components/DiscardGuard";
+import { useDiscardGuard } from "@/components/useDiscardGuard";
 import { TextField } from "@/components/Fields";
 import { Alert, PageHeader } from "@/components/Presentation";
 import { projectPath } from "@/shell/routes";
-
-type Problem = components["schemas"]["ProblemResponse"];
 
 export function NewProjectView({ onSignedOut, onNavigate }: {
   onSignedOut: () => void;
@@ -20,35 +18,9 @@ export function NewProjectView({ onSignedOut, onNavigate }: {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [discardOpen, setDiscardOpen] = useState(false);
-  const dirty = key.length > 0 || name.length > 0;
-  const current = useRef({ dirty, discardOpen, pending });
   const keyInput = useRef<HTMLInputElement>(null);
-  useLayoutEffect(() => { current.current = { dirty, discardOpen, pending }; }, [dirty, discardOpen, pending]);
-
-  useEffect(() => {
-    const unload = (event: BeforeUnloadEvent) => {
-      if (!current.current.dirty || current.current.pending) return;
-      event.preventDefault();
-    };
-    const cancel = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || current.current.discardOpen || current.current.pending) return;
-      event.preventDefault();
-      if (current.current.dirty) window.setTimeout(() => setDiscardOpen(true), 0);
-      else onNavigate("/projects");
-    };
-    window.addEventListener("beforeunload", unload);
-    window.addEventListener("keydown", cancel, true);
-    return () => {
-      window.removeEventListener("beforeunload", unload);
-      window.removeEventListener("keydown", cancel, true);
-    };
-  }, [onNavigate]);
-
-  function cancel() {
-    if (dirty) setDiscardOpen(true);
-    else onNavigate("/projects");
-  }
+  const leave = useCallback(() => onNavigate("/projects"), [onNavigate]);
+  const guard = useDiscardGuard({ dirty: key.length > 0 || name.length > 0, pending, onLeave: leave });
 
   async function create(event: FormEvent) {
     event.preventDefault();
@@ -62,8 +34,7 @@ export function NewProjectView({ onSignedOut, onNavigate }: {
       if (data) onNavigate(projectPath(data.key));
       else if (response.status === 401) onSignedOut();
       else {
-        const errors = (problem as Problem | undefined)?.errors;
-        setFieldErrors(Object.fromEntries(Object.entries(errors ?? {}).map(([field, messages]) => [field, messages[0]])));
+        setFieldErrors(problemFieldErrors(problem));
         setError(problemMessage(problem, response.status));
       }
     } catch {
@@ -83,23 +54,12 @@ export function NewProjectView({ onSignedOut, onNavigate }: {
       <TextField error={fieldErrors.name} label="Display name" maxLength={100} name="name"
         placeholder="Backup jobs" required value={name} onChange={(event) => setName(event.target.value)} />
       <div className="actions">
-        <Button disabled={pending} onClick={cancel} type="button">Cancel</Button>
+        <Button disabled={pending} onClick={guard.cancel} type="button">Cancel</Button>
         <Button pending={pending} type="submit" variant="primary">{pending ? "Creating…" : "Create project"}</Button>
       </div>
     </form>
 
-    <Dialog.Root open={discardOpen} onOpenChange={setDiscardOpen}>
-      <Dialog.Portal>
-        <Dialog.Backdrop className="ui-dialog-backdrop" />
-        <Dialog.Popup className="ui-dialog-popup" finalFocus={() => keyInput.current ?? true}>
-          <Dialog.Title>Discard new project?</Dialog.Title>
-          <Dialog.Description>The key and display name you entered will be lost.</Dialog.Description>
-          <div className="ui-dialog-actions">
-            <Dialog.Close render={<Button type="button" />}>Keep editing</Dialog.Close>
-            <Button onClick={() => onNavigate("/projects")} type="button" variant="destructive">Discard</Button>
-          </div>
-        </Dialog.Popup>
-      </Dialog.Portal>
-    </Dialog.Root>
+    <DiscardDialog description="The key and display name you entered will be lost." onDiscard={leave}
+      onOpenChange={guard.setOpen} open={guard.open} returnFocus={keyInput} title="Discard new project?" />
   </div>;
 }

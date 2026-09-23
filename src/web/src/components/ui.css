@@ -46,6 +46,7 @@
   padding: 0.35rem 0.6rem;
 }
 .ui-input[aria-invalid="true"] { border-color: var(--destructive); }
+.ui-textarea { min-height: 4rem; resize: vertical; font: inherit; }
 .ui-field-description { color: var(--muted-foreground); font-size: 0.78rem; }
 .ui-field-error { color: var(--danger-ink); font-size: 0.78rem; }
 .ui-checkbox { display: flex; align-items: flex-start; gap: 0.5rem; }

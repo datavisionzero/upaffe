@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { PushMonitorsView } from "@/shell/PushMonitorsView";
+import { NewPushMonitorView, PushMonitorsView } from "@/shell/PushMonitorsView";
 
 const project = {
   id: "f0187842-6f73-4c54-8a8c-57ac7c117c39",
@@ -115,7 +115,7 @@ describe("push monitor administration", () => {
       if (path.endsWith("/incidents")) return json({ items: [], next_before_opening_sequence: null });
       return json({ code: "not_found", status: 404, title: "ignored" }, 404);
     });
-    render(<PushMonitorsView onBack={vi.fn()} onOpenHttp={vi.fn()} onSignedOut={vi.fn()}
+    render(<PushMonitorsView onOpenHttp={vi.fn()} onSignedOut={vi.fn()}
       project={project} routeMonitorKey={monitor.key} />);
     expect(await screen.findByText("<b>Confirms the backup</b>", { selector: ".monitor-purpose" })).toBeInTheDocument();
     expect(document.querySelector(".monitor-purpose b")).toBeNull();
@@ -142,7 +142,7 @@ describe("push monitor administration", () => {
       if (path.endsWith(`/incidents/${incident.id}`)) return json(incident);
       throw new Error(`Unexpected ${path}`);
     });
-    render(<PushMonitorsView onBack={vi.fn()} onOpenHttp={vi.fn()} onSignedOut={vi.fn()}
+    render(<PushMonitorsView onOpenHttp={vi.fn()} onSignedOut={vi.fn()}
       project={project} routeMonitorKey={monitor.key} />);
     expect(await screen.findByRole("heading", { name: "Nightly backup", level: 1 })).toBeInTheDocument();
     expect(screen.getByText("Last success", { selector: "dt" }).nextElementSibling).toHaveTextContent("2026");
@@ -183,11 +183,14 @@ describe("push monitor administration", () => {
       if (path.endsWith("/incidents")) return json({ items: [], next_before_opening_sequence: null });
       return json({ code: "not_found", status: 404, title: "ignored" }, 404);
     });
-    render(<PushMonitorsView onBack={vi.fn()} onOpenHttp={vi.fn()} onSignedOut={vi.fn()} project={project} />);
+    render(<PushMonitorsView onOpenHttp={vi.fn()} onSignedOut={vi.fn()} project={project} />);
     const user = userEvent.setup();
 
     expect(await screen.findByText(/Job completion · every/, { selector: ".monitor-target" })).toBeInTheDocument();
     expect(screen.getByText(/State report · every/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Immutable key")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "New push monitor" }));
+    expect(await screen.findByRole("heading", { name: "New push monitor", level: 1 })).toBeInTheDocument();
     await user.selectOptions(screen.getByLabelText("Reporting mode"), "state_report");
     expect(screen.getByRole("note")).toHaveTextContent("latest health assessment");
     expect(screen.getByRole("note")).toHaveTextContent("Silence");
@@ -239,7 +242,7 @@ describe("push monitor administration", () => {
       }
       return json({ code: "not_found", status: 404, title: "ignored" }, 404);
     });
-    render(<PushMonitorsView onBack={vi.fn()} onOpenHttp={vi.fn()} onSignedOut={vi.fn()} project={project} />);
+    render(<PushMonitorsView onOpenHttp={vi.fn()} onSignedOut={vi.fn()} project={project} />);
     const user = userEvent.setup();
     await user.click((await screen.findAllByRole("button", { name: "Open details" }))[0]);
 
@@ -280,7 +283,7 @@ describe("push monitor administration", () => {
       if (path.endsWith("/reporting-credential") && request.method === "GET" && issued) return json({ id: "08702220-1471-4cc1-899e-c7d2aa8f590b", created_at: "2026-09-18T12:00:00Z", rotated_at: null, revoked_at: null });
       return json({ code: "not_found", status: 404, title: "ignored" }, 404);
     });
-    render(<PushMonitorsView onBack={vi.fn()} onOpenHttp={vi.fn()} onSignedOut={vi.fn()} project={project} />);
+    render(<PushMonitorsView onOpenHttp={vi.fn()} onSignedOut={vi.fn()} project={project} />);
     const user = userEvent.setup();
     await user.click((await screen.findAllByRole("button", { name: "Open details" }))[0]);
     await screen.findByText("No active reporting credential.");
@@ -313,7 +316,7 @@ describe("push monitor administration", () => {
       }
       return json({ code: "not_found", status: 404, title: "ignored" }, 404);
     });
-    render(<PushMonitorsView onBack={vi.fn()} onOpenHttp={vi.fn()} onSignedOut={vi.fn()} project={project} />);
+    render(<PushMonitorsView onOpenHttp={vi.fn()} onSignedOut={vi.fn()} project={project} />);
     const user = userEvent.setup();
     await user.click((await screen.findAllByRole("button", { name: "Open details" }))[0]);
     const configuration = await screen.findByRole("heading", { name: "Configuration" });
@@ -326,5 +329,85 @@ describe("push monitor administration", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Refresh and try again");
     expect(within(panel).getByLabelText("Display name")).toHaveValue("Name from another operator");
     expect(detailReads).toBe(2);
+  });
+  it("lands on the inventory and offers creation from an empty state", async () => {
+    const onCreate = vi.fn();
+    answering((request) => {
+      const path = new URL(request.url).pathname;
+      if (path.endsWith("/push-monitors")) return json([]);
+      return json({ code: "not_found", status: 404, title: "ignored" }, 404);
+    });
+    render(<PushMonitorsView onCreate={onCreate} onOpenHttp={vi.fn()} onSignedOut={vi.fn()} project={project} />);
+    expect(screen.getByRole("heading", { name: "Push monitors", level: 1 })).toBeInTheDocument();
+    expect(await screen.findByText(/No push monitors in Backup jobs yet/)).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Create the first push monitor" }));
+    await user.click(screen.getByRole("button", { name: "New push monitor" }));
+    expect(onCreate).toHaveBeenCalledTimes(2);
+  });
+
+  it("offers a retry when the inventory cannot be read", async () => {
+    let fail = true;
+    answering((request) => {
+      const path = new URL(request.url).pathname;
+      if (path.endsWith("/push-monitors") && fail) { fail = false; return json({ code: "unavailable", status: 503, title: "private" }, 503); }
+      if (path.endsWith("/push-monitors")) return json([monitor]);
+      return json({ code: "not_found", status: 404, title: "ignored" }, 404);
+    });
+    render(<PushMonitorsView onOpenHttp={vi.fn()} onSignedOut={vi.fn()} project={project} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("HTTP 503");
+    expect(screen.queryByText(/No push monitors/)).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("link", { name: "Nightly backup" })).toHaveAttribute("href", "/projects/backup-jobs/push-monitors/nightly-backup");
+  });
+});
+
+describe("push monitor creation", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it("leaves an untouched form directly and protects typed input", async () => {
+    const onCancel = vi.fn();
+    answering(() => json({ code: "not_found", status: 404, title: "ignored" }, 404));
+    render(<NewPushMonitorView onCancel={onCancel} onCreated={vi.fn()} onSignedOut={vi.fn()} project={project} />);
+    const user = userEvent.setup();
+    expect(screen.getByLabelText("Immutable key")).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+
+    await user.type(screen.getByLabelText("Display name"), "Half typed");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    const dialog = await screen.findByRole("dialog", { name: "Discard new push monitor?" });
+    await user.click(within(dialog).getByRole("button", { name: "Keep editing" }));
+    expect(screen.getByLabelText("Display name")).toHaveValue("Half typed");
+    expect(onCancel).toHaveBeenCalledTimes(1);
+
+    await user.keyboard("{Escape}");
+    await user.click(within(await screen.findByRole("dialog", { name: "Discard new push monitor?" }))
+      .getByRole("button", { name: "Discard" }));
+    expect(onCancel).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows field errors beside their fields and opens the created monitor", async () => {
+    const onCreated = vi.fn();
+    let attempts = 0;
+    answering(async (request) => {
+      attempts += 1;
+      if (attempts === 1) return json({ code: "validation", status: 400, title: "private",
+        errors: { interval_seconds: ["Interval must be at least 30 seconds."] } }, 400);
+      const body = await request.json() as { key: string; mode: string };
+      expect(body.mode).toBe("job_completion");
+      return json({ ...monitor, key: body.key }, 201);
+    });
+    render(<NewPushMonitorView onCancel={vi.fn()} onCreated={onCreated} onSignedOut={vi.fn()} project={project} />);
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Immutable key"), "nightly-backup");
+    await user.type(screen.getByLabelText("Display name"), "Nightly backup");
+    await user.click(screen.getByRole("button", { name: "Create push monitor" }));
+    expect(await screen.findByText("Interval must be at least 30 seconds.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Expected interval (seconds)")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Immutable key")).toHaveValue("nightly-backup");
+    await user.click(screen.getByRole("button", { name: "Create push monitor" }));
+    await vi.waitFor(() => expect(onCreated).toHaveBeenCalledWith("nightly-backup"));
   });
 });

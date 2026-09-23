@@ -153,6 +153,26 @@ test("inventory and project creation stay distinct at 200 percent zoom-equivalen
   await expect(page).toHaveScreenshot("new-project-dark-zoom.png", { fullPage: true });
 });
 
+test("push inventory leads and creation is a focused route", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openWithTheme(page, "/projects/jobs/push-monitors", "light");
+  await expect(page.getByRole("heading", { name: "Push monitors", level: 1 })).toBeVisible();
+  const monitor = page.getByRole("link", { name: "Nightly backup" });
+  await expect(monitor).toBeInViewport();
+  await expect(page.getByRole("textbox")).toHaveCount(0);
+  await expect(page).toHaveScreenshot("push-inventory-light-phone.png", { fullPage: true });
+  await page.getByRole("button", { name: "New push monitor" }).click();
+  await expect(page).toHaveURL(/\/projects\/jobs\/new-push-monitor$/);
+  await expect(page.getByRole("heading", { name: "New push monitor", level: 1 })).toBeVisible();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.evaluate(() => localStorage.setItem("upaffe-theme", "dark"));
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "New push monitor", level: 1 })).toBeVisible();
+  await expect(page).toHaveScreenshot("new-push-monitor-dark-desktop.png", { fullPage: true });
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(page).toHaveURL(/\/projects\/jobs\/push-monitors$/);
+});
+
 test("menus and destructive dialogs are reviewed within the complete shell", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openWithTheme(page, "/projects", "light");
@@ -193,7 +213,8 @@ test("all authenticated routes reflow across themes and viewport sizes", async (
     ["/dashboard", "Health dashboard"], ["/projects", "Projects"],
     ["/projects/new", "New project"],
     ["/projects/jobs", "Jobs"], ["/monitors", "Monitors"],
-    ["/projects/jobs/http-monitors", "Jobs"], ["/projects/jobs/push-monitors", "Jobs"],
+    ["/projects/jobs/http-monitors", "Jobs"], ["/projects/jobs/push-monitors", "Push monitors"],
+    ["/projects/jobs/new-push-monitor", "New push monitor"],
     ["/projects/jobs/http-monitors/site", "Public website"],
     ["/projects/jobs/push-monitors/backup", "Nightly backup"],
     ["/settings/email", "Instance email"],
@@ -221,7 +242,8 @@ test("authenticated routes pass automated WCAG 2A and 2AA checks", async ({ page
     ["/dashboard", "Health dashboard"], ["/projects", "Projects"],
     ["/projects/new", "New project"], ["/projects/jobs", "Jobs"],
     ["/monitors", "Monitors"], ["/projects/jobs/http-monitors", "Jobs"],
-    ["/projects/jobs/push-monitors", "Jobs"],
+    ["/projects/jobs/push-monitors", "Push monitors"],
+    ["/projects/jobs/new-push-monitor", "New push monitor"],
     ["/projects/jobs/http-monitors/site", "Public website"],
     ["/projects/jobs/push-monitors/backup", "Nightly backup"],
     ["/settings/email", "Instance email"],
@@ -276,6 +298,14 @@ test("focus-sensitive shell and form interactions work from the keyboard", async
   await expectNoAxeViolations(page, "unsaved project dialog");
   await page.keyboard.press("Escape");
   await expect(page.getByLabel("Immutable key")).toBeFocused();
+
+  await page.goto("/projects/jobs/new-push-monitor");
+  await page.getByLabel("Display name").fill("Unfinished");
+  await page.keyboard.press("Escape");
+  const pushDiscard = page.getByRole("dialog", { name: "Discard new push monitor?" });
+  await expect(pushDiscard).toBeVisible();
+  await pushDiscard.getByRole("button", { name: "Discard" }).click();
+  await expect(page).toHaveURL(/\/projects\/jobs\/push-monitors$/);
 });
 
 test("bootstrap, sign-in, and connection failures remain accessible", async ({ page }) => {

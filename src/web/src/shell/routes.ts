@@ -6,7 +6,8 @@ export type AppRoute =
   | { kind: "dashboard" }
   | { kind: "inventory" }
   | { kind: "settings" }
-  | { kind: "project"; projectKey: string; section: "overview" | "http" | "push" | "email"; monitorKey?: string }
+  | { kind: "project"; projectKey: string; section: "overview" | "http" | "push" | "email";
+      monitorKey?: string; create?: true }
   | { kind: "missing" };
 
 const validKey = /^[a-z][a-z0-9-]{1,39}$/;
@@ -33,6 +34,11 @@ export function parseRoute(pathname: string): AppRoute {
     return { kind: "project", projectKey, section: "http" };
   if (parts.length === 4 && parts[3] === "push-monitors")
     return { kind: "project", projectKey, section: "push" };
+  // Creation lives beside the inventories because "new" is itself a valid monitor key.
+  if (parts.length === 4 && parts[3] === "new-http-monitor")
+    return { kind: "project", projectKey, section: "http", create: true };
+  if (parts.length === 4 && parts[3] === "new-push-monitor")
+    return { kind: "project", projectKey, section: "push", create: true };
   if (parts.length === 5 && parts[3] === "settings" && parts[4] === "email")
     return { kind: "project", projectKey, section: "email" };
   if (parts.length === 5 && (parts[3] === "http-monitors" || parts[3] === "push-monitors")) {
@@ -46,6 +52,10 @@ export function parseRoute(pathname: string): AppRoute {
 export const projectPath = (projectKey: string) => `/projects/${encodeURIComponent(projectKey)}`;
 export const inventoryPath = (projectKey?: string) =>
   projectKey ? `/monitors?project=${encodeURIComponent(projectKey)}` : "/monitors";
+export const monitorListPath = (projectKey: string, type: "http" | "push") =>
+  `${projectPath(projectKey)}/${type}-monitors`;
+export const newMonitorPath = (projectKey: string, type: "http" | "push") =>
+  `${projectPath(projectKey)}/new-${type}-monitor`;
 export const monitorPath = (projectKey: string, type: "http" | "push", monitorKey: string) =>
   `${projectPath(projectKey)}/${type}-monitors/${encodeURIComponent(monitorKey)}`;
 

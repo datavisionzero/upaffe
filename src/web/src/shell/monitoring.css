@@ -32,9 +32,9 @@
 .monitor-workspace .monitor-card .monitor-target { margin-top: 0.35rem; font-size: 0.8rem; }
 .monitor-workspace .monitor-card .version { color: var(--muted-foreground); font-size: 0.72rem; }
 .monitor-workspace .monitor-form { gap: 0.75rem; }
-.monitor-workspace .monitor-form input:not([type="checkbox"]),
-.monitor-workspace .monitor-form select,
-.monitor-workspace .monitor-form textarea,
+.monitor-workspace .monitor-form input:not([type="checkbox"]):not(.ui-input),
+.monitor-workspace .monitor-form select:not(.ui-input),
+.monitor-workspace .monitor-form textarea:not(.ui-input),
 .monitor-workspace .header-row input {
   border: 1px solid var(--input); border-radius: var(--radius);
   background: var(--card); color: var(--foreground);
@@ -58,6 +58,16 @@
 .monitor-workspace .history-list li { padding: 0.55rem 0; overflow-wrap: anywhere; }
 .monitor-workspace .history-list span { font-size: 0.8rem; }
 .monitor-workspace .secret-reveal { background: var(--muted); }
+.monitor-workspace .inventory-empty { display: grid; justify-items: start; gap: 0.6rem; }
+.monitor-workspace .inventory-empty .ui-empty { margin: 0; }
+
+/* Creation is a bounded single-column task, like a new project. */
+.monitor-create-workspace > .ui-alert { margin-bottom: 0.75rem; }
+.monitor-create-workspace .monitor-form {
+  grid-template-columns: minmax(0, 1fr); gap: 1rem;
+  border-top: 1px solid var(--border); padding-top: 1rem;
+}
+.monitor-create-workspace .form-actions { justify-content: flex-end; }
 .monitor-workspace .ui-page-actions { align-items: center; }
 
 @media (max-width: 1050px) {

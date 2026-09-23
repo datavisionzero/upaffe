@@ -18,3 +18,12 @@ it("rejects external or unknown return destinations", () => {
     expect(returnPath(`?return=${encodeURIComponent(source)}`, "/projects")).toBe("/projects");
   }
 });
+
+it("opens monitor creation without shadowing a monitor keyed new", () => {
+  expect(parseRoute("/projects/jobs/new-push-monitor"))
+    .toEqual({ kind: "project", projectKey: "jobs", section: "push", create: true });
+  expect(parseRoute("/projects/jobs/new-http-monitor"))
+    .toEqual({ kind: "project", projectKey: "jobs", section: "http", create: true });
+  expect(parseRoute("/projects/jobs/push-monitors/new"))
+    .toEqual({ kind: "project", projectKey: "jobs", section: "push", monitorKey: "new" });
+});
