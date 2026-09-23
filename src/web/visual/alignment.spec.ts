@@ -34,10 +34,12 @@ const http = { id: "f71f436f-fba2-40dc-af42-6b15ffb56a12", project_key: "jobs", 
 
 let projectFixture: "normal" | "empty" | "failure" | "pending" = "normal";
 let releaseProjectCreation: (() => void) | undefined;
+let emptyMonitors = false;
 
 async function fixtures(page: Page) {
   projectFixture = "normal";
   releaseProjectCreation = undefined;
+  emptyMonitors = false;
   await page.addInitScript(() => {
     if (!localStorage.getItem("upaffe-theme")) localStorage.setItem("upaffe-theme", "light");
   });
@@ -69,8 +71,10 @@ async function fixtures(page: Page) {
           has_password: false, recipients: ["ops@example.test"], delivery: { project_key: "jobs",
             pending_count: 0, retrying_count: 0, terminal_failure_count: 0, smtp_accepted_count: 1,
             oldest_pending_at: null } } }
-      : path === "/api/monitors" ? { generated_at: "2026-09-19T12:00:00Z", items: [inventoryItem],
-        total: 1, limit: 25, offset: 0, has_more: false }
+      : path === "/api/monitors" ? emptyMonitors || url.searchParams.has("q")
+        ? { generated_at: "2026-09-19T12:00:00Z", items: [], total: 0, limit: 25, offset: 0, has_more: false }
+        : { generated_at: "2026-09-19T12:00:00Z", items: [inventoryItem], total: 1, limit: 25, offset: 0,
+          has_more: false }
       : path === "/api/overview" ? { generated_at: "2026-09-19T12:00:00Z",
         counts: { total: 2, healthy: 1, failing: 1, untested: 0, paused: 0, overdue: 0 },
         delivery: { pending: 0, overdue: 0, retrying: 0, terminal_failure: 0, accepted: 1,
@@ -219,6 +223,74 @@ test("live projects open from the inventory while deleted projects stay distinct
   await expect(page).toHaveScreenshot("project-deleted-light-phone.png", { fullPage: true });
 });
 
+test("instance email tasks are separate routes with local navigation", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openWithTheme(page, "/dashboard", "light");
+  await page.getByRole("link", { name: "Open email status and settings" }).click();
+  await expect(page).toHaveURL(/\/settings\/email\?return=/);
+  const tasks = page.getByRole("navigation", { name: "Email tasks" });
+  await expect(tasks.getByRole("link", { name: "Delivery" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("region", { name: "Instance email delivery" })).toBeVisible();
+  await expect(page).toHaveScreenshot("email-delivery-light-desktop.png", { fullPage: true });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => localStorage.setItem("upaffe-theme", "dark"));
+  await tasks.getByRole("link", { name: "Relay settings" }).click();
+  await expect(page).toHaveURL(/\/settings\/email\/relay\?return=/);
+  await expect(page.getByRole("heading", { name: "Relay settings", level: 2 })).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel("Relay host")).toHaveValue("mail.example.test");
+  await expect(page).toHaveScreenshot("email-relay-dark-phone.png", { fullPage: true });
+  await page.goBack();
+  await expect(page).toHaveURL(/\/settings\/email\?return=/);
+  await expect(page.getByRole("region", { name: "Instance email delivery" })).toBeVisible();
+  await page.getByRole("button", { name: "Back to investigation" }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+});
+
+test("monitor details show evidence before administration and edit in a focused route", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openWithTheme(page, "/projects/jobs/http-monitors/site", "light");
+  await expect(page.getByRole("heading", { name: "Public website", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Check history" })).toBeInViewport();
+  await expect(page.getByLabel("Target URL")).toHaveCount(0);
+  await expect(page).toHaveScreenshot("http-detail-light-desktop.png", { fullPage: true });
+  await page.getByRole("button", { name: "Edit configuration" }).click();
+  await expect(page).toHaveURL(/\/http-monitors\/site\/edit$/);
+  await page.getByLabel("Display name").fill("Changed");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Discard configuration changes?" })).toBeVisible();
+  await page.getByRole("button", { name: "Discard" }).click();
+  await expect(page).toHaveURL(/\/http-monitors\/site$/);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openWithTheme(page, "/projects/jobs/push-monitors/backup", "dark");
+  await expect(page.getByRole("heading", { name: "Report history" })).toBeVisible();
+  await page.getByRole("navigation", { name: "Monitor administration" }).getByRole("link", { name: "Configuration" }).click();
+  await expect(page.getByRole("heading", { name: "Edit Nightly backup", level: 1 })).toBeVisible();
+  await expect(page).toHaveScreenshot("push-edit-dark-phone.png", { fullPage: true });
+});
+
+test("empty monitor inventories explain the next step", async ({ page }) => {
+  emptyMonitors = true;
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openWithTheme(page, "/monitors", "light");
+  await expect(page.getByText(/No monitors configured yet/)).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Inventory pages" })).toHaveCount(0);
+  await expect(page).toHaveScreenshot("inventory-empty-light-phone.png", { fullPage: true });
+  await page.getByRole("button", { name: "New HTTP monitor in Jobs" }).click();
+  await expect(page).toHaveURL(/\/projects\/jobs\/new-http-monitor$/);
+
+  emptyMonitors = false;
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openWithTheme(page, "/monitors?q=absent", "dark");
+  await expect(page.getByText("No monitors match these filters.")).toBeVisible();
+  await expect(page).toHaveScreenshot("inventory-filtered-empty-dark-desktop.png", { fullPage: true });
+  await page.getByRole("button", { name: "Reset filters" }).click();
+  await expect(page).toHaveURL(/\/monitors$/);
+  await expect(page.getByRole("link", { name: "Nightly backup" })).toBeVisible();
+});
+
 test("menus and destructive dialogs are reviewed within the complete shell", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openWithTheme(page, "/projects", "light");
@@ -263,7 +335,11 @@ test("all authenticated routes reflow across themes and viewport sizes", async (
     ["/projects/jobs/new-http-monitor", "New HTTP monitor"], ["/projects/jobs/new-push-monitor", "New push monitor"],
     ["/projects/jobs/http-monitors/site", "Public website"],
     ["/projects/jobs/push-monitors/backup", "Nightly backup"],
-    ["/settings/email", "Instance email"],
+    ["/projects/jobs/http-monitors/site/edit", "Edit Public website"],
+    ["/projects/jobs/push-monitors/backup/edit", "Edit Nightly backup"],
+    ["/settings/email", "Instance email"], ["/settings/email/relay", "Instance email"],
+    ["/settings/email/password", "Instance email"], ["/settings/email/recipients", "Instance email"],
+    ["/settings/email/test", "Instance email"],
     ["/projects/jobs/settings/email", "Email and maintenance"],
   ] as const;
   await page.goto("/dashboard");
@@ -293,7 +369,11 @@ test("authenticated routes pass automated WCAG 2A and 2AA checks", async ({ page
     ["/projects/jobs/new-push-monitor", "New push monitor"],
     ["/projects/jobs/http-monitors/site", "Public website"],
     ["/projects/jobs/push-monitors/backup", "Nightly backup"],
-    ["/settings/email", "Instance email"],
+    ["/projects/jobs/http-monitors/site/edit", "Edit Public website"],
+    ["/projects/jobs/push-monitors/backup/edit", "Edit Nightly backup"],
+    ["/settings/email", "Instance email"], ["/settings/email/relay", "Instance email"],
+    ["/settings/email/password", "Instance email"], ["/settings/email/recipients", "Instance email"],
+    ["/settings/email/test", "Instance email"],
     ["/projects/jobs/settings/email", "Email and maintenance"],
   ] as const;
   for (const [index, [path, heading]] of routes.entries()) {

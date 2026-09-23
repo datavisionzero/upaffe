@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
+import { useEffect, useState, type FormEvent, type MouseEvent, type ReactNode } from "react";
 import type { components } from "@/api/schema";
 
 import { api } from "@/api/client";
@@ -7,7 +7,7 @@ import { Button } from "@/components/Button";
 import { SelectField, TextField } from "@/components/Fields";
 import { Alert, EmptyState, LoadingState, PageHeader, SectionHeading, StatusBadge } from "@/components/Presentation";
 import { monitorStateTone } from "@/components/status";
-import { monitorPath, projectPath } from "@/shell/routes";
+import { monitorPath, newMonitorPath, projectPath } from "@/shell/routes";
 
 type Page = components["schemas"]["MonitorInventoryPage"];
 type Item = Page["items"][number];
@@ -60,6 +60,7 @@ export function MonitorInventoryView({ search, onNavigate, onSignedOut }: {
   const [type, setType] = useState(current.type);
   const [q, setQ] = useState(current.q);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsKnown, setProjectsKnown] = useState(false);
   const [page, setPage] = useState<Page>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
@@ -92,7 +93,7 @@ export function MonitorInventoryView({ search, onNavigate, onSignedOut }: {
       try {
         const result = await api.GET("/api/projects", { params: { query: { deleted: false } } });
         if (!active) return;
-        if (result.data) setProjects(result.data);
+        if (result.data) { setProjects(result.data); setProjectsKnown(true); }
         else if (result.response.status === 401) onSignedOut();
       } catch { /* The project key in the URL remains usable. */ }
     }, 0);
@@ -110,6 +111,10 @@ export function MonitorInventoryView({ search, onNavigate, onSignedOut }: {
       event.preventDefault(); onNavigate(path);
     }}>{label}</a>;
   }
+
+  const filtered = !!(current.project || current.state || current.type || current.q);
+  const onlyProject = !!current.project && !current.state && !current.type && !current.q;
+  const paged = !!page && (page.offset > 0 || page.has_more);
 
   return <div className="workspace monitor-inventory">
     <PageHeader title="Monitors" detail="Find what each monitor covers and inspect its current evidence across projects." />
@@ -135,12 +140,17 @@ export function MonitorInventoryView({ search, onNavigate, onSignedOut }: {
     {loading && <LoadingState>Loading monitor inventory…</LoadingState>}
     {error && <Alert tone="danger">{error}</Alert>}
     {page && <section className="panel" aria-labelledby="inventory-results-title">
-      <SectionHeading title="Inventory" titleId="inventory-results-title" eyebrow={page.total === 0 ? "No matching monitors" :
+      <SectionHeading title="Inventory" titleId="inventory-results-title" eyebrow={page.total === 0 ? filtered ? "No matching monitors" : "No monitors" :
         page.items.length === 0 ? `${page.total} matching monitors on earlier pages` :
           `Showing ${page.offset + 1}–${page.offset + page.items.length} of ${page.total}`} />
-      {page.items.length === 0 ? <EmptyState>{page.total > 0
-        ? "This page is empty. Return to an earlier page." : current.project || current.state || current.type || current.q
-          ? "No monitors match these filters." : "No monitors configured yet."}</EmptyState> :
+      {page.items.length === 0 ? page.total > 0
+        ? <div className="inventory-empty">
+            <EmptyState>This page is past the last result.</EmptyState>
+            <Button onClick={() => onNavigate(destination({ ...current, offset: 0 }))} type="button">Go to the first page</Button>
+          </div>
+        : <InventoryEmpty filtered={filtered} link={link} onNavigate={onNavigate}
+            project={onlyProject ? projects.find((value) => value.key === current.project) : undefined}
+            projects={projects} projectsKnown={projectsKnown} /> :
         <table className="ui-table inventory-table">
           <thead><tr><th scope="col">Monitor and project</th><th scope="col">Purpose</th>
             <th scope="col">Method and cadence</th><th scope="col">State</th>
@@ -159,10 +169,62 @@ export function MonitorInventoryView({ search, onNavigate, onSignedOut }: {
             <td data-label="Next due">{item.next_due_at ? time(item.next_due_at) : "No active deadline"}</td>
           </tr>)}</tbody>
         </table>}
-      <nav aria-label="Inventory pages" className="inventory-pages">
+      {paged && <nav aria-label="Inventory pages" className="inventory-pages">
         <Button disabled={page.offset === 0} onClick={() => onNavigate(destination({ ...current, offset: Math.max(0, page.offset - pageSize) }))} type="button">Previous</Button>
         <Button disabled={!page.has_more} onClick={() => onNavigate(destination({ ...current, offset: page.offset + pageSize }))} type="button">Next</Button>
-      </nav>
+      </nav>}
     </section>}
+  </div>;
+}
+
+/** Explains why the inventory is empty and offers the next useful step. */
+function InventoryEmpty({ filtered, project, projects, projectsKnown, link, onNavigate }: {
+  filtered: boolean;
+  project?: Project;
+  projects: Project[];
+  projectsKnown: boolean;
+  link: (path: string, label: string) => ReactNode;
+  onNavigate: (path: string) => void;
+}) {
+  const [target, setTarget] = useState("");
+  const chosen = target || projects[0]?.key || "";
+
+  if (project) return <div className="inventory-empty">
+    <EmptyState>{project.name} has no monitors yet.</EmptyState>
+    <div className="actions">
+      <Button onClick={() => onNavigate(newMonitorPath(project.key, "http"))} type="button" variant="primary">New HTTP monitor</Button>
+      <Button onClick={() => onNavigate(newMonitorPath(project.key, "push"))} type="button">New push monitor</Button>
+      <Button onClick={() => onNavigate("/monitors")} type="button" variant="subtle">Show all projects</Button>
+    </div>
+  </div>;
+
+  if (filtered) return <div className="inventory-empty">
+    <EmptyState>No monitors match these filters.</EmptyState>
+    <Button onClick={() => onNavigate("/monitors")} type="button">Reset filters</Button>
+  </div>;
+
+  if (projectsKnown && projects.length === 0) return <div className="inventory-empty">
+    <EmptyState>No projects yet. Monitors belong to a project, so create one first.</EmptyState>
+    <Button onClick={() => onNavigate("/projects/new")} type="button" variant="primary">Create a project</Button>
+  </div>;
+
+  if (!projectsKnown) return <div className="inventory-empty">
+    <EmptyState>No monitors configured yet. Open a project from {link("/projects", "Projects")} to add one.</EmptyState>
+  </div>;
+
+  return <div className="inventory-empty">
+    <EmptyState>No monitors configured yet. {projects.length > 1
+      ? "Choose a project and the kind of monitor to create."
+      : `Choose the kind of monitor to create in ${projects[0].name}.`}</EmptyState>
+    <form className="actions inventory-create" onSubmit={(event: FormEvent) => event.preventDefault()}>
+      {projects.length > 1 && <SelectField label="Project for the new monitor" value={chosen}
+        onChange={(event) => setTarget(event.target.value)}>
+        {projects.map((value) => <option key={value.key} value={value.key}>{value.name} · {value.key}</option>)}
+      </SelectField>}
+      <Button onClick={() => onNavigate(newMonitorPath(chosen, "http"))} type="button" variant="primary">
+        {projects.length > 1 ? "New HTTP monitor" : `New HTTP monitor in ${projects[0].name}`}</Button>
+      <Button onClick={() => onNavigate(newMonitorPath(chosen, "push"))} type="button">
+        {projects.length > 1 ? "New push monitor" : `New push monitor in ${projects[0].name}`}</Button>
+    </form>
   </div>;
 }

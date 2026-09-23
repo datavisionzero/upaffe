@@ -27,3 +27,9 @@ it("opens monitor creation without shadowing a monitor keyed new", () => {
   expect(parseRoute("/projects/jobs/push-monitors/new"))
     .toEqual({ kind: "project", projectKey: "jobs", section: "push", monitorKey: "new" });
 });
+
+it("opens a focused configuration edit below the monitor detail", () => {
+  expect(parseRoute("/projects/jobs/http-monitors/site/edit"))
+    .toEqual({ kind: "project", projectKey: "jobs", section: "http", monitorKey: "site", edit: true });
+  expect(parseRoute("/projects/jobs/push-monitors/backup/other").kind).toBe("missing");
+});

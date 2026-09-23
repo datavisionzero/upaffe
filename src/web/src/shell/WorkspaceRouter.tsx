@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import type { components } from "@/api/schema";
 import { Activity, ChevronRight, FolderOpen, Gauge, Globe, Mail, Menu, Radio, Settings, X, type LucideIcon } from "lucide-react";
@@ -15,7 +15,7 @@ import { ProjectOverviewView } from "@/shell/ProjectOverviewView";
 import { ProjectSwitcher } from "@/shell/ProjectSwitcher";
 import { ProjectsView } from "@/shell/ProjectsView";
 import { NewPushMonitorView, PushMonitorsView } from "@/shell/PushMonitorsView";
-import { monitorListPath, monitorPath, newMonitorPath, projectPath, returnPath, useAppRoute, withReturn } from "@/shell/routes";
+import { editMonitorPath, emailTaskPath, monitorListPath, monitorPath, newMonitorPath, projectPath, returnPath, useAppRoute, withReturn } from "@/shell/routes";
 
 type Session = components["schemas"]["CurrentSessionResponse"];
 type Project = components["schemas"]["ProjectResponse"];
@@ -28,6 +28,7 @@ export function WorkspaceRouter({ session, onSignedOut }: {
   const search = path.includes("?") ? path.slice(path.indexOf("?")) : "";
   const projectKey = route.kind === "project" ? route.projectKey : undefined;
   const monitorKey = route.kind === "project" ? route.monitorKey : undefined;
+  const editing = route.kind === "project" && !!route.edit;
   const sectionTitle = route.kind !== "project" ? undefined
     : route.create ? `New ${route.section === "http" ? "HTTP" : "push"} monitor`
     : route.section === "http" ? "HTTP monitors" : route.section === "push" ? "Push monitors" : undefined;
@@ -89,7 +90,7 @@ export function WorkspaceRouter({ session, onSignedOut }: {
   }
 
   useEffect(() => {
-    const title = route.kind === "project" ? monitorKey ?? sectionTitle ?? projectLoad?.project?.name ?? "Project"
+    const title = route.kind === "project" ? (monitorKey && editing ? `Edit ${monitorKey}` : monitorKey) ?? sectionTitle ?? projectLoad?.project?.name ?? "Project"
       : route.kind === "dashboard" ? "Dashboard"
       : route.kind === "inventory" ? "Monitors"
       : route.kind === "settings" ? "Settings"
@@ -112,10 +113,10 @@ export function WorkspaceRouter({ session, onSignedOut }: {
       expiry = window.setTimeout(() => observer?.disconnect(), 5000);
     }, 0);
     return () => { window.clearTimeout(timer); observer?.disconnect(); if (expiry) window.clearTimeout(expiry); };
-  }, [path, route.kind, monitorKey, sectionTitle, projectLoad?.project?.name]);
+  }, [path, route.kind, monitorKey, editing, sectionTitle, projectLoad?.project?.name]);
 
-  function link(path: string, label: string, current: boolean, Icon?: LucideIcon) {
-    return <a aria-current={current ? "page" : undefined} className={Icon ? "sidebar-link" : undefined} href={path}
+  function link(path: string, label: ReactNode, current: boolean, Icon?: LucideIcon, className?: string) {
+    return <a aria-current={current ? "page" : undefined} className={className ?? (Icon ? "sidebar-link" : undefined)} href={path}
       onClick={(event: MouseEvent<HTMLAnchorElement>) => {
         if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
         event.preventDefault();
@@ -138,7 +139,9 @@ export function WorkspaceRouter({ session, onSignedOut }: {
   } else if (route.kind === "inventory") {
     content = <MonitorInventoryView key={search} search={search} onNavigate={navigate} onSignedOut={onSignedOut} />;
   } else if (route.kind === "settings") {
-    content = <InstanceEmailView onBack={() => navigate(returnPath(search, "/projects"))}
+    content = <InstanceEmailView key={route.task} task={route.task}
+      taskLink={(task, label, className) => link(emailTaskPath(task) + search, label, task === route.task, undefined, className)}
+      onBack={() => navigate(returnPath(search, "/projects"))}
       onSignedOut={onSignedOut} />;
   } else if (route.kind === "missing") {
     content = <div className="workspace"><section className="panel">
@@ -175,6 +178,8 @@ export function WorkspaceRouter({ session, onSignedOut }: {
         onBackToList={() => navigate(monitorListPath(project.key, "push"))}
         onCreate={() => navigate(newMonitorPath(project.key, "push"))}
         onOpenHttp={() => navigate(monitorListPath(project.key, "http"))}
+        routeEdit={route.edit}
+        onEditMonitor={(key) => navigate(editMonitorPath(project.key, "push", key))}
         onOpenMonitor={(key) => navigate(monitorPath(project.key, "push", key))}
         onSignedOut={onSignedOut} />;
     } else if (route.create) {
@@ -188,6 +193,8 @@ export function WorkspaceRouter({ session, onSignedOut }: {
         onBackToList={() => navigate(monitorListPath(project.key, "http"))}
         onCreate={() => navigate(newMonitorPath(project.key, "http"))}
         onOpenPush={() => navigate(monitorListPath(project.key, "push"))}
+        routeEdit={route.edit}
+        onEditMonitor={(key) => navigate(editMonitorPath(project.key, "http", key))}
         onOpenMonitor={(key) => navigate(monitorPath(project.key, "http", key))}
         onSignedOut={onSignedOut} />;
     }
@@ -223,7 +230,7 @@ export function WorkspaceRouter({ session, onSignedOut }: {
           {navLink(`${projectPath(route.projectKey)}/settings/email`, "Project email", route.section === "email", Mail)}
         </>}
         <p className="sidebar-label">Instance</p>
-        {navLink(route.kind === "settings" ? "/settings/email" : withReturn("/settings/email", path),
+        {navLink(route.kind === "settings" ? `/settings/email${search}` : withReturn("/settings/email", path),
           "Settings", route.kind === "settings", Settings)}
         </nav>
         <div className="sidebar-footer">
@@ -242,7 +249,7 @@ export function WorkspaceRouter({ session, onSignedOut }: {
           onSwitch={(key) => navigate(projectPath(key))} projects={projectOptions} />
           : <span className="topbar-location">{locationLabel}</span>}
         <AccountMenu email={session.email} error={shellError} signingOut={signingOut}
-          onOpenSettings={() => navigate(route.kind === "settings" ? "/settings/email" : withReturn("/settings/email", path))}
+          onOpenSettings={() => navigate(route.kind === "settings" ? `/settings/email${search}` : withReturn("/settings/email", path))}
           onSignOut={() => void signOut()} />
       </header>
       {route.kind === "project" && <nav aria-label="Breadcrumb" className="breadcrumbs">
@@ -255,7 +262,10 @@ export function WorkspaceRouter({ session, onSignedOut }: {
         {route.section === "push" && <><ChevronRight aria-hidden="true" size={13} />
           {link(monitorListPath(route.projectKey, "push"), "Push monitors", !route.monitorKey && !route.create)}</>}
         {route.create && <><ChevronRight aria-hidden="true" size={13} /><span aria-current="page">New {route.section === "http" ? "HTTP" : "push"} monitor</span></>}
-        {route.monitorKey && <><ChevronRight aria-hidden="true" size={13} /><span aria-current="page">{route.monitorKey}</span></>}
+        {route.monitorKey && <><ChevronRight aria-hidden="true" size={13} />
+          {route.edit ? link(monitorPath(route.projectKey, route.section === "push" ? "push" : "http", route.monitorKey), route.monitorKey, false)
+            : <span aria-current="page">{route.monitorKey}</span>}</>}
+        {route.edit && <><ChevronRight aria-hidden="true" size={13} /><span aria-current="page">Edit</span></>}
       </nav>}
       <main className="workspace-main" id="main-content">{content}</main>
     </div>

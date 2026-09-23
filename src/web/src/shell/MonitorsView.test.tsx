@@ -128,10 +128,14 @@ describe("HTTP monitor administration", () => {
     expect(await screen.findByText("<b>Checks the homepage</b>", { selector: ".monitor-purpose" })).toBeInTheDocument();
     expect(document.querySelector(".monitor-purpose b")).toBeNull();
     const user = userEvent.setup();
+    expect(screen.queryByLabelText("Purpose (optional)")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Edit configuration" }));
+    expect(await screen.findByRole("heading", { name: `Edit ${baseMonitor.name}`, level: 1 })).toBeInTheDocument();
     await user.clear(screen.getByLabelText("Purpose (optional)"));
     await user.click(screen.getByRole("button", { name: "Save configuration" }));
     expect(await screen.findByText(/Purpose not documented/, { selector: ".monitor-purpose" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Add purpose" })).toHaveAttribute("href", "#configuration-title");
+    expect(screen.getByText("Configuration saved.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Add purpose" })).toHaveAttribute("href", "/projects/public-site/http-monitors/homepage/edit");
   });
 
   it("loads old pointer evidence and a deep-linked incident beyond the first history page", async () => {
@@ -368,7 +372,8 @@ describe("HTTP monitor administration", () => {
     await user.click(screen.getByRole("button", { name: "Run test now" }));
     expect(await screen.findByText(/Immediate check: success/)).toBeInTheDocument();
 
-    const name = screen.getByLabelText("Display name");
+    await user.click(screen.getByRole("button", { name: "Edit configuration" }));
+    const name = await screen.findByLabelText("Display name");
     await user.clear(name);
     await user.type(name, "Homepage status");
     await user.type(screen.getByLabelText("Purpose (optional)"), "Checks the site.");
@@ -417,7 +422,7 @@ describe("HTTP monitor administration", () => {
     expect(alert).toHaveTextContent("conflicts with the current state");
     expect(alert).not.toHaveTextContent("must-not-render");
     expect(await screen.findByRole("heading", { name: "Changed elsewhere", level: 1 })).toBeInTheDocument();
-    expect(screen.getByText("2", { selector: "dd" })).toBeInTheDocument();
+    expect(screen.getByText(/Version 2\./)).toBeInTheDocument();
   });
   it("names the inventory, links monitors, and retries a failed read", async () => {
     let fail = true;
@@ -438,6 +443,28 @@ describe("HTTP monitor administration", () => {
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "New HTTP monitor" }));
     expect(onCreate).toHaveBeenCalledOnce();
+  });
+});
+
+describe("HTTP monitor detail hierarchy", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it("puts current evidence and history before administration", async () => {
+    answering((request) => {
+      const path = new URL(request.url).pathname;
+      if (path.endsWith("/http-monitors/homepage")) return json(baseMonitor);
+      return history(request) ?? json({ code: "not_found", title: "ignored", status: 404 }, 404);
+    });
+    render(<MonitorsView onOpenPush={vi.fn()} onSignedOut={vi.fn()} project={project} routeMonitorKey="homepage" />);
+    await screen.findByRole("heading", { name: baseMonitor.name, level: 1 });
+    const order = screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent);
+    const at = (name: string) => order.findIndex((text) => text?.startsWith(name));
+    expect(at("Current facts")).toBeLessThan(at("Check history"));
+    expect(at("Check history")).toBeLessThan(at("Incident history"));
+    expect(at("Incident history")).toBeLessThan(at("Email delivery"));
+    expect(at("Email delivery")).toBeLessThan(at("Secret request headers"));
+    expect(at("Secret request headers")).toBeLessThan(at("Remove monitor"));
+    expect(screen.queryByLabelText("Target URL")).not.toBeInTheDocument();
   });
 });
 

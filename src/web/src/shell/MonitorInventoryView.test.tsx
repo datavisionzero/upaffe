@@ -95,4 +95,53 @@ it("shows a clear empty state for unmatched filters", async () => {
   }));
   render(<App />);
   expect(await screen.findByText("No monitors match these filters.")).toBeInTheDocument();
+  expect(screen.getByText("No matching monitors")).toBeInTheDocument();
+  expect(screen.queryByRole("navigation", { name: "Inventory pages" })).not.toBeInTheDocument();
+  await userEvent.setup().click(screen.getByRole("button", { name: "Reset filters" }));
+  await waitFor(() => expect(window.location.pathname + window.location.search).toBe("/monitors"));
+});
+
+function emptyInventory(projectList: unknown[]) {
+  vi.stubGlobal("fetch", vi.fn<typeof globalThis.fetch>(async (input) => {
+    const path = new URL((input as Request).url).pathname;
+    if (path === "/api/bootstrap") return json({ required: false, available: false });
+    if (path === "/api/session") return json(session);
+    if (path === "/api/projects") return json(projectList);
+    if (path === "/api/monitors") return json({ generated_at: "2026-09-19T12:00:00Z", items: [],
+      total: 0, limit: 25, offset: 0, has_more: false });
+    if (path.endsWith("/report")) return json({});
+    throw new Error(`Unexpected ${path}`);
+  }));
+}
+
+it("sends an instance without projects to project creation", async () => {
+  window.history.replaceState({}, "", "/monitors");
+  emptyInventory([]);
+  render(<App />);
+  expect(await screen.findByText(/No projects yet/)).toBeInTheDocument();
+  expect(screen.queryByText("No matching monitors")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Previous" })).not.toBeInTheDocument();
+  await userEvent.setup().click(screen.getByRole("button", { name: "Create a project" }));
+  expect(window.location.pathname).toBe("/projects/new");
+});
+
+it("creates the first monitor in a chosen project and type", async () => {
+  window.history.replaceState({}, "", "/monitors");
+  emptyInventory(projects);
+  const user = userEvent.setup();
+  render(<App />);
+  expect(await screen.findByText(/No monitors configured yet/)).toBeInTheDocument();
+  expect(screen.getByText("No monitors")).toBeInTheDocument();
+  await user.selectOptions(screen.getByRole("combobox", { name: "Project for the new monitor" }), "public");
+  await user.click(screen.getByRole("button", { name: "New push monitor" }));
+  expect(window.location.pathname).toBe("/projects/public/new-push-monitor");
+});
+
+it("offers creation inside an empty filtered project", async () => {
+  window.history.replaceState({}, "", "/monitors?project=jobs");
+  emptyInventory(projects);
+  render(<App />);
+  expect(await screen.findByText("Jobs has no monitors yet.")).toBeInTheDocument();
+  await userEvent.setup().click(screen.getByRole("button", { name: "New HTTP monitor" }));
+  expect(window.location.pathname).toBe("/projects/jobs/new-http-monitor");
 });

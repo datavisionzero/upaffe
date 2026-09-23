@@ -77,15 +77,36 @@ the new monitor's detail. Creation routes sit beside the inventory rather than
 below it because `new` is a valid monitor key and must remain reachable as a
 detail deep link.
 
+HTTP and push monitor details are ordered for investigation: current state and
+latest evidence with test, refresh, and pause or resume, then check or report
+history, incident history, the selected incident's email status, and delivery.
+Operational controls follow the evidence: maintenance, secret request headers
+or the reporting credential with its one-time handoff, and removal. A compact
+administration row under the current facts links to each of them. Configuration
+is edited on the focused route `/projects/:key/{http,push}-monitors/:monitor/edit`,
+reached from `Edit configuration` or the `Add purpose` prompt, with field
+errors, version-conflict reload, Cancel, and discard protection; saving returns
+to the detail with a confirmation.
+
 The monitor inventory uses compact filters and a dense table on wide screens;
 on narrow screens each result becomes a labeled card without losing evidence or
-links. HTTP and push monitor lists and details share headers, status badges,
+links. Its empty states name the actual situation: an instance without projects
+leads to project creation, an instance without monitors offers HTTP or push
+creation in a chosen project, a project filter over an empty project offers
+creation there, and other filters with no match offer a reset. Pagination
+appears only when there is more than one page. HTTP and push monitor lists and details share headers, status badges,
 alerts, and form styling. Their domain-specific controls and histories remain
 separate: HTTP targets and secret headers, push reporting modes and one-time
 credential handoff, and each monitor's pause, maintenance, and removal actions.
 
 Project administration and email settings use the same compact panels, labeled
 controls, loading and error states, and clear primary or destructive actions.
+Instance email is divided into task routes with local navigation:
+`/settings/email` shows delivery evidence and is where the dashboard's delivery
+link lands, while `/settings/email/relay`, `/password`, `/recipients`, and
+`/test` each hold one form with its own save, field errors, and feedback. The
+`return` destination is kept while moving between tasks, and saving the relay
+or replacing its password links directly to the test task.
 Delivery history keeps relay acceptance separate from inbox delivery. SMTP
 passwords remain write-only in ordinary settings, and test-send feedback says
 when the relay accepted a message without implying inbox receipt. The local

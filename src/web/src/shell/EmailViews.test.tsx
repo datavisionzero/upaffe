@@ -1,9 +1,11 @@
 import { render, screen, within } from "@testing-library/react";
+import { useState, type ReactNode } from "react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DeliveryHistoryPanel, IncidentEmailPanel, MaintenancePanel } from "@/shell/EmailPanels";
 import { InstanceEmailView, ProjectEmailView } from "@/shell/EmailSettingsView";
+import type { EmailTask } from "@/shell/routes";
 
 const project = {
   id: "f0187842-6f73-4c54-8a8c-57ac7c117c39", key: "systems", name: "Systems",
@@ -16,6 +18,15 @@ const delivery = {
   monitor_key: "site", state: "terminal_failure", attempt_count: 5,
   last_error_code: "smtp_timeout", created_at: "2026-09-19T12:00:00Z",
 };
+
+/** Mirrors the router: task links switch the rendered task, which remounts the view. */
+function InstanceEmail({ initial }: { initial: EmailTask }) {
+  const [task, setTask] = useState(initial);
+  const taskLink = (target: EmailTask, label: ReactNode, className?: string) =>
+    <a aria-current={target === task ? "page" : undefined} className={className} href={`/settings/email/${target}`}
+      onClick={(event) => { event.preventDefault(); setTask(target); }}>{label}</a>;
+  return <InstanceEmailView key={task} task={task} taskLink={taskLink} onBack={vi.fn()} onSignedOut={vi.fn()} />;
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -46,20 +57,51 @@ describe("email and maintenance administration", () => {
       return json({ code: "not_found", status: 404 }, 404);
     });
     const user = userEvent.setup();
-    render(<InstanceEmailView onBack={vi.fn()} onSignedOut={vi.fn()} />);
+    render(<InstanceEmail initial="password" />);
+    expect(screen.getByRole("link", { name: "SMTP password" })).toHaveAttribute("aria-current", "page");
+    expect(await screen.findByRole("heading", { name: "SMTP password", level: 2 })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Relay host")).not.toBeInTheDocument();
     await screen.findByText("Password: not configured.", { exact: false });
     await user.type(screen.getByLabelText("New SMTP password"), "private-smtp-password");
     await user.click(screen.getByRole("button", { name: "Replace password" }));
     expect(await screen.findByText("Password: configured.", { exact: false })).toBeInTheDocument();
-    expect(screen.getByText("SMTP password replaced.")).toBeInTheDocument();
+    expect(screen.getByText(/SMTP password replaced\./)).toBeInTheDocument();
     expect(screen.getByLabelText("New SMTP password")).toHaveValue("");
     expect(document.body.textContent).not.toContain("private-smtp-password");
     const passwordRequest = requests.find((request) => new URL(request.url).pathname === "/api/email/password")!;
     expect(passwordRequest.headers.get("X-Upaffe-CSRF")).toBe("1");
     expect(await passwordRequest.clone().json()).toEqual({ version: 2, password: "private-smtp-password" });
+    await user.click(screen.getByRole("link", { name: "Send a test email" }));
+    expect(await screen.findByRole("heading", { name: "Test email", level: 2 })).toBeInTheDocument();
+    expect(screen.queryByText("SMTP password replaced.")).not.toBeInTheDocument();
     await user.type(screen.getByLabelText("Test recipient"), "ops@example.test");
     await user.click(screen.getByRole("button", { name: "Send test email" }));
     expect(await screen.findByText("Accepted by SMTP. Inbox delivery is not confirmed.")).toBeInTheDocument();
+  });
+
+  it("lands on delivery evidence and reaches every task from local navigation", async () => {
+    const fetch = answering((request) => {
+      const path = new URL(request.url).pathname;
+      if (path === "/api/email/deliveries") return json({ items: [delivery], total: 1, limit: 20, offset: 0, has_more: false });
+      if (path === "/api/email/deliveries/summary") return json({ pending_count: 0, retrying_count: 0, terminal_failure_count: 1, smtp_accepted_count: 0 });
+      if (path === "/api/email/settings") return json({ version: 4, host: null, port: null, security: "starttls", sender_address: null, sender_name: null, public_base_url: null, username: null, has_password: false, default_recipients: ["ops@example.test"] });
+      return json({ code: "not_found", status: 404 }, 404);
+    });
+    const user = userEvent.setup();
+    render(<InstanceEmail initial="delivery" />);
+    const nav = screen.getByRole("navigation", { name: "Email tasks" });
+    expect(within(nav).getByRole("link", { name: "Delivery" })).toHaveAttribute("aria-current", "page");
+    expect(await screen.findByRole("region", { name: "Instance email delivery" })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(fetch.mock.calls.some(([request]) => new URL((request as Request).url).pathname === "/api/email/settings")).toBe(false);
+
+    const tasks = () => within(screen.getByRole("navigation", { name: "Email tasks" }));
+    await user.click(tasks().getByRole("link", { name: "Default recipients" }));
+    expect(await screen.findByLabelText("Recipients")).toHaveValue("ops@example.test");
+    expect(screen.queryByRole("region", { name: "Instance email delivery" })).not.toBeInTheDocument();
+    await user.click(tasks().getByRole("link", { name: "Relay settings" }));
+    expect(await screen.findByLabelText("Relay host")).toBeInTheDocument();
+    expect(screen.queryByLabelText("New SMTP password")).not.toBeInTheDocument();
   });
 
   it("refreshes the settings version and keeps a conflict visible", async () => {
@@ -74,7 +116,7 @@ describe("email and maintenance administration", () => {
       return json({ code: "not_found", status: 404 }, 404);
     });
     const user = userEvent.setup();
-    render(<InstanceEmailView onBack={vi.fn()} onSignedOut={vi.fn()} />);
+    render(<InstanceEmail initial="relay" />);
     await screen.findByText("Version 1.", { exact: false });
     await user.click(screen.getByRole("button", { name: "Save SMTP settings" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Refresh and try again");

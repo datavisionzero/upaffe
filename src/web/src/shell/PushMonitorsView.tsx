@@ -12,7 +12,8 @@ import { monitorStateTone } from "@/components/status";
 import { useDiscardGuard } from "@/components/useDiscardGuard";
 import { DeliveryHistoryPanel, IncidentEmailPanel, MaintenancePanel } from "@/shell/EmailPanels";
 import { monitorLink } from "@/shell/deepLink";
-import { monitorPath } from "@/shell/routes";
+import { setFlash, takeFlash } from "@/shell/flash";
+import { editMonitorPath, monitorPath } from "@/shell/routes";
 
 type Project = components["schemas"]["ProjectResponse"];
 type Monitor = components["schemas"]["PushMonitorResponse"];
@@ -31,10 +32,12 @@ type Props = {
   onOpenMonitor?: (key: string) => void;
   onBackToList?: () => void;
   onCreate?: () => void;
+  routeEdit?: boolean;
+  onEditMonitor?: (key: string) => void;
 };
 
 export function PushMonitorsView({ project, onOpenHttp, onSignedOut,
-  routeMonitorKey, onOpenMonitor, onBackToList, onCreate }: Props) {
+  routeMonitorKey, onOpenMonitor, onBackToList, onCreate, routeEdit, onEditMonitor }: Props) {
   const [monitors, setMonitors] = useState<Monitor[]>([]);
   const [selectedKey, setSelectedKey] = useState<string | undefined>(() => {
     if (onOpenMonitor) return undefined;
@@ -42,6 +45,7 @@ export function PushMonitorsView({ project, onOpenHttp, onSignedOut,
     return link?.projectKey === project.key && link.monitorType === "push" ? link.monitorKey : undefined;
   });
   const [creatingInline, setCreatingInline] = useState(false);
+  const [editingInline, setEditingInline] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
 
@@ -84,8 +88,14 @@ export function PushMonitorsView({ project, onOpenHttp, onSignedOut,
   }
 
   const activeKey = routeMonitorKey ?? selectedKey;
+  if (activeKey && (routeEdit || editingInline)) {
+    return <EditPushMonitorView monitorKey={activeKey} project={project} onSignedOut={onSignedOut}
+      onDone={() => { if (routeEdit && onOpenMonitor) onOpenMonitor(activeKey); else setEditingInline(false); }} />;
+  }
   if (activeKey) {
     return <PushMonitorDetail
+      editHref={editMonitorPath(project.key, "push", activeKey)}
+      onEdit={() => { if (onEditMonitor) onEditMonitor(activeKey); else setEditingInline(true); }}
       monitorKey={activeKey}
       onBack={() => { if (onBackToList) onBackToList(); else { setSelectedKey(undefined); void load(); } }}
       onRemoved={() => { if (onBackToList) onBackToList(); else { setSelectedKey(undefined); void load(); } }}
@@ -182,6 +192,84 @@ export function NewPushMonitorView({ project, onCancel, onCreated, onSignedOut }
   </div>;
 }
 
+/** Focused configuration editing; the detail keeps evidence first. */
+export function EditPushMonitorView({ project, monitorKey, onDone, onSignedOut }: {
+  project: Project;
+  monitorKey: string;
+  onDone: () => void;
+  onSignedOut: () => void;
+}) {
+  const [monitor, setMonitor] = useState<Monitor>();
+  const [loading, setLoading] = useState(true);
+  const [pending, setPending] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [error, setError] = useState<string>();
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const firstField = useRef<HTMLInputElement>(null);
+  const guard = useDiscardGuard({ dirty, pending, onLeave: onDone });
+  const paths = useMemo(() => ({ projectKey: project.key, monitorKey }), [monitorKey, project.key]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await api.GET("/api/projects/{projectKey}/push-monitors/{monitorKey}", { params: { path: paths } });
+      if (result.data) setMonitor(result.data);
+      else if (result.response.status === 401) onSignedOut();
+      else setError(problemMessage(result.error, result.response.status));
+    } catch {
+      setError("The push monitor configuration could not be reached.");
+    } finally {
+      setLoading(false);
+    }
+  }, [onSignedOut, paths]);
+
+  useEffect(() => {
+    const start = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(start);
+  }, [load]);
+
+  async function save(body: CreateMonitor | UpdateMonitor) {
+    setPending(true);
+    setError(undefined);
+    setFieldErrors({});
+    try {
+      const result = await api.PUT("/api/projects/{projectKey}/push-monitors/{monitorKey}", {
+        params: { path: paths }, body: body as UpdateMonitor, headers: csrfHeaders,
+      });
+      if (result.data) {
+        setFlash(`push:${project.key}:${monitorKey}`, "Configuration saved.");
+        onDone();
+      } else if (result.response.status === 401) onSignedOut();
+      else {
+        const message = problemMessage(result.error, result.response.status);
+        if (result.response.status === 409) await load();
+        else setFieldErrors(problemFieldErrors(result.error));
+        setError(message);
+      }
+    } catch {
+      setError("The push monitor configuration could not be saved.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  if (loading && !monitor) return <div className="workspace"><LoadingState>Loading push monitor configuration…</LoadingState></div>;
+  if (!monitor) return <div className="workspace panel">
+    <h1>Monitor unavailable</h1>
+    <Alert tone="danger">{error ?? "The push monitor is unavailable."}</Alert>
+    <div className="actions"><Button onClick={() => void load()} type="button">Try again</Button><Button onClick={onDone} type="button">Back to monitor</Button></div>
+  </div>;
+
+  return <div className="workspace monitor-workspace monitor-create-workspace">
+    <PageHeader title={`Edit ${monitor.name}`} detail={`${project.name} · ${monitor.key} · version ${monitor.version}`} />
+    {error && <Alert tone="danger">{error}</Alert>}
+    <PushMonitorForm busy={pending} fieldErrors={fieldErrors} firstField={firstField} key={monitor.version} mode="edit" monitor={monitor}
+      onCancel={guard.cancel} onDirtyChange={setDirty} onSubmit={save} />
+    <DiscardDialog description="Your configuration changes will be lost." onDiscard={onDone}
+      onOpenChange={guard.setOpen} open={guard.open} returnFocus={firstField} title="Discard configuration changes?" />
+  </div>;
+}
+
 type FormProps = {
   busy: boolean;
   mode: "create" | "edit";
@@ -227,7 +315,8 @@ function PushMonitorForm({ busy, mode, monitor, fieldErrors = {}, firstField, on
     {mode === "create" && <TextField autoFocus description="Lowercase letters, numbers, and hyphens. This cannot be changed later."
       error={fieldErrors.key} label="Immutable key" pattern="[a-z][a-z0-9-]{1,39}" placeholder="nightly-backup" ref={firstField}
       required value={key} onChange={(event) => setKey(event.target.value)} />}
-    <TextField error={fieldErrors.name} label="Display name" maxLength={100} required value={name} onChange={(event) => setName(event.target.value)} />
+    <TextField autoFocus={mode === "edit"} error={fieldErrors.name} label="Display name" maxLength={100} ref={mode === "edit" ? firstField : undefined}
+      required value={name} onChange={(event) => setName(event.target.value)} />
     <TextAreaField className="wide-field" description="What this reports, for example “Confirms the nightly backup completes.” Operator instruction below is for investigation steps."
       error={fieldErrors.purpose} label="Purpose (optional)" maxLength={240} rows={2} value={purpose} onChange={(event) => setPurpose(event.target.value)} />
     {mode === "create" && <SelectField error={fieldErrors.mode} label="Reporting mode" value={reportingMode} onChange={(event) => setReportingMode(event.target.value)}>
@@ -249,24 +338,26 @@ function PushMonitorForm({ busy, mode, monitor, fieldErrors = {}, firstField, on
       value={instruction} onChange={(event) => setInstruction(event.target.value)} />
     <TextField className="wide-field" error={fieldErrors.runbook_url} label="Runbook URL" maxLength={2048} type="url"
       value={runbook} onChange={(event) => setRunbook(event.target.value)} />
-    {mode === "create"
-      ? <div className="actions wide-field form-actions">
-          <Button disabled={busy} onClick={onCancel} type="button">Cancel</Button>
-          <Button pending={busy} type="submit" variant="primary">{busy ? "Creating…" : "Create push monitor"}</Button>
-        </div>
-      : <Button disabled={busy} type="submit" variant="primary">{busy ? "Saving…" : "Save configuration"}</Button>}
+    <div className="actions wide-field form-actions">
+      <Button disabled={busy} onClick={onCancel} type="button">Cancel</Button>
+      <Button pending={busy} type="submit" variant="primary">{mode === "create"
+        ? busy ? "Creating…" : "Create push monitor"
+        : busy ? "Saving…" : "Save configuration"}</Button>
+    </div>
   </form>;
 }
 
 type DetailProps = {
   project: Project;
   monitorKey: string;
+  editHref: string;
+  onEdit: () => void;
   onBack: () => void;
   onRemoved: () => void;
   onSignedOut: () => void;
 };
 
-function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: DetailProps) {
+function PushMonitorDetail({ project, monitorKey, editHref, onEdit, onBack, onRemoved, onSignedOut }: DetailProps) {
   const [monitor, setMonitor] = useState<Monitor>();
   const [reports, setReports] = useState<Report[]>([]);
   const [pointerReports, setPointerReports] = useState<Report[]>([]);
@@ -280,7 +371,7 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
-  const [notice, setNotice] = useState<string>();
+  const [notice, setNotice] = useState<string | undefined>(() => takeFlash(`push:${project.key}:${monitorKey}`));
   const [emailIncidentId, setEmailIncidentId] = useState<string | undefined>(() => {
     const link = monitorLink();
     return link?.projectKey === project.key && link.monitorType === "push" && link.monitorKey === monitorKey ? link.incidentId : undefined;
@@ -385,18 +476,6 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
     } finally { setBusy(undefined); }
   }
 
-  async function update(body: CreateMonitor | UpdateMonitor) {
-    setBusy("update"); setError(undefined); setNotice(undefined); setRevealed(undefined);
-    try {
-      const result = await api.PUT("/api/projects/{projectKey}/push-monitors/{monitorKey}", {
-        params: { path: paths }, body: body as UpdateMonitor, headers: csrfHeaders,
-      });
-      if (result.data) { setMonitor(result.data); setNotice("Configuration saved."); }
-      else await failure(result.error, result.response.status);
-    } catch { setError("The push monitor configuration could not be saved."); }
-    finally { setBusy(undefined); }
-  }
-
   async function changeCredential(operation: "issue" | "rotate" | "revoke") {
     setBusy(`credential-${operation}`); setError(undefined); setNotice(undefined); setRevealed(undefined);
     try {
@@ -460,9 +539,17 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
   const overdue = monitor.state !== "paused" && !!monitor.next_deadline_at
     && snapshotAt !== undefined && Date.parse(monitor.next_deadline_at) < snapshotAt;
 
+  const edit = (label: string, className?: string) => <a className={className} href={editHref} onClick={(event) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    onEdit();
+  }}>{label}</a>;
+
   return <div className="workspace monitor-workspace">
-    <PageHeader title={monitor.name} detail={<>{project.key} · {monitor.key} · <span className="monitor-purpose">{monitor.purpose || <>Purpose not documented. <a href="#push-configuration-title">Add purpose</a></>}</span></>}
-      actions={<><StatusBadge tone={monitorStateTone(monitor.state)}>{pushStateLabel(monitor)}</StatusBadge><Button onClick={onBack} type="button">Back to push monitors</Button></>} />
+    <PageHeader title={monitor.name} detail={<>{project.key} · {monitor.key} · <span className="monitor-purpose">{monitor.purpose || <>Purpose not documented. {edit("Add purpose")}</>}</span></>}
+      actions={<><StatusBadge tone={monitorStateTone(monitor.state)}>{pushStateLabel(monitor)}</StatusBadge>
+        <Button onClick={onEdit} type="button">Edit configuration</Button>
+        <Button onClick={onBack} type="button">Back to push monitors</Button></>} />
 
     {error && <Alert tone="danger">{error}</Alert>}
     {notice && <Alert>{notice}</Alert>}
@@ -474,52 +561,25 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
           <Button disabled={busy !== undefined || loading} onClick={() => void load()} type="button">Refresh</Button>
         </div>} />
       <dl className="fact-grid">
-        <Fact label="Mode" value={modeLabel(monitor.mode)} />
         <Fact label="Latest report" value={latest ? `${latest.outcome} · observed ${formatDate(latest.observed_at)} · received ${formatDate(latest.received_at)} · ${latest.reason ?? "no failure reason"}` : monitor.latest_report_id ? "Evidence unavailable" : "No report yet"} />
         <Fact label="Last success" value={lastSuccess ? `Observed ${formatDate(lastSuccess.observed_at)}; received ${formatDate(lastSuccess.received_at)}` : monitor.latest_success_id ? "Evidence unavailable" : "No success yet"} />
-        <Fact label="Last received" value={monitor.last_received_at ? formatDate(monitor.last_received_at) : "Nothing received"} />
-        <Fact label="Next deadline" value={monitor.next_deadline_at ? formatDate(monitor.next_deadline_at) : "No active deadline"} />
-        <Fact label="Reporting at refresh" value={overdue ? "Report deadline passed; missing-report evaluation may still be pending" : monitor.state === "paused" ? "Paused; no active deadline" : "Deadline had not passed"} />
         <Fact label="Open incident" value={openIncident ? `Began ${formatDate(openIncident.began_at)}; opened ${formatDate(openIncident.opened_at)}; latest observation ${formatDate(openIncident.last_observed_at)}; reason ${openIncident.latest_reason}` : monitor.open_incident_id ? "Incident evidence unavailable" : "None"} />
+        <Fact label="Reporting at refresh" value={overdue ? "Report deadline passed; missing-report evaluation may still be pending" : monitor.state === "paused" ? "Paused; no active deadline" : "Deadline had not passed"} />
+        <Fact label="Next deadline" value={monitor.next_deadline_at ? formatDate(monitor.next_deadline_at) : "No active deadline"} />
+        <Fact label="Last received" value={monitor.last_received_at ? formatDate(monitor.last_received_at) : "Nothing received"} />
+        <Fact label="Mode" value={modeLabel(monitor.mode)} />
         <Fact label="Interval + tolerance" value={`${monitor.interval_seconds}s + ${monitor.tolerance_seconds}s`} />
-        <Fact label="Version" value={String(monitor.version)} />
+        <Fact label="Reporting credential" value={monitor.has_reporting_credential ? "Active" : "None issued"} />
       </dl>
       {monitor.instruction && <div className="operator-note"><strong>Operator instruction</strong><p>{monitor.instruction}</p></div>}
       {monitor.runbook_url && <p><a href={monitor.runbook_url} rel="noreferrer" target="_blank">Open runbook</a></p>}
-    </section>
-
-    <MaintenancePanel projectKey={project.key} monitorType="push" monitorKey={monitorKey} onSignedOut={onSignedOut} />
-
-    <section aria-labelledby="push-configuration-title" className="panel">
-      <h2 id="push-configuration-title">Configuration</h2>
-      <PushMonitorForm busy={busy === "update"} key={monitor.version} mode="edit" monitor={monitor} onSubmit={update} />
-    </section>
-
-    <section aria-labelledby="credential-title" className="panel">
-      <h2 id="credential-title">Reporting credential</h2>
-      <p className="muted">This credential can report only to this monitor. Its token and secret URL are available during one handoff only.</p>
-      {revealed && <div className="secret-reveal" role="status">
-        <strong>Save these now — they will not be shown again.</strong>
-        <dl>
-          <Fact label="Reporting token" value={revealed.token} />
-          <Fact label="Secret report URL" value={revealed.report_url} />
-          <Fact label="Previous token valid until" value={revealed.previous_valid_until ? formatDate(revealed.previous_valid_until) : "Not applicable"} />
-        </dl>
-        <Button onClick={() => setRevealed(undefined)} type="button">I have saved them</Button>
-      </div>}
-      {credential ? <>
-        <dl className="fact-grid">
-          <Fact label="Credential ID" value={credential.id} />
-          <Fact label="Created" value={formatDate(credential.created_at)} />
-          <Fact label="Rotated" value={credential.rotated_at ? formatDate(credential.rotated_at) : "Never"} />
-          <Fact label="Status" value={credential.revoked_at ? "Revoked" : "Active"} />
-        </dl>
-        <div className="actions credential-actions">
-          <Button disabled={busy !== undefined} onClick={() => void changeCredential("rotate")} type="button">Rotate and reveal new credential</Button>
-          <Button variant="destructive" disabled={busy !== undefined} onClick={() => void changeCredential("revoke")} type="button">Revoke credential</Button>
-        </div>
-      </> : <EmptyState>No active reporting credential.</EmptyState>}
-      {!credential && <Button disabled={busy !== undefined} onClick={() => void changeCredential("issue")} type="button">Issue reporting credential</Button>}
+      <nav aria-label="Monitor administration" className="admin-links">
+        <span className="muted">Administration:</span>
+        {edit("Configuration", "text-link")}
+        <a className="text-link" href="#maintenance-title">Maintenance</a>
+        <a className="text-link" href="#credential-title">Reporting credential</a>
+        <a className="text-link" href="#push-remove-title">Removal</a>
+      </nav>
     </section>
 
     <section aria-labelledby="push-reports-title" className="panel">
@@ -557,9 +617,38 @@ function PushMonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut
     {emailIncidentId && <IncidentEmailPanel key={emailIncidentId} incidentId={emailIncidentId} monitorType="push" onSignedOut={onSignedOut} />}
     <DeliveryHistoryPanel projectKey={project.key} monitorType="push" monitorKey={monitorKey} onSignedOut={onSignedOut} />
 
+    <MaintenancePanel projectKey={project.key} monitorType="push" monitorKey={monitorKey} onSignedOut={onSignedOut} />
+
+    <section aria-labelledby="credential-title" className="panel">
+      <h2 id="credential-title">Reporting credential</h2>
+      <p className="muted">This credential can report only to this monitor. Its token and secret URL are available during one handoff only.</p>
+      {revealed && <div className="secret-reveal" role="status">
+        <strong>Save these now — they will not be shown again.</strong>
+        <dl>
+          <Fact label="Reporting token" value={revealed.token} />
+          <Fact label="Secret report URL" value={revealed.report_url} />
+          <Fact label="Previous token valid until" value={revealed.previous_valid_until ? formatDate(revealed.previous_valid_until) : "Not applicable"} />
+        </dl>
+        <Button onClick={() => setRevealed(undefined)} type="button">I have saved them</Button>
+      </div>}
+      {credential ? <>
+        <dl className="fact-grid">
+          <Fact label="Credential ID" value={credential.id} />
+          <Fact label="Created" value={formatDate(credential.created_at)} />
+          <Fact label="Rotated" value={credential.rotated_at ? formatDate(credential.rotated_at) : "Never"} />
+          <Fact label="Status" value={credential.revoked_at ? "Revoked" : "Active"} />
+        </dl>
+        <div className="actions credential-actions">
+          <Button disabled={busy !== undefined} onClick={() => void changeCredential("rotate")} type="button">Rotate and reveal new credential</Button>
+          <Button variant="destructive" disabled={busy !== undefined} onClick={() => void changeCredential("revoke")} type="button">Revoke credential</Button>
+        </div>
+      </> : <EmptyState>No active reporting credential.</EmptyState>}
+      {!credential && <Button disabled={busy !== undefined} onClick={() => void changeCredential("issue")} type="button">Issue reporting credential</Button>}
+    </section>
+
     <section aria-labelledby="push-remove-title" className="panel danger-zone">
       <h2 id="push-remove-title">Remove push monitor</h2>
-      <p className="muted">Removal revokes its reporting credential and retains its history and key.</p>
+      <p className="muted">Removal revokes its reporting credential and retains its history and key. Version {monitor.version}.</p>
       <ConfirmDialog confirmLabel="Confirm removal"
         description="The reporting credential is revoked immediately. History and the monitor key are retained."
         onConfirm={() => lifecycle("remove")} pending={busy !== undefined}
