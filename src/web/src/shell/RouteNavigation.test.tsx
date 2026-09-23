@@ -83,7 +83,7 @@ it("returns to a push incident link after sign-in and follows browser history", 
   expect(window.location.search).toBe(`?incident=${incidentId}`);
   await user.click(screen.getByRole("button", { name: "Back to push monitors" }));
   expect(window.location.pathname).toBe("/projects/jobs/push-monitors");
-  await waitFor(() => expect(screen.getByRole("heading", { name: "Jobs" })).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByRole("heading", { name: "Push monitors" })).toBeInTheDocument());
   act(() => { window.history.back(); });
   await waitFor(() => expect(window.location.pathname).toBe("/projects/jobs/push-monitors/backup"));
   expect(await screen.findByRole("heading", { name: "Backup" })).toBeInTheDocument();

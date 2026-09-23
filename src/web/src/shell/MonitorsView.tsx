@@ -1,15 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type RefObject } from "react";
 import type { components } from "@/api/schema";
 
 import { api } from "@/api/client";
-import { csrfHeaders, problemMessage } from "@/api/problems";
+import { csrfHeaders, problemFieldErrors, problemMessage } from "@/api/problems";
 import { Button } from "@/components/Button";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { CheckboxField, SelectField, TextField } from "@/components/Fields";
+import { DiscardDialog } from "@/components/DiscardGuard";
+import { CheckboxField, SelectField, TextAreaField, TextField } from "@/components/Fields";
 import { Alert, EmptyState, LoadingState, PageHeader, SectionHeading, StatusBadge } from "@/components/Presentation";
 import { monitorStateTone } from "@/components/status";
+import { useDiscardGuard } from "@/components/useDiscardGuard";
 import { DeliveryHistoryPanel, IncidentEmailPanel, MaintenancePanel } from "@/shell/EmailPanels";
 import { monitorLink } from "@/shell/deepLink";
+import { monitorPath } from "@/shell/routes";
 
 type Project = components["schemas"]["ProjectResponse"];
 type Monitor = components["schemas"]["HttpMonitorResponse"];
@@ -21,25 +24,25 @@ type TestResult = components["schemas"]["HttpMonitorTestResponse"];
 
 type Props = {
   project: Project;
-  onBack: () => void;
   onOpenPush: () => void;
   onSignedOut: () => void;
   routeMonitorKey?: string;
   onOpenMonitor?: (key: string) => void;
   onBackToList?: () => void;
+  onCreate?: () => void;
 };
 
-export function MonitorsView({ project, onBack, onOpenPush, onSignedOut,
-  routeMonitorKey, onOpenMonitor, onBackToList }: Props) {
+export function MonitorsView({ project, onOpenPush, onSignedOut,
+  routeMonitorKey, onOpenMonitor, onBackToList, onCreate }: Props) {
   const [monitors, setMonitors] = useState<Monitor[]>([]);
   const [selectedKey, setSelectedKey] = useState<string | undefined>(() => {
     if (onOpenMonitor) return undefined;
     const link = monitorLink();
     return link?.projectKey === project.key && link.monitorType === "http" ? link.monitorKey : undefined;
   });
+  const [creatingInline, setCreatingInline] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
-  const [creating, setCreating] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -63,26 +66,20 @@ export function MonitorsView({ project, onBack, onOpenPush, onSignedOut,
     return () => window.clearTimeout(start);
   }, [load]);
 
-  async function create(body: CreateMonitor) {
-    setCreating(true);
-    setError(undefined);
-    try {
-      const result = await api.POST("/api/projects/{projectKey}/http-monitors", {
-        params: { path: { projectKey: project.key } },
-        body,
-        headers: csrfHeaders,
-      });
-      if (result.data) {
-        await load();
-        if (onOpenMonitor) onOpenMonitor(result.data.key);
-        else setSelectedKey(result.data.key);
-      } else if (result.response.status === 401) onSignedOut();
-      else setError(problemMessage(result.error, result.response.status));
-    } catch {
-      setError("The monitor could not be created.");
-    } finally {
-      setCreating(false);
-    }
+  function open(key: string) {
+    if (onOpenMonitor) onOpenMonitor(key);
+    else setSelectedKey(key);
+  }
+
+  function create() {
+    if (onCreate) onCreate();
+    else setCreatingInline(true);
+  }
+
+  if (creatingInline) {
+    return <NewHttpMonitorView project={project} onSignedOut={onSignedOut}
+      onCancel={() => setCreatingInline(false)}
+      onCreated={(key) => { setCreatingInline(false); setSelectedKey(key); void load(); }} />;
   }
 
   const activeKey = routeMonitorKey ?? selectedKey;
@@ -106,34 +103,37 @@ export function MonitorsView({ project, onBack, onOpenPush, onSignedOut,
 
   return (
     <div className="workspace monitor-workspace">
-      <PageHeader title={project.name} detail={`HTTP monitors · ${project.key}`} actions={<>
+      <PageHeader title="HTTP monitors" detail={`${project.name} · ${project.key} · Public endpoints that upaffe checks on a schedule.`} actions={<>
           <Button onClick={onOpenPush} type="button">Push monitors</Button>
-          <Button onClick={onBack} type="button">Back to projects</Button>
+          <Button onClick={create} type="button" variant="primary">New HTTP monitor</Button>
         </>} />
 
-      <section aria-labelledby="monitor-create-title" className="panel">
-        <h2 id="monitor-create-title">Create an HTTP monitor</h2>
-        <MonitorForm busy={creating} mode="create" onSubmit={(body) => create(body as CreateMonitor)} />
-      </section>
-
       <section aria-labelledby="monitor-list-title" className="panel">
-        <SectionHeading title="Monitors" titleId="monitor-list-title" action={<Button disabled={loading} onClick={() => void load()} type="button">Refresh</Button>} />
-        {error && <Alert tone="danger">{error}</Alert>}
+        <SectionHeading title="Inventory" titleId="monitor-list-title" eyebrow={loading || error ? undefined : countLabel(monitors.length)}
+          action={<Button disabled={loading} onClick={() => void load()} type="button">Refresh</Button>} />
+        {error && <Alert tone="danger">{error} <Button onClick={() => void load()} type="button">Try again</Button></Alert>}
         {loading && <LoadingState>Loading monitors…</LoadingState>}
-        {!loading && monitors.length === 0 && <EmptyState>No HTTP monitors yet.</EmptyState>}
+        {!loading && !error && monitors.length === 0 && <div className="inventory-empty">
+          <EmptyState>No HTTP monitors in {project.name} yet. An HTTP monitor checks a public endpoint on a schedule and opens an incident after repeated failures.</EmptyState>
+          <Button onClick={create} type="button" variant="primary">Create the first HTTP monitor</Button>
+        </div>}
         {!loading && monitors.length > 0 && (
           <div className="monitor-list">
             {monitors.map((monitor) => (
               <article className="monitor-card" key={monitor.id}>
                 <div>
                   <StatusBadge tone={monitorStateTone(monitor.state)}>{monitorStateLabel(monitor)}</StatusBadge>
-                  <h3>{monitor.name}</h3>
+                  <h3><a href={monitorPath(project.key, "http", monitor.key)} onClick={(event) => {
+                    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                    event.preventDefault();
+                    open(monitor.key);
+                  }}>{monitor.name}</a></h3>
                   <code>{monitor.key}</code>
                   <p className="muted monitor-target">{monitor.target_url}{monitor.has_target_query ? " · secret query configured" : ""}</p>
                 </div>
                 <div className="monitor-card-actions">
                   <span className="version">version {monitor.version}</span>
-                  <Button onClick={() => onOpenMonitor ? onOpenMonitor(monitor.key) : setSelectedKey(monitor.key)} type="button">Open details</Button>
+                  <Button onClick={() => open(monitor.key)} type="button">Open details</Button>
                 </div>
               </article>
             ))}
@@ -144,16 +144,71 @@ export function MonitorsView({ project, onBack, onOpenPush, onSignedOut,
   );
 }
 
+function countLabel(count: number) {
+  return count === 1 ? "1 HTTP monitor" : `${count} HTTP monitors`;
+}
+
+/** The focused creation workflow; the created monitor opens next. */
+export function NewHttpMonitorView({ project, onCancel, onCreated, onSignedOut }: {
+  project: Project;
+  onCancel: () => void;
+  onCreated: (key: string) => void;
+  onSignedOut: () => void;
+}) {
+  const [pending, setPending] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [error, setError] = useState<string>();
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const firstField = useRef<HTMLInputElement>(null);
+  const guard = useDiscardGuard({ dirty, pending, onLeave: onCancel });
+
+  async function create(body: CreateMonitor) {
+    setPending(true);
+    setError(undefined);
+    setFieldErrors({});
+    try {
+      const result = await api.POST("/api/projects/{projectKey}/http-monitors", {
+        params: { path: { projectKey: project.key } },
+        body,
+        headers: csrfHeaders,
+      });
+      if (result.data) onCreated(result.data.key);
+      else if (result.response.status === 401) onSignedOut();
+      else {
+        setFieldErrors(problemFieldErrors(result.error));
+        setError(`${problemMessage(result.error, result.response.status)} The target URL and secret header values were cleared after sending; enter them again.`);
+      }
+    } catch {
+      setError("The monitor could not be created. The target URL and secret header values were cleared after sending; enter them again.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return <div className="workspace monitor-workspace monitor-create-workspace">
+    <PageHeader title="New HTTP monitor" detail={`${project.name} · ${project.key} · Describe the endpoint, the response that counts as healthy, and when failures open an incident.`} />
+    {error && <Alert tone="danger">{error}</Alert>}
+    <MonitorForm busy={pending} fieldErrors={fieldErrors} firstField={firstField} mode="create"
+      onCancel={guard.cancel} onDirtyChange={setDirty} onSubmit={(body) => create(body as CreateMonitor)} />
+    <DiscardDialog description="The HTTP monitor details you entered, including secret header values, will be lost." onDiscard={onCancel}
+      onOpenChange={guard.setOpen} open={guard.open} returnFocus={firstField} title="Discard new HTTP monitor?" />
+  </div>;
+}
+
 type FormProps = {
   busy: boolean;
   mode: "create" | "edit";
   monitor?: Monitor;
+  fieldErrors?: Record<string, string>;
+  firstField?: RefObject<HTMLInputElement | null>;
+  onCancel?: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
   onSubmit: (body: CreateMonitor | UpdateMonitor) => Promise<void>;
 };
 
 type SecretHeader = { id: number; name: string; value: string };
 
-function MonitorForm({ busy, mode, monitor, onSubmit }: FormProps) {
+function MonitorForm({ busy, mode, monitor, fieldErrors = {}, firstField, onCancel, onDirtyChange, onSubmit }: FormProps) {
   const [key, setKey] = useState("");
   const [name, setName] = useState(monitor?.name ?? "");
   const [purpose, setPurpose] = useState(monitor?.purpose ?? "");
@@ -169,6 +224,14 @@ function MonitorForm({ busy, mode, monitor, onSubmit }: FormProps) {
   const [runbook, setRunbook] = useState(monitor?.runbook_url ?? "");
   const [headers, setHeaders] = useState<SecretHeader[]>([]);
   const nextHeaderID = useRef(0);
+  const dirty = key !== "" || name !== (monitor?.name ?? "") || purpose !== (monitor?.purpose ?? "")
+    || targetUrl !== (mode === "create" ? "" : monitor?.target_url ?? "") || headers.length > 0
+    || expectedStatus !== (monitor?.expected_status_code ?? 200) || textCondition !== (monitor?.text_condition ?? "none")
+    || textFragment !== (monitor?.text_fragment ?? "") || interval !== (monitor?.interval_seconds ?? 60)
+    || timeout !== (monitor?.timeout_seconds ?? 10) || threshold !== (monitor?.failure_threshold ?? 3)
+    || instruction !== (monitor?.instruction ?? "") || runbook !== (monitor?.runbook_url ?? "");
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
+  const numeric = (value: number) => Number.isNaN(value) ? "" : value;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -203,56 +266,43 @@ function MonitorForm({ busy, mode, monitor, onSubmit }: FormProps) {
   return (
     <form className="monitor-form" onSubmit={submit}>
       {mode === "create" && (
-        <TextField label="Immutable key" name="monitor-key" pattern="[a-z][a-z0-9-]{1,39}" placeholder="homepage" required value={key} onChange={(event) => setKey(event.target.value)} />
+        <TextField autoFocus description="Lowercase letters, numbers, and hyphens. This cannot be changed later."
+          error={fieldErrors.key} label="Immutable key" name="monitor-key" pattern="[a-z][a-z0-9-]{1,39}" placeholder="homepage"
+          ref={firstField} required value={key} onChange={(event) => setKey(event.target.value)} />
       )}
-      <TextField label="Display name" maxLength={100} name="monitor-name" required value={name} onChange={(event) => setName(event.target.value)} />
-      <label className="wide-field">
-        <span>Purpose (optional)</span>
-        <textarea aria-describedby="http-purpose-help" aria-label="Purpose (optional)" maxLength={240} rows={2} value={purpose} onChange={(event) => setPurpose(event.target.value)} />
-        <small className="muted" id="http-purpose-help">What this checks, for example “Confirms the public homepage is available.” Operator instruction below is for investigation steps.</small>
-      </label>
+      <TextField error={fieldErrors.name} label="Display name" maxLength={100} name="monitor-name" required value={name} onChange={(event) => setName(event.target.value)} />
+      <TextAreaField className="wide-field" description="What this checks, for example “Confirms the public homepage is available.” Operator instruction below is for investigation steps."
+        error={fieldErrors.purpose} label="Purpose (optional)" maxLength={240} rows={2} value={purpose} onChange={(event) => setPurpose(event.target.value)} />
       {mode === "edit" && (
         <CheckboxField className="wide-field" label={`Replace the complete target URL${monitor?.has_target_query ? " (otherwise preserve its secret query)" : ""}`} checked={replaceTarget} onChange={(event) => setReplaceTarget(event.target.checked)} />
       )}
-      <TextField className="wide-field" label="Target URL" disabled={!replaceTarget} name="target-url" required={replaceTarget} type="url" value={targetUrl} onChange={(event) => setTargetUrl(event.target.value)} />
-      <label>
-        <span>Expected status</span>
-        <input max={599} min={100} required type="number" value={expectedStatus} onChange={(event) => setExpectedStatus(event.target.valueAsNumber)} />
-      </label>
-      <SelectField label="Text condition" value={textCondition} onChange={(event) => setTextCondition(event.target.value)}>
+      <TextField className="wide-field" description={mode === "create" ? "A public http or https address. A query string is stored as a secret and not shown again." : undefined}
+        error={fieldErrors.target_url} label="Target URL" disabled={!replaceTarget} name="target-url" required={replaceTarget} type="url" value={targetUrl} onChange={(event) => setTargetUrl(event.target.value)} />
+      <TextField error={fieldErrors.expected_status_code} label="Expected status" max={599} min={100} required type="number"
+        value={numeric(expectedStatus)} onChange={(event) => setExpectedStatus(event.target.valueAsNumber)} />
+      <SelectField error={fieldErrors.text_condition} label="Text condition" value={textCondition} onChange={(event) => setTextCondition(event.target.value)}>
           <option value="none">No text check</option>
           <option value="required">Fragment required</option>
           <option value="forbidden">Fragment forbidden</option>
       </SelectField>
-      <label>
-        <span>Text fragment</span>
-        <input disabled={textCondition === "none"} maxLength={4096} required={textCondition !== "none"} value={textFragment} onChange={(event) => setTextFragment(event.target.value)} />
-      </label>
-      <label>
-        <span>Interval (seconds)</span>
-        <input max={2592000} min={30} required type="number" value={interval} onChange={(event) => setInterval(event.target.valueAsNumber)} />
-      </label>
-      <label>
-        <span>Timeout (seconds)</span>
-        <input max={60} min={1} required type="number" value={timeout} onChange={(event) => setTimeoutValue(event.target.valueAsNumber)} />
-      </label>
-      <label>
-        <span>Failures before incident</span>
-        <input max={100} min={1} required type="number" value={threshold} onChange={(event) => setThreshold(event.target.valueAsNumber)} />
-      </label>
-      <label className="wide-field">
-        <span>Operator instruction</span>
-        <textarea maxLength={1000} value={instruction} onChange={(event) => setInstruction(event.target.value)} />
-      </label>
-      <label className="wide-field">
-        <span>Runbook URL</span>
-        <input maxLength={2048} type="url" value={runbook} onChange={(event) => setRunbook(event.target.value)} />
-      </label>
+      <TextField disabled={textCondition === "none"} error={fieldErrors.text_fragment} label="Text fragment" maxLength={4096}
+        required={textCondition !== "none"} value={textFragment} onChange={(event) => setTextFragment(event.target.value)} />
+      <TextField error={fieldErrors.interval_seconds} label="Interval (seconds)" max={2592000} min={30} required type="number"
+        value={numeric(interval)} onChange={(event) => setInterval(event.target.valueAsNumber)} />
+      <TextField error={fieldErrors.timeout_seconds} label="Timeout (seconds)" max={60} min={1} required type="number"
+        value={numeric(timeout)} onChange={(event) => setTimeoutValue(event.target.valueAsNumber)} />
+      <TextField error={fieldErrors.failure_threshold} label="Failures before incident" max={100} min={1} required type="number"
+        value={numeric(threshold)} onChange={(event) => setThreshold(event.target.valueAsNumber)} />
+      <TextAreaField className="wide-field" error={fieldErrors.instruction} label="Operator instruction" maxLength={1000}
+        value={instruction} onChange={(event) => setInstruction(event.target.value)} />
+      <TextField className="wide-field" error={fieldErrors.runbook_url} label="Runbook URL" maxLength={2048} type="url"
+        value={runbook} onChange={(event) => setRunbook(event.target.value)} />
 
       {mode === "create" && (
         <fieldset className="secret-fields wide-field">
           <legend>Secret request headers</legend>
           <p className="muted">Values are submitted once and never returned.</p>
+          {fieldErrors.headers && <p className="ui-field-error" role="alert">{fieldErrors.headers}</p>}
           {headers.map((header, index) => (
             <div className="header-row" key={header.id}>
               <label>
@@ -269,7 +319,12 @@ function MonitorForm({ busy, mode, monitor, onSubmit }: FormProps) {
           <Button onClick={() => setHeaders((current) => [...current, { id: ++nextHeaderID.current, name: "", value: "" }])} type="button">Add secret header</Button>
         </fieldset>
       )}
-      <Button disabled={busy} type="submit" variant="primary">{busy ? "Saving…" : mode === "create" ? "Create monitor" : "Save configuration"}</Button>
+      {mode === "create"
+        ? <div className="actions wide-field form-actions">
+            <Button disabled={busy} onClick={onCancel} type="button">Cancel</Button>
+            <Button pending={busy} type="submit" variant="primary">{busy ? "Creating…" : "Create HTTP monitor"}</Button>
+          </div>
+        : <Button disabled={busy} type="submit" variant="primary">{busy ? "Saving…" : "Save configuration"}</Button>}
     </form>
   );
 }
@@ -346,8 +401,8 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
         setPointerChecks(checkEvidence.flatMap((result) => result.data ? [result.data] : []));
         setIncidents(incidentPage.data.items);
         setPointerIncidents(incidentEvidence.flatMap((result) => result.data ? [result.data] : []));
-        setNextCheckCursor(checkPage.data.next_before_sequence);
-        setNextIncidentCursor(incidentPage.data.next_before_opening_sequence);
+        setNextCheckCursor(checkPage.data.next_before_sequence ?? null);
+        setNextIncidentCursor(incidentPage.data.next_before_opening_sequence ?? null);
         const unavailable = [...checkEvidence, ...incidentEvidence].find((result) =>
           !result.data && result.response.status !== 404);
         if (unavailable) setError(problemMessage(unavailable.error, unavailable.response.status));
@@ -487,7 +542,7 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
       });
       if (result.data) {
         setChecks((current) => [...current, ...result.data!.items]);
-        setNextCheckCursor(result.data.next_before_sequence);
+        setNextCheckCursor(result.data.next_before_sequence ?? null);
       } else await mutationFailure(result.error, result.response.status);
     } catch {
       setError("Older checks could not be reached.");
@@ -506,7 +561,7 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
       });
       if (result.data) {
         setIncidents((current) => [...current, ...result.data!.items]);
-        setNextIncidentCursor(result.data.next_before_opening_sequence);
+        setNextIncidentCursor(result.data.next_before_opening_sequence ?? null);
       } else await mutationFailure(result.error, result.response.status);
     } catch {
       setError("Older incidents could not be reached.");
@@ -536,7 +591,7 @@ function MonitorDetail({ project, monitorKey, onBack, onRemoved, onSignedOut }: 
     incident.id === monitor.open_incident_id);
   const linkedIncident = [...incidents, ...pointerIncidents].find((incident) =>
     incident.id === emailIncidentId);
-  const overdue = monitor.state !== "paused" && monitor.next_check_at !== null
+  const overdue = monitor.state !== "paused" && !!monitor.next_check_at
     && snapshotAt !== undefined && Date.parse(monitor.next_check_at) < snapshotAt;
 
   return (

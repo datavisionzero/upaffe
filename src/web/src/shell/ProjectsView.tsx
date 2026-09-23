@@ -175,7 +175,9 @@ type RowProps = {
 function ProjectRow({ project, busy, onNavigate, onMutate }: RowProps) {
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(project.name);
-  const isDeleted = project.deleted_at !== null;
+  // The API omits absent timestamps, so a live project has no deletion time at all.
+  const isDeleted = project.deleted_at != null;
+  const deletedAt = isDeleted ? Date.parse(project.deleted_at!) : NaN;
   const working = busy?.endsWith(`:${project.key}`) ?? false;
 
   function open(event: MouseEvent<HTMLAnchorElement>) {
@@ -193,7 +195,7 @@ function ProjectRow({ project, busy, onNavigate, onMutate }: RowProps) {
       <span className="version">version {project.version}</span>
     </div>
     {isDeleted ? <div className="actions">
-      <span className="muted">Deleted {new Date(project.deleted_at!).toLocaleString()}</span>
+      <span className="muted">{Number.isNaN(deletedAt) ? "Deleted" : `Deleted ${new Date(deletedAt).toLocaleString()}`}</span>
       <Button disabled={working} onClick={() => void onMutate(project, "restore")} pending={busy === `restore:${project.key}`} type="button">Restore</Button>
     </div> : <>
       <p className="project-summary">Open this project to manage its monitors, maintenance, and email delivery.</p>

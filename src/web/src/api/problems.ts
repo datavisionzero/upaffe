@@ -31,4 +31,12 @@ export function problemMessage(error: unknown, status: number): string {
   return `The instance refused the request (HTTP ${status}).`;
 }
 
+/** The first stable message for each submitted field, keyed by request field name. */
+export function problemFieldErrors(error: unknown): Record<string, string> {
+  const errors = record(record(error)?.errors);
+  if (!errors) return {};
+  return Object.fromEntries(Object.entries(errors).flatMap(([field, messages]) =>
+    Array.isArray(messages) && typeof messages[0] === "string" ? [[field, messages[0]]] : []));
+}
+
 export const csrfHeaders = { "X-Upaffe-CSRF": "1" } as const;

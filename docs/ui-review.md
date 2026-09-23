@@ -33,8 +33,9 @@ npm run build
 The visual suite intercepts the API with invented `.test` addresses and monitor
 data. Checked-in macOS and Linux baselines cover the complete shell for the
 dashboard and project overview, the account menu, mobile drawer, project
-inventory and creation form, destructive confirmation, and empty, failure, and
-pending states. Review every changed image before updating baselines with:
+inventory and creation form, HTTP and push monitor inventories and creation
+forms, destructive confirmation, and empty, failure, and pending states. Review
+every changed image before updating baselines with:
 
 ```sh
 npm run test:visual -- --update-snapshots
@@ -51,8 +52,10 @@ overflow at each size:
 | New project | Bounded form, discard protection, field errors, and pending submission |
 | Project overview | Counts, attention, healthy monitors, project context |
 | Monitor inventory | Search/filter form, table and narrow labeled cards |
-| HTTP monitors | Create form, monitor list, and deep-linked detail |
-| Push monitors | Both reporting modes, list, and deep-linked detail |
+| HTTP monitors | Inventory before creation, empty and error states, and deep-linked detail |
+| New HTTP monitor | Bounded form, write-only secret headers, field errors, Cancel, and discard protection |
+| Push monitors | Inventory before creation, empty and error states, and deep-linked detail |
+| New push monitor | Both reporting modes, field errors, Cancel, and discard protection |
 | Instance email | SMTP, write-only password, defaults, test recipient |
 | Project email | Recipients, maintenance, delivery history |
 
@@ -61,8 +64,9 @@ The 720px case checks reflow at the CSS width of a 1440px window viewed at
 failure at 360px. Vitest explicitly verifies System follows OS changes until an
 explicit choice is stored, plus cross-tab synchronization. It also covers
 pending/error/empty states, version conflicts, deep links, account and project
-menu keyboard behavior, drawer focus return, destructive dialogs, project
-discard protection, credential handoff, secret clearing, and API requests.
+menu keyboard behavior, drawer focus return, destructive dialogs, project and
+monitor discard protection, credential handoff, secret clearing, and API
+requests.
 
 Playwright loads every authenticated route at all four widths in both
 appearances and fails on horizontal overflow. The same suite runs axe-core WCAG

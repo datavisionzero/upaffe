@@ -48,7 +48,10 @@ The Projects route is an inventory rather than a combined creation screen. Its
 search, Live/Deleted state, sort, and order are URL parameters so reload, Back,
 and shared links preserve the view. Project names are the primary navigation
 target; rename and confirmed deletion are secondary actions, while restoration
-is immediate. `/projects/new` is a bounded single-column workflow with
+is immediate. A project is deleted only when its response carries a deletion
+time: the API omits absent values rather than sending `null`, so the web client
+treats a missing and a null value alike, here and for history cursors and
+other optional facts, and never renders an unparseable time. `/projects/new` is a bounded single-column workflow with
 field-level errors, a pending state, and typed-input discard protection.
 
 Dashboard and project overviews use compact page and section headers, dense
@@ -58,6 +61,21 @@ health, and email acceptance is described separately from inbox delivery.
 The brand accent has a darker light-theme text companion so small links and
 labels remain readable on warm surfaces; health and warning colors have their
 own tokens. Long purpose and operator guidance text wraps within cards.
+
+A project's HTTP and push monitor routes are inventories first: the page
+header names the inventory and carries the primary `New HTTP monitor` or `New
+push monitor` action, followed by the monitor list or its loading,
+error-with-retry, or empty state. Monitor names link to their detail routes.
+Creation is the focused route `/projects/:key/new-http-monitor` or
+`/projects/:key/new-push-monitor`, a bounded single-column form with
+field-level errors, a pending state, Cancel, and typed-input discard
+protection; success opens the new monitor. The HTTP form keeps its secret
+request headers write-only and clears the target URL and header values as soon
+as they are sent, so a refused submission asks for them again. The push form
+explains both reporting modes; its one-time reporting credential is issued from
+the new monitor's detail. Creation routes sit beside the inventory rather than
+below it because `new` is a valid monitor key and must remain reachable as a
+detail deep link.
 
 The monitor inventory uses compact filters and a dense table on wide screens;
 on narrow screens each result becomes a labeled card without losing evidence or

@@ -121,7 +121,7 @@ export function DashboardView({ onNavigate, onSignedOut }: {
           <div className="project-summary-list">
             {overview.projects.map((project) => <ProjectSummary key={project.key}
               project={project} hasOpenIncident={overview.attention.some((monitor) =>
-                monitor.project_key === project.key && monitor.incident_id !== null)} link={link} />)}
+                monitor.project_key === project.key && !!monitor.incident_id)} link={link} />)}
           </div>
         </section>
       </div>

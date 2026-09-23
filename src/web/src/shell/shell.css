@@ -52,6 +52,9 @@
 .account-error { max-width: min(22rem, 42vw); margin: 0; overflow-wrap: anywhere; color: var(--danger-ink); font-size: 0.75rem; }
 .workspace-main { box-sizing: border-box; width: 100%; max-width: 82rem; margin: 0 auto; padding: 1.5rem; }
 .workspace-layout .workspace { width: 100%; max-width: none; }
+/* Focused creation routes stay a readable single column inside the shell. */
+.workspace-layout .new-project-workspace,
+.workspace-layout .monitor-create-workspace { max-width: 42rem; margin: 0; }
 .workspace-layout .breadcrumbs {
   display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem; box-sizing: border-box;
   width: 100%; max-width: 82rem; margin: 0 auto; padding: 0.65rem 1.5rem 0;
